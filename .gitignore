@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+outputs/transcriptions/*
+!outputs/transcriptions/.gitkeep
+models/whisper.cpp/*.bin
+.DS_Store

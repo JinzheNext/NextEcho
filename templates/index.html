@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Transcription Workbench</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">LOCAL · PRIVATE · REPLAYABLE</p>
+      <h1>本地转写工作台</h1>
+      <p class="lede">把音频、视频或远程链接放进来，得到一份可复现的素材包：原文件、标准音频、全文、字幕和结构化 JSON。</p>
+    </section>
+
+    <section class="panel">
+      <form id="transcribe-form">
+        <label class="dropzone" for="files">
+          <input id="files" name="files" type="file" multiple accept="audio/*,video/*">
+          <strong>选择本地文件</strong>
+          <span>支持 mp3 / mp4 / m4a / wav / flac / aac / mov / webm</span>
+        </label>
+
+        <label>
+          <span>远程媒体链接</span>
+          <textarea name="urls" rows="4" placeholder="每行一个 URL；直链媒体或 yt-dlp 支持的页面都可以"></textarea>
+        </label>
+
+        <div class="grid">
+          <label>
+            <span>模型</span>
+            <input name="model" value="{{ default_model }}">
+          </label>
+          <label>
+            <span>语言</span>
+            <input name="language" value="zh">
+          </label>
+          <label>
+            <span>最长秒数</span>
+            <input name="max_seconds" type="number" min="0" value="0">
+          </label>
+        </div>
+
+        <button type="submit">开始转写</button>
+      </form>
+    </section>
+
+    <section class="panel result-panel">
+      <div class="section-head">
+        <h2>本次结果</h2>
+        <span id="status">等待输入</span>
+      </div>
+      <div id="results" class="results empty">还没有任务。</div>
+    </section>
+
+    <section class="panel runs-panel">
+      <div class="section-head">
+        <h2>最近运行</h2>
+      </div>
+      <div id="runs" class="runs"></div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
