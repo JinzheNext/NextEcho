@@ -16,6 +16,10 @@ from workbench.transcription import DEFAULT_MODEL_NAME, transcribe_media_sources
 ROOT = Path(__file__).resolve().parent
 RUNS_ROOT = ROOT / "outputs" / "transcriptions"
 ALLOWED_EXTENSIONS = {".mp3", ".mp4", ".m4a", ".wav", ".flac", ".aac", ".mov", ".webm"}
+QUALITY_TO_MODEL = {
+    "accurate": DEFAULT_MODEL_NAME,
+    "fast": "base",
+}
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
@@ -41,6 +45,16 @@ def serialize_result(payload: dict) -> dict:
     return {
         "run_id": output_dir.name,
         "output_dir": str(output_dir),
+        "manifest": manifest,
+    }
+
+
+def serialize_run(run_dir: Path) -> dict:
+    manifest_path = run_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return {
+        "run_id": run_dir.name,
+        "output_dir": str(run_dir),
         "manifest": manifest,
     }
 
@@ -91,18 +105,16 @@ def run_transcription_job(
 
 @app.get("/")
 def index():
-    return render_template("index.html", default_model=DEFAULT_MODEL_NAME)
+    return render_template("index.html")
 
 
 @app.post("/api/transcribe")
 def transcribe():
     urls = parse_urls(request.form.get("urls", ""))
-    model = request.form.get("model", DEFAULT_MODEL_NAME).strip() or DEFAULT_MODEL_NAME
-    language = request.form.get("language", "zh").strip() or "zh"
-    try:
-        max_seconds = int(request.form.get("max_seconds", "0"))
-    except ValueError:
-        return jsonify({"error": "max_seconds must be an integer"}), 400
+    quality = request.form.get("quality", "accurate").strip() or "accurate"
+    model = QUALITY_TO_MODEL.get(quality, DEFAULT_MODEL_NAME)
+    language = "auto"
+    max_seconds = 0
 
     run_id = f"run_{now_slug()}_{uuid4().hex[:8]}"
     run_dir = RUNS_ROOT / run_id
@@ -159,9 +171,18 @@ def list_runs():
                 "generated_at": manifest.get("generated_at"),
                 "item_count": len(manifest.get("results", [])),
                 "model_name": manifest.get("model_name"),
+                "quality": "更快" if manifest.get("model_name") == "base" else "高精度",
             }
         )
     return jsonify({"runs": runs[:20]})
+
+
+@app.get("/api/runs/<run_id>")
+def get_run(run_id: str):
+    run_dir = (RUNS_ROOT / run_id).resolve()
+    if RUNS_ROOT.resolve() not in run_dir.parents or not (run_dir / "manifest.json").exists():
+        return jsonify({"error": "run not found"}), 404
+    return jsonify(serialize_run(run_dir))
 
 
 @app.get("/artifacts/<run_id>/<path:artifact_path>")

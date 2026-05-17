@@ -5,6 +5,8 @@ const runsEl = document.querySelector('#runs');
 const progressShellEl = document.querySelector('#progress-shell');
 const progressBarEl = document.querySelector('#progress-bar');
 const progressCopyEl = document.querySelector('#progress-copy');
+const filesInputEl = document.querySelector('#files');
+const fileSummaryEl = document.querySelector('#file-summary');
 
 function artifactLink(runId, absolutePath) {
   const marker = `/outputs/transcriptions/${runId}/`;
@@ -48,10 +50,10 @@ async function loadRuns() {
   const response = await fetch('/api/runs');
   const payload = await response.json();
   runsEl.innerHTML = payload.runs.map((run) => `
-    <article class="run-row">
+    <button class="run-row" data-run-id="${run.run_id}" type="button">
       <strong>${run.run_id}</strong>
-      <span>${run.item_count} 条 · ${run.model_name}</span>
-    </article>
+      <span>${run.item_count} 条 · ${run.quality}</span>
+    </button>
   `).join('') || '<p class="muted">暂无历史运行。</p>';
 }
 
@@ -104,6 +106,29 @@ form.addEventListener('submit', async (event) => {
   } finally {
     submitButton.disabled = false;
   }
+});
+
+filesInputEl.addEventListener('change', () => {
+  const files = [...filesInputEl.files];
+  fileSummaryEl.textContent = files.length
+    ? `已选择 ${files.length} 个文件：${files.map((file) => file.name).join('、')}`
+    : '支持 mp3 / mp4 / m4a / wav / flac / aac / mov / webm';
+});
+
+runsEl.addEventListener('click', async (event) => {
+  const row = event.target.closest('[data-run-id]');
+  if (!row) return;
+  const response = await fetch(`/api/runs/${row.dataset.runId}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    statusEl.textContent = '加载失败';
+    resultsEl.textContent = payload.error || '无法打开历史运行';
+    return;
+  }
+  statusEl.textContent = '历史结果';
+  progressShellEl.classList.add('hidden');
+  progressCopyEl.classList.add('hidden');
+  renderResults(payload);
 });
 
 loadRuns();

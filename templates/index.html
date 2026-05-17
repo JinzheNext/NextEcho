@@ -19,7 +19,7 @@
         <label class="dropzone" for="files">
           <input id="files" name="files" type="file" multiple accept="audio/*,video/*">
           <strong>选择本地文件</strong>
-          <span>支持 mp3 / mp4 / m4a / wav / flac / aac / mov / webm</span>
+          <span id="file-summary">支持 mp3 / mp4 / m4a / wav / flac / aac / mov / webm</span>
         </label>
 
         <label>
@@ -29,16 +29,11 @@
 
         <div class="grid">
           <label>
-            <span>模型</span>
-            <input name="model" value="{{ default_model }}">
-          </label>
-          <label>
-            <span>语言</span>
-            <input name="language" value="zh">
-          </label>
-          <label>
-            <span>最长秒数</span>
-            <input name="max_seconds" type="number" min="0" value="0">
+            <span>识别精度</span>
+            <select name="quality">
+              <option value="accurate" selected>高精度（推荐）</option>
+              <option value="fast">更快</option>
+            </select>
           </label>
         </div>
 

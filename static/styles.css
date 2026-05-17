@@ -32,7 +32,7 @@ h1 { margin: 8px 0; font-size: clamp(32px, 5vw, 48px); line-height: 1.05; }
   backdrop-filter: blur(12px);
 }
 label { display: grid; gap: 8px; color: var(--muted); }
-textarea, input {
+textarea, input, select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -49,7 +49,7 @@ textarea, input {
 }
 .dropzone input { display: none; }
 .dropzone strong { color: var(--text); }
-.grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-top: 16px; }
+.grid { display: grid; grid-template-columns: minmax(220px, 320px); gap: 12px; margin-top: 16px; }
 button {
   margin-top: 18px;
   border: 0;
@@ -92,6 +92,17 @@ button:disabled { opacity: .55; cursor: wait; }
   padding: 14px 0;
   border-top: 1px solid var(--line);
 }
+.run-row {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+}
+.run-row:hover { color: #c4b5fd; }
 .result-card:first-child, .run-row:first-child { border-top: 0; }
 .result-card p { margin: 2px 0 0; color: var(--muted); }
 nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
