@@ -2,6 +2,9 @@ const form = document.querySelector('#transcribe-form');
 const statusEl = document.querySelector('#status');
 const resultsEl = document.querySelector('#results');
 const runsEl = document.querySelector('#runs');
+const progressShellEl = document.querySelector('#progress-shell');
+const progressBarEl = document.querySelector('#progress-bar');
+const progressCopyEl = document.querySelector('#progress-copy');
 
 function artifactLink(runId, absolutePath) {
   const marker = `/outputs/transcriptions/${runId}/`;
@@ -47,13 +50,36 @@ async function loadRuns() {
   `).join('') || '<p class="muted">暂无历史运行。</p>';
 }
 
+function updateProgress(job) {
+  progressShellEl.classList.remove('hidden');
+  progressCopyEl.classList.remove('hidden');
+  progressBarEl.style.width = `${job.progress ?? 0}%`;
+  progressCopyEl.textContent = `${job.message || '处理中'} · ${job.progress ?? 0}%`;
+}
+
+async function waitForJob(jobId) {
+  while (true) {
+    const response = await fetch(`/api/jobs/${jobId}`);
+    const job = await response.json();
+    if (!response.ok) throw new Error(job.error || '无法读取任务状态');
+    updateProgress(job);
+    if (job.status === 'completed') return job.result;
+    if (job.status === 'failed') throw new Error(job.error || job.message || '转写失败');
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const submitButton = form.querySelector('button');
   submitButton.disabled = true;
   statusEl.textContent = '转写中…';
+  progressShellEl.classList.remove('hidden');
+  progressCopyEl.classList.remove('hidden');
+  progressBarEl.style.width = '0%';
+  progressCopyEl.textContent = '任务已创建 · 0%';
   resultsEl.classList.add('empty');
-  resultsEl.textContent = '任务正在运行，长音频会花一些时间。';
+  resultsEl.textContent = '任务正在运行。';
 
   try {
     const response = await fetch('/api/transcribe', {
@@ -62,8 +88,9 @@ form.addEventListener('submit', async (event) => {
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || '转写失败');
+    const result = await waitForJob(payload.job_id);
     statusEl.textContent = '已完成';
-    renderResults(payload);
+    renderResults(result);
     await loadRuns();
   } catch (error) {
     statusEl.textContent = '失败';

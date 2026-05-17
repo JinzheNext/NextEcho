@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-import tempfile
+import shutil
+from threading import Lock, Thread
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable
@@ -18,6 +19,8 @@ ALLOWED_EXTENSIONS = {".mp3", ".mp4", ".m4a", ".wav", ".flac", ".aac", ".mov", "
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
+JOBS: dict[str, dict] = {}
+JOBS_LOCK = Lock()
 
 
 def now_slug() -> str:
@@ -42,7 +45,7 @@ def serialize_result(payload: dict) -> dict:
     }
 
 
-def save_uploads(files: Iterable, temp_dir: Path) -> list[str]:
+def save_uploads(files: Iterable, inbox_dir: Path) -> list[str]:
     sources: list[str] = []
     for file in files:
         filename = secure_filename(file.filename or "")
@@ -50,10 +53,40 @@ def save_uploads(files: Iterable, temp_dir: Path) -> list[str]:
             continue
         if not allowed_file(filename):
             raise ValueError(f"Unsupported file type: {filename}")
-        target = temp_dir / filename
+        target = inbox_dir / filename
         file.save(target)
         sources.append(str(target))
     return sources
+
+
+def update_job(job_id: str, **fields: object) -> None:
+    with JOBS_LOCK:
+        JOBS[job_id].update(fields)
+
+
+def run_transcription_job(
+    job_id: str,
+    sources: list[str],
+    run_dir: Path,
+    model: str,
+    language: str,
+    max_seconds: int,
+) -> None:
+    def on_progress(event: dict) -> None:
+        update_job(job_id, **event)
+
+    try:
+        payload = transcribe_media_sources(
+            sources,
+            output_dir=run_dir,
+            model_name=model,
+            language=language,
+            max_seconds=max_seconds,
+            progress_callback=on_progress,
+        )
+        update_job(job_id, status="completed", result=serialize_result(payload), progress=100, stage="complete", message="转写完成")
+    except Exception as exc:  # local operator tool: surface exact failure
+        update_job(job_id, status="failed", stage="failed", message=str(exc), error=str(exc))
 
 
 @app.get("/")
@@ -71,30 +104,48 @@ def transcribe():
     except ValueError:
         return jsonify({"error": "max_seconds must be an integer"}), 400
 
-    with tempfile.TemporaryDirectory() as temp_name:
-        temp_dir = Path(temp_name)
-        try:
-            uploaded_sources = save_uploads(request.files.getlist("files"), temp_dir)
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+    run_id = f"run_{now_slug()}_{uuid4().hex[:8]}"
+    run_dir = RUNS_ROOT / run_id
+    inbox_dir = run_dir / "inbox"
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        uploaded_sources = save_uploads(request.files.getlist("files"), inbox_dir)
+    except ValueError as exc:
+        shutil.rmtree(run_dir, ignore_errors=True)
+        return jsonify({"error": str(exc)}), 400
 
-        sources = [*uploaded_sources, *urls]
-        if not sources:
-            return jsonify({"error": "Please add at least one local file or remote URL."}), 400
+    sources = [*uploaded_sources, *urls]
+    if not sources:
+        shutil.rmtree(run_dir, ignore_errors=True)
+        return jsonify({"error": "Please add at least one local file or remote URL."}), 400
 
-        run_dir = RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}"
-        try:
-            payload = transcribe_media_sources(
-                sources,
-                output_dir=run_dir,
-                model_name=model,
-                language=language,
-                max_seconds=max_seconds,
-            )
-        except Exception as exc:  # local operator tool: surface exact failure
-            return jsonify({"error": str(exc)}), 500
+    job_id = uuid4().hex
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "job_id": job_id,
+            "run_id": run_id,
+            "status": "running",
+            "stage": "queued",
+            "message": "任务已创建",
+            "progress": 0,
+            "result": None,
+            "error": "",
+        }
+    Thread(
+        target=run_transcription_job,
+        args=(job_id, sources, run_dir, model, language, max_seconds),
+        daemon=True,
+    ).start()
+    return jsonify({"job_id": job_id, "run_id": run_id}), 202
 
-    return jsonify(serialize_result(payload))
+
+@app.get("/api/jobs/<job_id>")
+def job_status(job_id: str):
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if job is None:
+            return jsonify({"error": "job not found"}), 404
+        return jsonify(job)
 
 
 @app.get("/api/runs")

@@ -22,6 +22,14 @@ python app.py
 
 > 需要本机已安装 `ffmpeg`、`whisper-cli`；如输入网页媒体链接，还需要 `yt-dlp`。
 
+如果你已经有 Whisper 模型，可以直接复用，不必重新下载：
+
+```bash
+export TRANSCRIBE_MODEL_DIR=/path/to/your/whisper-models
+```
+
+程序会优先寻找显式模型路径、`TRANSCRIBE_MODEL_DIR` / `WHISPER_MODEL_DIR`，再看项目本地模型目录；都没有时才下载。
+
 ## 目录产物
 
 ```text

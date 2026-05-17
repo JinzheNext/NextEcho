@@ -10,13 +10,16 @@ import time
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TRANSCRIPTION_ROOT = ROOT / "outputs" / "transcriptions"
 DEFAULT_MODEL_ROOT = ROOT / "models" / "whisper.cpp"
+KNOWN_MODEL_ROOTS = [
+    Path.home() / "Documents" / "jerry_projects" / "AI-hot-topic" / "models" / "whisper.cpp",
+]
 DEFAULT_MODEL_NAME = "large-v3-turbo-q5_0"
 DEFAULT_MAX_SECONDS = 0
 DEFAULT_OUTPUT_FORMATS = ["txt", "json", "srt", "vtt"]
@@ -31,11 +34,14 @@ def transcribe_media_sources(
     language: str = "zh",
     max_seconds: int = DEFAULT_MAX_SECONDS,
     output_formats: list[str] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     items_dir = output_dir / "items"
     items_dir.mkdir(parents=True, exist_ok=True)
+    _emit_progress(progress_callback, stage="model", message="准备模型", progress=5)
     model_path = resolve_whisper_model(model_name)
+    _emit_progress(progress_callback, stage="model_ready", message="模型已就绪", progress=15)
     whisper_bin = _which_binary("whisper-cli")
     ffmpeg_bin = _which_binary("ffmpeg")
     if not whisper_bin or not ffmpeg_bin:
@@ -57,6 +63,7 @@ def transcribe_media_sources(
     run_config_path.write_text(json.dumps(run_config, ensure_ascii=False, indent=2), encoding="utf-8")
     results: list[dict[str, Any]] = []
     for index, source in enumerate(sources, start=1):
+        base_progress = 15 + int(((index - 1) / max(len(sources), 1)) * 80)
         result = transcribe_single_source(
             source=source,
             items_dir=items_dir,
@@ -67,6 +74,9 @@ def transcribe_media_sources(
             max_seconds=max_seconds,
             output_formats=formats,
             index=index,
+            progress_callback=progress_callback,
+            base_progress=base_progress,
+            item_count=len(sources),
         )
         results.append(result)
 
@@ -83,6 +93,7 @@ def transcribe_media_sources(
     }
     manifest_path = output_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    _emit_progress(progress_callback, stage="complete", message="转写完成", progress=100)
     return {
         "output_dir": output_dir,
         "manifest_path": manifest_path,
@@ -102,6 +113,9 @@ def transcribe_single_source(
     max_seconds: int,
     output_formats: list[str],
     index: int,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    base_progress: int = 15,
+    item_count: int = 1,
 ) -> dict[str, Any]:
     source_label = _infer_source_label(source, index)
     item_dir = items_dir / source_label
@@ -113,6 +127,7 @@ def transcribe_single_source(
             cached_metadata["status"] = "cached"
             cached_metadata["updated_at"] = now_iso()
             _write_json(item_dir / "metadata.json", cached_metadata)
+            _emit_progress(progress_callback, stage="cached", message=f"{source_label} 命中缓存", progress=_item_progress(base_progress, 1.0, item_count))
             return cached_metadata
         return _build_metadata(
             source=source,
@@ -127,15 +142,18 @@ def transcribe_single_source(
 
     with tempfile.TemporaryDirectory(dir=item_dir) as temp_dir:
         temp_path = Path(temp_dir)
+        _emit_progress(progress_callback, stage="media", message=f"{source_label} 获取媒体", progress=_item_progress(base_progress, 0.1, item_count))
         media_path = prepare_media_source(source, temp_path)
         persisted_media_path = _persist_media(media_path, item_dir)
         audio_path = item_dir / "audio.wav"
+        _emit_progress(progress_callback, stage="audio", message=f"{source_label} 抽取音频", progress=_item_progress(base_progress, 0.35, item_count))
         extract_audio(
             source_path=persisted_media_path,
             target_path=audio_path,
             ffmpeg_bin=ffmpeg_bin,
             max_seconds=max_seconds,
         )
+        _emit_progress(progress_callback, stage="asr", message=f"{source_label} 正在识别", progress=_item_progress(base_progress, 0.55, item_count))
         run_whisper_cli(
             audio_path=audio_path,
             output_dir=item_dir,
@@ -158,6 +176,7 @@ def transcribe_single_source(
         created_at=now_iso(),
     )
     _write_json(item_dir / "metadata.json", metadata)
+    _emit_progress(progress_callback, stage="item_complete", message=f"{source_label} 已完成", progress=_item_progress(base_progress, 1.0, item_count))
     return metadata
 
 
@@ -205,6 +224,9 @@ def compare_transcription_runs(
 
 
 def ensure_whisper_model(model_name: str, model_root: Path = DEFAULT_MODEL_ROOT) -> Path:
+    existing = _find_existing_model(model_name, model_root)
+    if existing is not None:
+        return existing
     model_root.mkdir(parents=True, exist_ok=True)
     candidate = model_root / f"ggml-{model_name}.bin"
     if candidate.exists() and candidate.stat().st_size > 0:
@@ -485,3 +507,39 @@ def _build_metadata(
         "excerpt": transcript_text[:400],
         "error": "",
     }
+
+
+def _item_progress(base_progress: int, fraction: float, item_count: int) -> int:
+    span = 80 / max(item_count, 1)
+    return min(99, round(base_progress + span * fraction))
+
+
+def _emit_progress(
+    callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    stage: str,
+    message: str,
+    progress: int,
+) -> None:
+    if callback:
+        callback({"stage": stage, "message": message, "progress": progress})
+
+
+def _find_existing_model(model_name: str, model_root: Path) -> Path | None:
+    filename = f"ggml-{model_name}.bin"
+    candidate_roots: list[Path] = []
+    for env_name in ("TRANSCRIBE_MODEL_DIR", "WHISPER_MODEL_DIR"):
+        env_value = os.environ.get(env_name)
+        if env_value:
+            candidate_roots.append(Path(env_value).expanduser())
+    candidate_roots.extend([model_root, *KNOWN_MODEL_ROOTS])
+    seen: set[Path] = set()
+    for root in candidate_roots:
+        resolved_root = root.expanduser()
+        if resolved_root in seen:
+            continue
+        seen.add(resolved_root)
+        candidate = resolved_root / filename
+        if candidate.exists() and candidate.stat().st_size > 0:
+            return candidate.resolve()
+    return None

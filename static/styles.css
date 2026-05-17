@@ -64,6 +64,26 @@ button:disabled { opacity: .55; cursor: wait; }
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .section-head h2 { margin: 0 0 14px; }
 .results.empty, .muted { color: var(--muted); }
+.hidden { display: none; }
+.progress-shell {
+  width: 100%;
+  height: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+.progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b5cf6, #38bdf8);
+  transition: width .35s ease;
+}
+.progress-copy {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
 .result-card, .run-row {
   display: flex;
   align-items: center;
