@@ -21,6 +21,8 @@ function renderResults(payload) {
     const txt = artifactLink(runId, item.text_path);
     const srt = artifactLink(runId, item.srt_path);
     const json = artifactLink(runId, item.json_path);
+    const media = artifactLink(runId, item.media_path);
+    const audio = artifactLink(runId, item.audio_path);
     return `
       <article class="result-card">
         <div>
@@ -28,9 +30,12 @@ function renderResults(payload) {
           <p>${item.status} · ${item.char_count ?? 0} 字</p>
         </div>
         <nav>
-          ${txt ? `<a href="${txt}" target="_blank">全文</a>` : ''}
-          ${srt ? `<a href="${srt}" target="_blank">字幕</a>` : ''}
-          ${json ? `<a href="${json}" target="_blank">JSON</a>` : ''}
+          ${txt ? `<a href="${txt}" target="_blank">查看全文</a>` : ''}
+          ${txt ? `<a href="${txt}?download=1">下载 TXT</a>` : ''}
+          ${srt ? `<a href="${srt}?download=1">下载字幕</a>` : ''}
+          ${json ? `<a href="${json}?download=1">下载 JSON</a>` : ''}
+          ${media ? `<a href="${media}?download=1">下载原视频</a>` : ''}
+          ${audio ? `<a href="${audio}?download=1">下载音频</a>` : ''}
         </nav>
       </article>
     `;

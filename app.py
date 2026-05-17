@@ -169,7 +169,11 @@ def artifact(run_id: str, artifact_path: str):
     run_dir = (RUNS_ROOT / run_id).resolve()
     if RUNS_ROOT.resolve() not in run_dir.parents:
         return jsonify({"error": "invalid run"}), 404
-    return send_from_directory(run_dir, artifact_path, as_attachment=False)
+    return send_from_directory(
+        run_dir,
+        artifact_path,
+        as_attachment=request.args.get("download") == "1",
+    )
 
 
 if __name__ == "__main__":
