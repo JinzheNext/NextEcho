@@ -76,14 +76,26 @@ class SpeakerTranscriptTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with patch("workbench.speaker_transcript.ensure_speaker_dependencies", return_value=None):
+            with patch(
+                "workbench.speaker_transcript.ensure_speaker_dependencies",
+                return_value={
+                    "pyannote_installed": True,
+                    "hf_token_env": "HF_TOKEN",
+                    "fallback_backend_available": True,
+                    "selected_backend": "pyannote",
+                    "ready": True,
+                },
+            ):
                 with patch("workbench.speaker_transcript.enhance_voice_audio", return_value=root / "derived" / "audio.voice_enhanced.wav"):
                     with patch(
-                        "workbench.speaker_transcript.run_pyannote_diarization",
-                        return_value=[
-                            DiarizationTurn("Speaker 1", 60.0, 80.0),
-                            DiarizationTurn("Speaker 2", 80.0, 100.0),
-                        ],
+                        "workbench.speaker_transcript.run_diarization",
+                        return_value=(
+                            "pyannote",
+                            [
+                                DiarizationTurn("Speaker 1", 60.0, 80.0),
+                                DiarizationTurn("Speaker 2", 80.0, 100.0),
+                            ],
+                        ),
                     ):
                         payload = build_speaker_transcript(root)
 
@@ -92,6 +104,7 @@ class SpeakerTranscriptTests(unittest.TestCase):
             self.assertTrue((root / "transcript.speakers.md").exists())
             self.assertTrue((root / "speaker_map.json").exists())
             self.assertTrue(payload["intro_removed"])
+            self.assertEqual(payload["backend"], "pyannote")
             self.assertEqual(payload["speaker_turns"][0]["speaker"], "Speaker 1")
             self.assertIn("跟吉刚录播客非常有意思", payload["preview_text"])
 

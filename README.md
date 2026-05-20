@@ -119,7 +119,15 @@ $env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
 
 ## 访谈逐字稿依赖
 
-访谈逐字稿默认采用 `pyannote` 说话人分离路线。安装额外依赖：
+如果你只想本地直接跑、且不想配置 Hugging Face token，先装轻量 fallback：
+
+```bash
+pip install -r requirements-speakers-lite.txt
+```
+
+这会启用 `segment-clustering` 本地后端，直接输出 `Speaker 1 / Speaker 2`。
+
+如果你想启用更稳的 `pyannote` 主方案，再额外安装：
 
 ```bash
 pip install -r requirements-speakers.txt
@@ -137,7 +145,7 @@ PowerShell：
 $env:HF_TOKEN="your_token_here"
 ```
 
-`python -m workbench.cli doctor` 会检查这部分是否就绪。
+`python -m workbench.cli doctor` 会检查当前会走 `pyannote` 还是 `segment-clustering`。
 
 ## 目录产物
 

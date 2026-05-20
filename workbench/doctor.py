@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .speaker_transcript import HF_TOKEN_ENV_VARS
+from .speaker_transcript import HF_TOKEN_ENV_VARS, detect_speaker_backend_status
 from .transcription import DEFAULT_MODEL_NAME, DEFAULT_MODEL_ROOT, resolve_whisper_model
 
 FAST_MODEL_NAME = "base"
@@ -129,8 +129,10 @@ def run_doctor() -> DoctorReport:
     accurate_model = check_model(DEFAULT_MODEL_NAME)
     fast_model = check_model(FAST_MODEL_NAME)
     recommended_quality, reason = recommend_quality(memory_gb, accurate_model, fast_model)
-    pyannote_installed = package_available("pyannote.audio")
-    hf_token_env = detect_hf_token_env()
+    speaker_backend = detect_speaker_backend_status()
+    pyannote_installed = bool(speaker_backend["pyannote_installed"])
+    hf_token_env = speaker_backend["hf_token_env"] or detect_hf_token_env()
+    fallback_backend_available = bool(speaker_backend["fallback_backend_available"])
     notes: list[str] = []
     if not any(binary.name == "yt-dlp" and binary.ok for binary in binary_checks):
         notes.append("yt-dlp 未安装：本地文件和直链媒体仍可用，但网页链接解析可能失败。")
@@ -143,6 +145,8 @@ def run_doctor() -> DoctorReport:
         notes.append("pyannote.audio 未安装：访谈逐字稿的说话人分离能力当前不可用。")
     if not hf_token_env:
         notes.append("未检测到 Hugging Face 访问令牌：pyannote 说话人分离模型无法下载。")
+    if fallback_backend_available and not hf_token_env:
+        notes.append("将使用本地 segment-clustering fallback 生成 Speaker 1 / Speaker 2；如需更稳的 pyannote 效果，再补 HF_TOKEN。")
     ok = not missing_required
     return DoctorReport(
         ok=ok,
@@ -157,7 +161,9 @@ def run_doctor() -> DoctorReport:
         speaker_transcript={
             "pyannote_installed": pyannote_installed,
             "hf_token_env": hf_token_env or "",
-            "ready": pyannote_installed and hf_token_env is not None and ok,
+            "fallback_backend_available": fallback_backend_available,
+            "selected_backend": speaker_backend["selected_backend"],
+            "ready": bool(speaker_backend["ready"]) and ok,
         },
         notes=notes,
     )
@@ -187,6 +193,8 @@ def print_human_report(report: DoctorReport) -> None:
     print("\nSpeaker transcript:")
     print(f"  pyannote.audio installed: {report.speaker_transcript['pyannote_installed']}")
     print(f"  HF token env: {report.speaker_transcript['hf_token_env'] or 'missing'}")
+    print(f"  fallback backend available: {report.speaker_transcript['fallback_backend_available']}")
+    print(f"  selected backend: {report.speaker_transcript['selected_backend'] or 'none'}")
     print(f"  ready: {report.speaker_transcript['ready']}")
     if report.notes:
         print("\nNotes:")

@@ -123,7 +123,15 @@ This mode produces:
 
 ## Extra dependencies for speaker diarization
 
-Install the optional speaker diarization dependency set:
+For a lightweight local fallback that does not need a Hugging Face token:
+
+```bash
+pip install -r requirements-speakers-lite.txt
+```
+
+This enables a local `segment-clustering` backend and is enough for `Speaker 1 / Speaker 2` interview transcripts.
+
+If you want the heavier `pyannote` route, also install:
 
 ```bash
 pip install -r requirements-speakers.txt
@@ -141,7 +149,7 @@ PowerShell:
 $env:HF_TOKEN="your_token_here"
 ```
 
-`python -m workbench.cli doctor` will report whether the speaker transcript capability is ready.
+`python -m workbench.cli doctor` will report whether the speaker transcript capability is ready, and which backend will be used.
 
 ## Model policy
 
