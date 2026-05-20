@@ -61,6 +61,12 @@ button {
   cursor: pointer;
 }
 button:disabled { opacity: .55; cursor: wait; }
+.secondary-button {
+  margin-top: 0;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .section-head h2 { margin: 0 0 14px; }
 .results.empty, .muted { color: var(--muted); }
@@ -82,6 +88,19 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .progress-copy {
   margin: 0 0 10px;
+  color: var(--muted);
+}
+.speaker-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 0 16px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.speaker-panel p {
+  margin: 6px 0 0;
   color: var(--muted);
 }
 .result-card, .run-row {
@@ -110,5 +129,5 @@ a { color: #c4b5fd; text-decoration: none; }
 .run-row span { color: var(--muted); }
 @media (max-width: 700px) {
   .grid { grid-template-columns: 1fr; }
-  .result-card, .run-row { align-items: flex-start; flex-direction: column; }
+  .result-card, .run-row, .speaker-panel { align-items: flex-start; flex-direction: column; }
 }

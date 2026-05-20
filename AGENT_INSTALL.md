@@ -7,6 +7,7 @@ This guide is written for an AI coding agent such as Claude Code, Codex, Cursor 
 - Runs audio/video transcription locally with `ffmpeg + whisper.cpp`.
 - Provides a local web UI at `http://127.0.0.1:8765`.
 - Provides a CLI that agents can call directly.
+- Provides a speaker-attributed interview transcript mode (`Speaker 1 / Speaker 2`) for long-form conversations.
 - Writes reproducible artifact folders containing source media, normalized audio, TXT, JSON, SRT, VTT, and metadata.
 - Does **not** spend LLM tokens for the transcription computation. Agent orchestration may still spend a small amount of LLM context/tokens.
 
@@ -102,6 +103,46 @@ Default rule:
 2. Use `accurate` when doctor recommends it or when the user asks for best quality.
 3. Use `fast` when doctor recommends it, memory is constrained, or the user asks for speed.
 
+## Agent CLI usage for interview transcripts
+
+When the user wants a speaker-attributed transcript for a podcast or conversation, use:
+
+```bash
+python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
+python -m workbench.cli speaker-transcript /path/to/run_xxx
+```
+
+The first command accepts a raw audio file and will create a workbench run if needed. The second reuses an existing single-source run directory.
+
+This mode produces:
+
+- `transcript.speakers.json`
+- `transcript.speakers.txt`
+- `transcript.speakers.md`
+- `speaker_map.json`
+
+## Extra dependencies for speaker diarization
+
+Install the optional speaker diarization dependency set:
+
+```bash
+pip install -r requirements-speakers.txt
+```
+
+Set a Hugging Face token for pyannote model download:
+
+```bash
+export HF_TOKEN=your_token_here
+```
+
+PowerShell:
+
+```powershell
+$env:HF_TOKEN="your_token_here"
+```
+
+`python -m workbench.cli doctor` will report whether the speaker transcript capability is ready.
+
 ## Model policy
 
 The tool searches for existing local models before downloading anything.
@@ -149,6 +190,7 @@ For agent workflows, read `manifest.json` first, then each item's `metadata.json
 - Webpage URL fails: install `yt-dlp`, then retry. Some sites may require browser cookies or may block downloads.
 - First run is slow: likely model download or first model load. Run `doctor` and check model paths.
 - 8GB RAM machines: start with `accurate` only if doctor says it is reasonable; otherwise use `fast`.
+- Speaker transcript fails immediately: check `pyannote.audio` installation and whether `HF_TOKEN` is configured.
 
 ## Agent behavior rules
 

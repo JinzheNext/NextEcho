@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .doctor import print_human_report, report_to_dict, run_doctor
+from .speaker_transcript import build_speaker_transcript
 from .transcription import DEFAULT_MODEL_NAME, transcribe_media_sources
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -66,6 +67,22 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_speaker_transcript(args: argparse.Namespace) -> int:
+    payload = build_speaker_transcript(
+        args.input_path,
+        quality=args.quality,
+        output_dir=args.output_dir,
+        min_speakers=args.min_speakers,
+        max_speakers=args.max_speakers,
+    )
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Generated {Path(payload['run_dir']) / 'transcript.speakers.md'}")
+        print(payload["preview_text"])
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Local transcription workbench CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -85,6 +102,15 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--output-dir", type=Path)
     transcribe_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     transcribe_parser.set_defaults(func=cmd_transcribe)
+
+    speaker_parser = subparsers.add_parser("speaker-transcript", help="Build a speaker-attributed interview transcript")
+    speaker_parser.add_argument("input_path", help="Audio file, artifact directory, or single-source run directory")
+    speaker_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    speaker_parser.add_argument("--output-dir", type=Path)
+    speaker_parser.add_argument("--min-speakers", type=int, default=2)
+    speaker_parser.add_argument("--max-speakers", type=int, default=2)
+    speaker_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    speaker_parser.set_defaults(func=cmd_speaker_transcript)
 
     return parser
 

@@ -9,6 +9,7 @@
 - 默认保留 `source.*`、`audio.wav`、`transcript.txt/json/srt/vtt`
 - 提供轻量 HTML 工作台
 - 提供 Agent 可调用 CLI 与安装说明
+- 提供带 Speaker 1 / Speaker 2 的访谈逐字稿能力
 
 ## 快速运行
 
@@ -80,6 +81,13 @@ python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
 python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fast
 ```
 
+访谈逐字稿：
+
+```bash
+python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
+python -m workbench.cli speaker-transcript /path/to/run_xxx
+```
+
 质量档位：
 
 - `accurate`：高精度，优先 `large-v3-turbo-q5_0`
@@ -90,6 +98,8 @@ python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fas
 转写计算在本地完成，不调用云端 LLM 或云端 ASR，因此音视频解析本身不消耗 LLM token。
 
 如果通过 Agent 发起任务，Agent 理解你的指令、运行命令、读取结果时会消耗少量 Agent 编排 token；但真正的转写计算仍然是本地完成。
+
+访谈逐字稿中的 speaker diarization 也是本地推理，不消耗 LLM token；如果采用 pyannote 模型，首次下载模型需要 Hugging Face 访问令牌，但这不是 LLM/API 计费。
 
 ## 模型复用
 
@@ -106,6 +116,28 @@ $env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
 ```
 
 程序会优先寻找显式模型路径、`TRANSCRIBE_MODEL_DIR` / `WHISPER_MODEL_DIR`，再看项目本地模型目录；都没有时才下载。
+
+## 访谈逐字稿依赖
+
+访谈逐字稿默认采用 `pyannote` 说话人分离路线。安装额外依赖：
+
+```bash
+pip install -r requirements-speakers.txt
+```
+
+并设置 Hugging Face 访问令牌：
+
+```bash
+export HF_TOKEN=your_token_here
+```
+
+PowerShell：
+
+```powershell
+$env:HF_TOKEN="your_token_here"
+```
+
+`python -m workbench.cli doctor` 会检查这部分是否就绪。
 
 ## 目录产物
 

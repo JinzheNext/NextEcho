@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable
 from uuid import uuid4
 
+from workbench.speaker_transcript import build_speaker_transcript
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
@@ -46,6 +47,7 @@ def serialize_result(payload: dict) -> dict:
         "run_id": output_dir.name,
         "output_dir": str(output_dir),
         "manifest": manifest,
+        "speaker_transcript": load_speaker_transcript(output_dir),
     }
 
 
@@ -56,6 +58,7 @@ def serialize_run(run_dir: Path) -> dict:
         "run_id": run_dir.name,
         "output_dir": str(run_dir),
         "manifest": manifest,
+        "speaker_transcript": load_speaker_transcript(run_dir),
     }
 
 
@@ -71,6 +74,21 @@ def save_uploads(files: Iterable, inbox_dir: Path) -> list[str]:
         file.save(target)
         sources.append(str(target))
     return sources
+
+
+def load_speaker_transcript(run_dir: Path) -> dict | None:
+    json_path = run_dir / "transcript.speakers.json"
+    txt_path = run_dir / "transcript.speakers.txt"
+    md_path = run_dir / "transcript.speakers.md"
+    if not json_path.exists():
+        return None
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    payload["paths"] = {
+        "json": str(json_path),
+        "txt": str(txt_path),
+        "md": str(md_path),
+    }
+    return payload
 
 
 def update_job(job_id: str, **fields: object) -> None:
@@ -100,6 +118,27 @@ def run_transcription_job(
         )
         update_job(job_id, status="completed", result=serialize_result(payload), progress=100, stage="complete", message="转写完成")
     except Exception as exc:  # local operator tool: surface exact failure
+        update_job(job_id, status="failed", stage="failed", message=str(exc), error=str(exc))
+
+
+def run_speaker_transcript_job(
+    job_id: str,
+    run_dir: Path,
+) -> None:
+    def on_progress(event: dict) -> None:
+        update_job(job_id, **event)
+
+    try:
+        build_speaker_transcript(run_dir, progress_callback=on_progress)
+        update_job(
+            job_id,
+            status="completed",
+            result=serialize_run(run_dir),
+            progress=100,
+            stage="complete",
+            message="访谈逐字稿已完成",
+        )
+    except Exception as exc:
         update_job(job_id, status="failed", stage="failed", message=str(exc), error=str(exc))
 
 
@@ -183,6 +222,31 @@ def get_run(run_id: str):
     if RUNS_ROOT.resolve() not in run_dir.parents or not (run_dir / "manifest.json").exists():
         return jsonify({"error": "run not found"}), 404
     return jsonify(serialize_run(run_dir))
+
+
+@app.post("/api/runs/<run_id>/speaker-transcript")
+def create_speaker_transcript(run_id: str):
+    run_dir = (RUNS_ROOT / run_id).resolve()
+    if RUNS_ROOT.resolve() not in run_dir.parents or not (run_dir / "manifest.json").exists():
+        return jsonify({"error": "run not found"}), 404
+    job_id = uuid4().hex
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "job_id": job_id,
+            "run_id": run_id,
+            "status": "running",
+            "stage": "queued",
+            "message": "访谈逐字稿任务已创建",
+            "progress": 0,
+            "result": None,
+            "error": "",
+        }
+    Thread(
+        target=run_speaker_transcript_job,
+        args=(job_id, run_dir),
+        daemon=True,
+    ).start()
+    return jsonify({"job_id": job_id, "run_id": run_id}), 202
 
 
 @app.get("/artifacts/<run_id>/<path:artifact_path>")

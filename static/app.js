@@ -19,6 +19,7 @@ function artifactLink(runId, absolutePath) {
 
 function renderResults(payload) {
   const { run_id: runId, manifest } = payload;
+  const speakerPanel = renderSpeakerPanel(payload);
   const cards = manifest.results.map((item) => {
     const txt = artifactLink(runId, item.text_path);
     const srt = artifactLink(runId, item.srt_path);
@@ -43,7 +44,40 @@ function renderResults(payload) {
     `;
   }).join('');
   resultsEl.classList.remove('empty');
-  resultsEl.innerHTML = cards;
+  resultsEl.innerHTML = `${speakerPanel}${cards}`;
+}
+
+function renderSpeakerPanel(payload) {
+  const { run_id: runId, speaker_transcript: speakerTranscript } = payload;
+  if (speakerTranscript) {
+    const md = artifactLink(runId, speakerTranscript.paths.md);
+    const txt = artifactLink(runId, speakerTranscript.paths.txt);
+    const json = artifactLink(runId, speakerTranscript.paths.json);
+    return `
+      <article class="speaker-panel">
+        <div>
+          <strong>访谈逐字稿</strong>
+          <p>${speakerTranscript.preview_text || '已生成 Speaker 1 / Speaker 2 结构化逐字稿。'}</p>
+        </div>
+        <nav>
+          ${md ? `<a href="${md}" target="_blank">查看 Markdown</a>` : ''}
+          ${txt ? `<a href="${txt}?download=1">下载 TXT</a>` : ''}
+          ${json ? `<a href="${json}?download=1">下载 JSON</a>` : ''}
+        </nav>
+      </article>
+    `;
+  }
+  return `
+    <article class="speaker-panel">
+      <div>
+        <strong>访谈逐字稿</strong>
+        <p>生成 Speaker 1 / Speaker 2 结构化访谈稿，并尽量压低无关背景音乐。</p>
+      </div>
+      <nav>
+        <button type="button" class="secondary-button" data-action="speaker-transcript" data-run-id="${runId}">生成访谈逐字稿</button>
+      </nav>
+    </article>
+  `;
 }
 
 async function loadRuns() {
@@ -129,6 +163,32 @@ runsEl.addEventListener('click', async (event) => {
   progressShellEl.classList.add('hidden');
   progressCopyEl.classList.add('hidden');
   renderResults(payload);
+});
+
+resultsEl.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action="speaker-transcript"]');
+  if (!button) return;
+  button.disabled = true;
+  statusEl.textContent = '访谈逐字稿生成中…';
+  progressShellEl.classList.remove('hidden');
+  progressCopyEl.classList.remove('hidden');
+  progressBarEl.style.width = '0%';
+  progressCopyEl.textContent = '访谈逐字稿任务已创建 · 0%';
+  try {
+    const response = await fetch(`/api/runs/${button.dataset.runId}/speaker-transcript`, {
+      method: 'POST',
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || '无法启动访谈逐字稿任务');
+    const result = await waitForJob(payload.job_id);
+    statusEl.textContent = '访谈逐字稿已完成';
+    renderResults(result);
+    await loadRuns();
+  } catch (error) {
+    statusEl.textContent = '失败';
+    resultsEl.classList.add('empty');
+    resultsEl.textContent = error.message;
+  }
 });
 
 loadRuns();

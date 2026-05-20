@@ -44,3 +44,7 @@ python -m workbench.cli doctor || true
 printf "\nInstall complete. Start the web UI with:\n"
 echo "  source .venv/bin/activate && python -m workbench.cli serve"
 echo "Then open http://127.0.0.1:8765"
+echo
+echo "Optional for speaker-attributed interview transcripts:"
+echo "  source .venv/bin/activate && pip install -r requirements-speakers.txt"
+echo "  export HF_TOKEN=your_token_here"

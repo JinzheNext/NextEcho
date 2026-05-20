@@ -38,3 +38,7 @@ python -m workbench.cli doctor
 Write-Host "`nInstall complete. Start the web UI with:"
 Write-Host "  .\.venv\Scripts\Activate.ps1; python -m workbench.cli serve"
 Write-Host "Then open http://127.0.0.1:8765"
+Write-Host ""
+Write-Host "Optional for speaker-attributed interview transcripts:"
+Write-Host "  .\.venv\Scripts\Activate.ps1; pip install -r requirements-speakers.txt"
+Write-Host "  `$env:HF_TOKEN=`"your_token_here`""
