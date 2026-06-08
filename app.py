@@ -9,6 +9,7 @@ from typing import Iterable
 from uuid import uuid4
 
 from workbench.speaker_transcript import build_speaker_transcript
+from workbench.sources import resolve_sources
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
@@ -47,6 +48,7 @@ def serialize_result(payload: dict) -> dict:
         "run_id": output_dir.name,
         "output_dir": str(output_dir),
         "manifest": manifest,
+        "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
         "speaker_transcript": load_speaker_transcript(output_dir),
     }
 
@@ -58,6 +60,7 @@ def serialize_run(run_dir: Path) -> dict:
         "run_id": run_dir.name,
         "output_dir": str(run_dir),
         "manifest": manifest,
+        "errors_path": str(run_dir / "errors.json") if (run_dir / "errors.json").exists() else "",
         "speaker_transcript": load_speaker_transcript(run_dir),
     }
 
@@ -116,7 +119,15 @@ def run_transcription_job(
             max_seconds=max_seconds,
             progress_callback=on_progress,
         )
-        update_job(job_id, status="completed", result=serialize_result(payload), progress=100, stage="complete", message="转写完成")
+        result = serialize_result(payload)
+        failed_count = int(result["manifest"].get("error_count") or 0)
+        total_count = len(result["manifest"].get("results", []))
+        message = "转写完成"
+        if failed_count and failed_count < total_count:
+            message = f"转写完成，{failed_count} 条失败"
+        elif failed_count and failed_count == total_count:
+            message = "任务完成，但所有条目都失败了"
+        update_job(job_id, status="completed", result=result, progress=100, stage="complete", message=message)
     except Exception as exc:  # local operator tool: surface exact failure
         update_job(job_id, status="failed", stage="failed", message=str(exc), error=str(exc))
 
@@ -190,6 +201,16 @@ def transcribe():
     return jsonify({"job_id": job_id, "run_id": run_id}), 202
 
 
+@app.post("/api/resolve")
+def resolve():
+    payload = request.get_json(silent=True) if request.is_json else None
+    raw_urls = payload.get("urls", "") if isinstance(payload, dict) else request.form.get("urls", "")
+    urls = parse_urls(raw_urls)
+    if not urls:
+        return jsonify({"error": "Please add at least one remote URL."}), 400
+    return jsonify({"sources": [item.to_dict() for item in resolve_sources(urls)]})
+
+
 @app.get("/api/jobs/<job_id>")
 def job_status(job_id: str):
     with JOBS_LOCK:
@@ -209,6 +230,7 @@ def list_runs():
                 "run_id": manifest_path.parent.name,
                 "generated_at": manifest.get("generated_at"),
                 "item_count": len(manifest.get("results", [])),
+                "error_count": int(manifest.get("error_count") or 0),
                 "model_name": manifest.get("model_name"),
                 "quality": "更快" if manifest.get("model_name") == "base" else "高精度",
             }

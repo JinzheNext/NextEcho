@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
-from .transcription import DEFAULT_MODEL_NAME, transcribe_media_sources
+from .transcription import DEFAULT_MODEL_NAME, format_transcript_attribution, transcribe_media_sources
 
 QUALITY_TO_MODEL = {
     "accurate": DEFAULT_MODEL_NAME,
@@ -509,7 +509,7 @@ def render_speaker_text(speaker_turns: list[dict[str, Any]], *, with_timestamps:
         else:
             label = str(turn["speaker"])
         blocks.append(f"{label}\n{turn['text']}")
-    return "\n\n".join(blocks).strip() + "\n"
+    return format_transcript_attribution("\n\n".join(blocks))
 
 
 def parse_timestamp(value: str) -> float:

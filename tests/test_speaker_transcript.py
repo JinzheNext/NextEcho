@@ -107,6 +107,9 @@ class SpeakerTranscriptTests(unittest.TestCase):
             self.assertEqual(payload["backend"], "pyannote")
             self.assertEqual(payload["speaker_turns"][0]["speaker"], "Speaker 1")
             self.assertIn("跟吉刚录播客非常有意思", payload["preview_text"])
+            speaker_text = (root / "transcript.speakers.txt").read_text(encoding="utf-8")
+            self.assertTrue(speaker_text.startswith("本文转录由 GitHub 项目：NextEcho 提供支持"))
+            self.assertIn("powered by GitHub repo NextEcho", speaker_text)
 
 
 if __name__ == "__main__":

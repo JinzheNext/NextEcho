@@ -7,8 +7,12 @@ const progressBarEl = document.querySelector('#progress-bar');
 const progressCopyEl = document.querySelector('#progress-copy');
 const filesInputEl = document.querySelector('#files');
 const fileSummaryEl = document.querySelector('#file-summary');
+const resolveButtonEl = document.querySelector('#resolve-button');
+const sourcePreviewEl = document.querySelector('#source-preview');
+const urlsEl = document.querySelector('#urls');
 
 function artifactLink(runId, absolutePath) {
+  if (!absolutePath) return null;
   const marker = `/outputs/transcriptions/${runId}/`;
   const normalized = absolutePath.replaceAll('\\\\', '/');
   const idx = normalized.indexOf(marker);
@@ -17,20 +21,68 @@ function artifactLink(runId, absolutePath) {
   return `/artifacts/${runId}/${relative}`;
 }
 
+function sourceSummary(item) {
+  const bits = [
+    item.platform ? item.platform.toUpperCase() : '',
+    item.resolver || '',
+    item.duration_seconds ? `${Math.round(item.duration_seconds / 60)} 分钟` : '',
+    item.author || '',
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
+
+function renderSourcePreview(sources) {
+  if (!sources.length) {
+    sourcePreviewEl.classList.add('empty');
+    sourcePreviewEl.textContent = '这里会显示链接识别结果。';
+    return;
+  }
+  sourcePreviewEl.classList.remove('empty');
+  sourcePreviewEl.innerHTML = sources.map((item) => `
+    <article class="source-row">
+      <strong>${item.title || item.canonical_url || item.input}</strong>
+      <div class="source-meta">
+        <span>${sourceSummary(item) || '等待补充来源信息'}</span>
+      </div>
+      ${item.error ? `<div class="source-error">${item.error}</div>` : ''}
+    </article>
+  `).join('');
+}
+
 function renderResults(payload) {
-  const { run_id: runId, manifest } = payload;
+  const { run_id: runId, manifest, errors_path: errorsPath } = payload;
   const speakerPanel = renderSpeakerPanel(payload);
+  const errorsLink = artifactLink(runId, errorsPath);
+  const errorsBanner = manifest.error_count
+    ? `
+      <article class="speaker-panel">
+        <div>
+          <strong>错误摘要</strong>
+          <p>${manifest.error_count} 条素材没有成功完成，建议先看错误包再决定是否重试。</p>
+        </div>
+        <nav>
+          ${errorsLink ? `<a href="${errorsLink}" target="_blank">查看错误 JSON</a>` : ''}
+          ${errorsLink ? `<a href="${errorsLink}?download=1">下载错误包</a>` : ''}
+        </nav>
+      </article>
+    `
+    : '';
   const cards = manifest.results.map((item) => {
     const txt = artifactLink(runId, item.text_path);
     const srt = artifactLink(runId, item.srt_path);
     const json = artifactLink(runId, item.json_path);
     const media = artifactLink(runId, item.media_path);
     const audio = artifactLink(runId, item.audio_path);
+    const details = [item.status, `${item.char_count ?? 0} 字`, item.author || '', item.duration_seconds ? `${Math.round(item.duration_seconds / 60)} 分钟` : '']
+      .filter(Boolean)
+      .join(' · ');
     return `
       <article class="result-card">
         <div>
-          <strong>${item.source_label}</strong>
-          <p>${item.status} · ${item.char_count ?? 0} 字</p>
+          <span class="platform-pill">${item.platform || 'local'}</span>
+          <strong>${item.title || item.source_label}</strong>
+          <p>${details}</p>
+          ${item.error ? `<p class="source-error">${item.error}</p>` : ''}
         </div>
         <nav>
           ${txt ? `<a href="${txt}" target="_blank">查看全文</a>` : ''}
@@ -44,7 +96,7 @@ function renderResults(payload) {
     `;
   }).join('');
   resultsEl.classList.remove('empty');
-  resultsEl.innerHTML = `${speakerPanel}${cards}`;
+  resultsEl.innerHTML = `${errorsBanner}${speakerPanel}${cards}`;
 }
 
 function renderSpeakerPanel(payload) {
@@ -71,7 +123,7 @@ function renderSpeakerPanel(payload) {
     <article class="speaker-panel">
       <div>
         <strong>访谈逐字稿</strong>
-        <p>生成 Speaker 1 / Speaker 2 结构化访谈稿，并尽量压低无关背景音乐。</p>
+        <p>适合播客、访谈和多人对谈。先完成转写，再生成 Speaker 1 / Speaker 2 版本。</p>
       </div>
       <nav>
         <button type="button" class="secondary-button" data-action="speaker-transcript" data-run-id="${runId}">生成访谈逐字稿</button>
@@ -86,7 +138,7 @@ async function loadRuns() {
   runsEl.innerHTML = payload.runs.map((run) => `
     <button class="run-row" data-run-id="${run.run_id}" type="button">
       <strong>${run.run_id}</strong>
-      <span>${run.item_count} 条 · ${run.quality}</span>
+      <span>${run.item_count} 条 · ${run.quality}${run.error_count ? ` · ${run.error_count} 失败` : ''}</span>
     </button>
   `).join('') || '<p class="muted">暂无历史运行。</p>';
 }
@@ -110,10 +162,28 @@ async function waitForJob(jobId) {
   }
 }
 
+async function resolveSources() {
+  const urls = urlsEl.value.trim();
+  if (!urls) {
+    renderSourcePreview([]);
+    return [];
+  }
+  const response = await fetch('/api/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || '无法识别链接');
+  renderSourcePreview(payload.sources || []);
+  return payload.sources || [];
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const submitButton = form.querySelector('button');
+  const submitButton = form.querySelector('button[type="submit"]');
   submitButton.disabled = true;
+  resolveButtonEl.disabled = true;
   statusEl.textContent = '转写中…';
   progressShellEl.classList.remove('hidden');
   progressCopyEl.classList.remove('hidden');
@@ -123,6 +193,7 @@ form.addEventListener('submit', async (event) => {
   resultsEl.textContent = '任务正在运行。';
 
   try {
+    await resolveSources();
     const response = await fetch('/api/transcribe', {
       method: 'POST',
       body: new FormData(form),
@@ -139,6 +210,21 @@ form.addEventListener('submit', async (event) => {
     resultsEl.textContent = error.message;
   } finally {
     submitButton.disabled = false;
+    resolveButtonEl.disabled = false;
+  }
+});
+
+resolveButtonEl.addEventListener('click', async () => {
+  resolveButtonEl.disabled = true;
+  try {
+    statusEl.textContent = '识别中';
+    await resolveSources();
+    statusEl.textContent = '已识别';
+  } catch (error) {
+    statusEl.textContent = '识别失败';
+    renderSourcePreview([{ title: '', canonical_url: '', input: '', platform: '', resolver: '', duration_seconds: 0, author: '', error: error.message }]);
+  } finally {
+    resolveButtonEl.disabled = false;
   }
 });
 

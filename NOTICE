@@ -1,0 +1,28 @@
+NextEcho includes or interoperates with third-party open source components.
+
+Important components referenced by this repository include:
+
+- Flask
+- whisper.cpp / whisper-cli
+- Whisper model artifacts
+- yt-dlp
+- FFmpeg
+- pyannote.audio
+- numpy
+- scikit-learn
+- Python runtime
+
+Third-party license details and release notes are maintained in:
+
+- THIRD_PARTY_LICENSES.md
+- OPEN_SOURCE_COMPLIANCE.md
+
+Trademark notice:
+
+- YouTube, Bilibili, Xiaoyuzhou, Hugging Face, Python, FFmpeg, Whisper, Electron, Tauri, and PyInstaller are trademarks or product names of their respective owners.
+- Reference to those names in this repository is descriptive only and does not imply endorsement, partnership, or affiliation.
+
+Distribution notice:
+
+- This project is intended for local transcription workflows.
+- Users are responsible for ensuring they have the necessary rights and permissions to access, download, process, and store the media they use with this tool.

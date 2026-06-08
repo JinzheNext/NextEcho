@@ -3,19 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Local Transcription Workbench</title>
+  <title>NextEcho</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <main class="shell">
     <section class="hero">
-      <p class="eyebrow">LOCAL · PRIVATE · REPLAYABLE</p>
-      <h1>本地转写工作台</h1>
-      <p class="lede">把音频、视频或远程链接放进来，得到一份可复现的素材包：原文件、标准音频、全文、字幕和结构化 JSON。</p>
+      <p class="eyebrow">NextEcho</p>
+      <h1>让播客自动转录进知识库</h1>
+      <p class="lede">YouTube、B 站、小宇宙，甚至你本地的音视频文件，都可以直接转成全文、字幕和结构化结果。不给平台，不丢内容，整理一次，后面反复使用。</p>
     </section>
 
     <section class="panel">
       <form id="transcribe-form">
+        <div class="input-head">
+          <div>
+            <h2>把内容交给我，文字马上回来</h2>
+            <p>不用下载视频，不用手动整理。把链接贴进来，系统会自动识别来源、抽取音频，并把完整文字结果交还给你。</p>
+          </div>
+          <button type="button" id="resolve-button" class="secondary-button">先看我识别到了什么</button>
+        </div>
+
         <label class="dropzone" for="files">
           <input id="files" name="files" type="file" multiple accept="audio/*,video/*">
           <strong>选择本地文件</strong>
@@ -23,9 +31,10 @@
         </label>
 
         <label>
-          <span>远程媒体链接</span>
-          <textarea name="urls" rows="4" placeholder="每行一个 URL；直链媒体或 yt-dlp 支持的页面都可以"></textarea>
+          <span>把链接贴进来</span>
+          <textarea id="urls" name="urls" rows="4" placeholder="支持 YouTube、B 站、小宇宙，也支持直链音视频。每行一个链接。"></textarea>
         </label>
+        <div id="source-preview" class="source-preview empty">这里会显示链接识别结果。</div>
 
         <div class="grid">
           <label>
@@ -37,25 +46,25 @@
           </label>
         </div>
 
-        <button type="submit">开始转写</button>
+        <button type="submit">开始生成文字稿</button>
       </form>
     </section>
 
     <section class="panel result-panel">
       <div class="section-head">
-        <h2>本次结果</h2>
-        <span id="status">等待输入</span>
+        <h2>这次你拿到的内容</h2>
+        <span id="status">等待你贴入链接</span>
       </div>
       <div id="progress-shell" class="progress-shell hidden">
         <div id="progress-bar" class="progress-bar"></div>
       </div>
       <p id="progress-copy" class="progress-copy hidden"></p>
-      <div id="results" class="results empty">还没有任务。</div>
+      <div id="results" class="results empty">链接进来之后，这里会出现全文、字幕、JSON 和原始文件。</div>
     </section>
 
     <section class="panel runs-panel">
       <div class="section-head">
-        <h2>最近运行</h2>
+        <h2>最近转过的内容</h2>
       </div>
       <div id="runs" class="runs"></div>
     </section>

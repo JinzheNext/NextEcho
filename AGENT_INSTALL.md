@@ -1,12 +1,13 @@
-# Agent Install Guide: Local Transcription Workbench
+# Agent Install Guide: NextEcho
 
-This guide is written for an AI coding agent such as Claude Code, Codex, Cursor Agent, or another terminal-capable assistant. Follow it to install and use a local, no-cloud audio/video transcription workbench for the user.
+This guide is written for an AI coding agent such as Claude Code, Codex, Cursor Agent, or another terminal-capable assistant. Follow it to install and use NextEcho, a local, no-cloud audio and video transcription workbench for the user.
 
 ## What this capability does
 
 - Runs audio/video transcription locally with `ffmpeg + whisper.cpp`.
 - Provides a local web UI at `http://127.0.0.1:8765`.
 - Provides a CLI that agents can call directly.
+- Resolves YouTube, Bilibili, and Xiaoyuzhou page URLs into local transcription jobs.
 - Provides a speaker-attributed interview transcript mode (`Speaker 1 / Speaker 2`) for long-form conversations.
 - Writes reproducible artifact folders containing source media, normalized audio, TXT, JSON, SRT, VTT, and metadata.
 - Does **not** spend LLM tokens for the transcription computation. Agent orchestration may still spend a small amount of LLM context/tokens.
@@ -90,6 +91,26 @@ When the user asks you to transcribe an audio/video file or media URL, prefer th
 ```bash
 python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
 python -m workbench.cli transcribe "https://example.com/video.mp4" --quality accurate --json
+```
+
+When the user wants to inspect how a page URL will resolve before transcription:
+
+```bash
+python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/6a19390a7460cabdeb57c0e5" --json
+```
+
+When the user gives a single platform page URL and wants the full local transcription workflow:
+
+```bash
+python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
+python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+```
+
+When the user gives a podcast RSS feed and wants the most recent episodes:
+
+```bash
+python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
 ```
 
 Quality choices:
@@ -196,6 +217,7 @@ For agent workflows, read `manifest.json` first, then each item's `metadata.json
 - Missing `ffmpeg`: install ffmpeg and ensure it is on PATH.
 - Missing `whisper-cli`: install whisper.cpp and ensure `whisper-cli` is on PATH.
 - Webpage URL fails: install `yt-dlp`, then retry. Some sites may require browser cookies or may block downloads.
+- `resolve-sources` returns a platform error: keep the stderr summary; it often tells you whether the issue is network, platform throttling, or an outdated `yt-dlp`.
 - First run is slow: likely model download or first model load. Run `doctor` and check model paths.
 - 8GB RAM machines: start with `accurate` only if doctor says it is reasonable; otherwise use `fast`.
 - Speaker transcript fails immediately: check `pyannote.audio` installation and whether `HF_TOKEN` is configured.

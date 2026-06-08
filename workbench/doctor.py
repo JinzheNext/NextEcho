@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .speaker_transcript import HF_TOKEN_ENV_VARS, detect_speaker_backend_status
-from .transcription import DEFAULT_MODEL_NAME, DEFAULT_MODEL_ROOT, resolve_whisper_model
+from .transcription import DEFAULT_MODEL_NAME, DEFAULT_MODEL_ROOT, PROJECT_NAME, PROJECT_TAGLINE, resolve_whisper_model
 
 FAST_MODEL_NAME = "base"
 REQUIRED_BINARIES = ["ffmpeg", "whisper-cli"]
@@ -175,7 +175,8 @@ def report_to_dict(report: DoctorReport) -> dict[str, Any]:
 
 def print_human_report(report: DoctorReport) -> None:
     status = "OK" if report.ok else "NEEDS_ATTENTION"
-    print(f"Local Transcription Workbench Doctor: {status}")
+    print(f"{PROJECT_NAME} Doctor: {status}")
+    print(f"Tagline: {PROJECT_TAGLINE}")
     print(f"OS: {report.os} / {report.machine}")
     print(f"Python: {report.python}")
     print(f"Memory: {report.memory_gb if report.memory_gb is not None else 'unknown'} GB")
