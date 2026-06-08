@@ -4,148 +4,132 @@
 
 [中文 README](README.md) | [Open Source Compliance](OPEN_SOURCE_COMPLIANCE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md)
 
-A local-first audio and video transcription workbench. NextEcho is built to automatically turn podcasts into knowledge base entries. Upload a file or paste a media URL, and it produces a reproducible artifact bundle. It is designed for both human users through a lightweight web UI and terminal agents through a CLI.
+NextEcho is a local-first audio and video transcription workbench. You can upload local files or paste YouTube, Bilibili, Xiaoyuzhou, and podcast RSS links, then turn them into reusable text assets with a structured artifact bundle on disk.
 
-## Features
+It is designed for two kinds of users:
 
-- Transcribe local files and remote media URLs
-- Resolve mainstream media pages such as YouTube, Bilibili, and Xiaoyuzhou
-- Fully local pipeline: `curl / yt-dlp + ffmpeg + whisper-cli`
-- Preserve `source.*`, `audio.wav`, `transcript.txt/json/srt/vtt` by default
-- Lightweight HTML workbench
-- Lightweight macOS app wrapper script
-- Agent-friendly CLI and install guide
-- Speaker-attributed interview transcripts with `Speaker 1 / Speaker 2`
+- Human users: work directly in the web UI
+- Agents: integrate through the CLI or by launching the local web workflow
 
-## Quick Start
+## What It Is
+
+NextEcho is useful when you want to:
+
+- turn podcasts, videos, and interviews into full transcripts
+- move an episode into your knowledge base or note system
+- keep source media, extracted audio, subtitles, and intermediate outputs for reuse
+- give Claude Code, Codex, Cursor Agent, or similar tools a reliable local transcription capability
+
+Core characteristics:
+
+- local-first, with no dependency on cloud ASR
+- supports both local files and remote links
+- supports both web and command-line workflows
+- preserves `source.*`, `audio.wav`, `transcript.txt/json/srt/vtt` by default
+- transcript text includes project attribution by default so shared copies keep their source
+
+## Supported Inputs
+
+- Local files: `mp3`, `mp4`, `m4a`, `wav`, `flac`, `aac`, `mov`, `webm`
+- Platform pages: YouTube, Bilibili, Xiaoyuzhou
+- Direct media URLs: audio or video file links
+- RSS and podcast feeds
+
+## Installation
+
+### macOS
+
+The fastest path is the install script:
+
+```bash
+bash scripts/install_mac.sh
+```
+
+If you prefer to install manually, the minimum setup is:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+brew install ffmpeg whisper-cpp yt-dlp
 python -m workbench.cli doctor
-python -m workbench.cli serve
 ```
 
-Open `http://127.0.0.1:8765`
+### Windows PowerShell
 
-Windows PowerShell:
+The recommended path is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
+```
+
+For a manual setup, make sure that:
+
+- Python 3.10+ is installed
+- `ffmpeg` is on `PATH`
+- `whisper-cli` is on `PATH`
+- `yt-dlp` is installed if you want platform-page resolution
+
+Then run:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python -m workbench.cli doctor
-python -m workbench.cli serve
 ```
 
-## Install for Agents
-
-If you want Claude Code, Codex, Cursor Agent, or another terminal agent to install and use this tool, point it to:
-
-```text
-AGENT_INSTALL.md
-```
-
-Suggested prompt:
-
-> Please follow AGENT_INSTALL.md to install the local transcription workbench and verify that both the web UI and CLI work.
-
-## Cross-Platform Install Scripts
-
-macOS:
-
-```bash
-bash scripts/install_mac.sh
-```
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
-```
-
-## CLI
-
-Doctor:
+### Verify the Setup First
 
 ```bash
 python -m workbench.cli doctor
-python -m workbench.cli doctor --json
 ```
 
-Start the web UI:
+The main pipeline is ready when:
+
+- `ffmpeg` is found
+- `whisper-cli` is found
+- at least one Whisper model is available, or first-run download is allowed
+
+## For Human Users
+
+### Option 1: Use the Web App
+
+This is the best default for most people.
+
+1. Start the local site:
 
 ```bash
 python -m workbench.cli serve
 ```
 
-Transcribe local files or direct media:
+2. Open:
 
-```bash
-python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
-python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fast
+```text
+http://127.0.0.1:8765
 ```
 
-Resolve sources first:
+3. Choose one input method in the UI:
 
-```bash
-python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
-python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/6a19390a7460cabdeb57c0e5" --json
-```
+- upload local audio or video files
+- paste one or more links, one per line
 
-Transcribe a platform page:
+4. Choose a quality mode:
 
-```bash
-python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
-python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
-```
+- `accurate`: recommended by default, prefers `large-v3-turbo-q5_0`
+- `fast`: speed-first mode, uses `base`
 
-Transcribe an RSS or podcast feed:
+5. Start the transcription and wait for the outputs.
 
-```bash
-python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
-```
+The web workflow is ideal when:
 
-Speaker-attributed interview transcript:
+- you want to transcribe one episode quickly
+- you do not want to manage CLI flags
+- you want to inspect recent runs and artifact paths visually
 
-```bash
-python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
-python -m workbench.cli speaker-transcript /path/to/run_xxx
-```
+### Option 2: Open the macOS App
 
-Quality presets:
-
-- `accurate`: higher accuracy, prefers `large-v3-turbo-q5_0`
-- `fast`: faster, prefers `base`
-
-## Token Notes
-
-Transcription runs locally and does not call a cloud LLM or cloud ASR service, so the audio or video processing itself does not consume LLM tokens.
-
-If an agent launches the task, the agent may still spend a small amount of orchestration context or tokens while understanding your request, running commands, and reading outputs. The actual transcription compute remains local.
-
-Speaker diarization is also local. If you use pyannote, the first model download needs a Hugging Face token, but that is not LLM or API billing.
-
-## Reuse Existing Models
-
-If you already have Whisper models, you can reuse them instead of downloading again:
-
-```bash
-export TRANSCRIBE_MODEL_DIR=/path/to/your/whisper-models
-```
-
-PowerShell:
-
-```powershell
-$env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
-```
-
-The program checks an explicit model path, `TRANSCRIBE_MODEL_DIR`, `WHISPER_MODEL_DIR`, and then the local project model directory before downloading anything.
-
-## Lightweight macOS App
-
-Build:
+If you want a more app-like startup flow on macOS:
 
 ```bash
 bash scripts/build_mac_app.sh
@@ -157,25 +141,157 @@ This generates:
 dist/NextEcho.app
 ```
 
-When opened, it tries to start the local service and open `http://127.0.0.1:8765`. Logs are written to `logs/app.log`.
+When opened, it will try to:
 
-## Speaker Transcript Dependencies
+- check the local environment
+- start the service
+- open `http://127.0.0.1:8765`
 
-If you want a local fallback without a Hugging Face token, install:
+Logs are written to:
+
+```text
+logs/app.log
+```
+
+### Option 3: Use the CLI Directly
+
+This is best for scripting, batch work, and knowledge-workflow automation.
+
+Most common commands:
+
+#### 1. Transcribe a local file
+
+```bash
+python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
+```
+
+#### 2. Transcribe a direct media URL
+
+```bash
+python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fast
+```
+
+#### 3. Resolve a source before deciding whether to transcribe it
+
+```bash
+python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+```
+
+#### 4. Transcribe a platform page directly
+
+```bash
+python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+```
+
+#### 5. Transcribe a podcast RSS feed
+
+```bash
+python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
+```
+
+## For Agents
+
+NextEcho can serve agents through either the CLI or a launched local web workflow.
+
+### Option 1: Let the Agent Use the CLI
+
+This is the most reliable integration path. Give the repository to the agent and point it to:
+
+```text
+AGENT_INSTALL.md
+```
+
+Suggested prompt:
+
+> Please follow AGENT_INSTALL.md to install NextEcho and verify that both the web UI and CLI work.
+
+Common agent-side commands:
+
+#### 1. Environment check first
+
+```bash
+python -m workbench.cli doctor
+python -m workbench.cli doctor --json
+```
+
+#### 2. Transcribe a local file or direct media URL
+
+```bash
+python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
+python -m workbench.cli transcribe "https://example.com/video.mp4" --quality accurate --json
+```
+
+#### 3. Resolve a platform page first
+
+```bash
+python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+```
+
+#### 4. Transcribe a platform page directly
+
+```bash
+python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+```
+
+#### 5. Process an RSS feed
+
+```bash
+python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
+```
+
+Recommended agent flow:
+
+1. Run `doctor`
+2. If the input is a platform link, run `resolve-sources`
+3. Choose between `transcribe`, `transcribe-page`, or `transcribe-feed`
+4. Read `manifest.json` first, then each item's `metadata.json` and `transcript.txt`
+
+### Option 2: Let the Agent Launch the Web App for the User
+
+If the user prefers a visual flow, the agent can simply start:
+
+```bash
+python -m workbench.cli serve
+```
+
+Then direct the user to:
+
+```text
+http://127.0.0.1:8765
+```
+
+This is a good fit when:
+
+- the user wants to paste links or upload files manually
+- the agent only needs to prepare the environment and open the entry point
+- the user wants to inspect the final results themselves
+
+## Speaker-Attributed Interview Transcripts
+
+If you want `Speaker 1 / Speaker 2` style output, you need extra speaker-diarization dependencies.
+
+### Lightweight Local Fallback
+
+If you do not want to configure a Hugging Face token, start with:
 
 ```bash
 pip install -r requirements-speakers-lite.txt
 ```
 
-This enables the `segment-clustering` backend and produces `Speaker 1 / Speaker 2`.
+This enables the `segment-clustering` backend and is good for getting the workflow running.
 
-If you want the heavier pyannote route, also install:
+### Stronger pyannote Path
+
+If you want stronger speaker diarization, also install:
 
 ```bash
 pip install -r requirements-speakers.txt
 ```
 
-Then set a Hugging Face access token:
+Then set:
 
 ```bash
 export HF_TOKEN=your_token_here
@@ -187,12 +303,33 @@ PowerShell:
 $env:HF_TOKEN="your_token_here"
 ```
 
-`python -m workbench.cli doctor` will report whether `pyannote` or `segment-clustering` will be used.
+### Commands
 
-## Output Layout
+#### 1. Generate a speaker transcript from a raw audio file
+
+```bash
+python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
+```
+
+#### 2. Continue from an existing single-source run directory
+
+```bash
+python -m workbench.cli speaker-transcript /path/to/run_xxx
+```
+
+Outputs include:
+
+- `transcript.speakers.json`
+- `transcript.speakers.txt`
+- `transcript.speakers.md`
+- `speaker_map.json`
+
+## Output Location
+
+Each run creates a `run_xxx/` directory like this:
 
 ```text
-run_xxx/
+outputs/transcriptions/run_xxx/
 ├── manifest.json
 ├── run_config.json
 └── items/
@@ -206,14 +343,56 @@ run_xxx/
         └── transcript.vtt
 ```
 
+If you also generate a speaker transcript, you will usually see these files at the run root:
+
+- `transcript.speakers.json`
+- `transcript.speakers.txt`
+- `transcript.speakers.md`
+- `speaker_map.json`
+
+## Reusing Existing Models
+
+If you already have Whisper models, you can reuse them instead of downloading again:
+
+```bash
+export TRANSCRIBE_MODEL_DIR=/path/to/your/whisper-models
+```
+
+PowerShell:
+
+```powershell
+$env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
+```
+
+The program checks, in order:
+
+- an explicit model path
+- `TRANSCRIBE_MODEL_DIR`
+- `WHISPER_MODEL_DIR`
+- the local project model directory
+
+If none are available, it will download the required model on first run.
+
+## Token and Cost Notes
+
+- transcription computation runs locally and does not call a cloud LLM or cloud ASR service
+- media parsing itself does not consume LLM tokens
+- if an agent launches the task, the agent may still consume a small amount of orchestration context or tokens while interpreting the request, running commands, and reading outputs
+- if you use pyannote, the first model download may require a Hugging Face token, but that is not LLM or API billing
+
 ## Open Source and Compliance
 
-This repository now includes:
+The repository includes:
 
 - [OPEN_SOURCE_COMPLIANCE.md](OPEN_SOURCE_COMPLIANCE.md): release guidance, license risk notes, and compliance policy
 - [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md): dependency and license inventory
 - `NOTICE`: third-party attribution and trademark notice
 
-One release step still needs maintainer choice:
+This repository is licensed under:
 
-- Add the repository's own project license, such as MIT, Apache-2.0, or GPL. That decision defines how others may legally use your code and should be chosen intentionally by the maintainer.
+- `AGPL-3.0`
+
+In practice, that means:
+
+- others may use, modify, and redistribute the project
+- if they modify it and provide it as a network service, they must make the corresponding source available under the AGPL terms

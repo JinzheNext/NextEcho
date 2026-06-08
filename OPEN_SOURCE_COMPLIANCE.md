@@ -10,7 +10,7 @@ Reason:
 
 - The codebase is structurally suitable for commercial and closed-source distribution.
 - The repository now documents third-party licenses and release risks.
-- The project still needs a maintainer-selected repository license before public open source release.
+- The repository now has a top-level `AGPL-3.0` license.
 - FFmpeg and platform-download workflows require explicit release policy to avoid preventable GPL and platform-terms issues.
 
 ## Scope of This Project
@@ -30,14 +30,11 @@ Use these rules when publishing the repository, binaries, or documentation.
 
 ### 1. Repository License
 
-Before making the repository public, add a top-level project license selected by the maintainer.
+The repository now uses:
 
-Recommended options for a permissive release:
+- `AGPL-3.0`
 
-- `MIT`
-- `Apache-2.0`
-
-Do not let automation choose this on your behalf. It changes the legal terms for your own source code.
+This is a strong copyleft license and is intentionally suitable for maintainers who want public source distribution while requiring source availability for modified network-deployed versions.
 
 ### 2. Third-Party Notice Files
 
@@ -116,7 +113,7 @@ Important conclusions:
 
 Use this checklist before tagging a public release:
 
-1. Choose and add the repository's own `LICENSE`.
+1. Keep the repository `LICENSE` present and unchanged unless you intentionally relicense the project.
 2. Review and refresh `THIRD_PARTY_LICENSES.md`.
 3. Confirm whether release artifacts bundle `ffmpeg`, `yt-dlp`, `whisper-cli`, Python runtime, or model files.
 4. If FFmpeg is bundled, record the exact build and confirm whether it is LGPL-only or GPL.
@@ -127,4 +124,4 @@ Use this checklist before tagging a public release:
 
 ## Current Repository Decision
 
-Based on the current implementation, this repository is close to a compliant public release, but not fully done until a maintainer-selected project license is added.
+Based on the current implementation, the repository now has a defined project license. Remaining release work is mainly about packaging discipline, third-party notices, and platform-risk communication.
