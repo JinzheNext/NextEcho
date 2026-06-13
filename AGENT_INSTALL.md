@@ -14,6 +14,13 @@ This guide is written for an AI coding agent such as Claude Code, Codex, Cursor 
 
 ## First-time installation
 
+For human users, prefer the double-click launchers in the repository root:
+
+- macOS: `Install NextEcho.command`, then `Open NextEcho.command`
+- Windows: `Install NextEcho.bat`, then `Open NextEcho.bat`
+
+Agents should still understand and verify the underlying scripts below.
+
 ### macOS
 
 ```bash
@@ -67,10 +74,18 @@ The setup is usable when:
 - `whisper-cli` is found.
 - Python dependencies are installed.
 - Doctor prints a recommended quality.
+- Doctor prints a recommended model.
 
 `yt-dlp` is optional but recommended. Without it, local files and direct media links still work; webpage links may fail.
 
 ## Start the web UI
+
+For human-facing support, prefer telling the user to double-click the launcher instead of typing commands:
+
+- macOS: `Open NextEcho.command`
+- Windows: `Open NextEcho.bat`
+
+CLI fallback:
 
 ```bash
 python -m workbench.cli serve
@@ -91,6 +106,7 @@ When the user asks you to transcribe an audio/video file or media URL, prefer th
 ```bash
 python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
 python -m workbench.cli transcribe "https://example.com/video.mp4" --quality accurate --json
+python -m workbench.cli transcribe /path/to/audio.mp3 --model base --json
 ```
 
 When the user wants to inspect how a page URL will resolve before transcription:
@@ -105,6 +121,7 @@ When the user gives a single platform page URL and wants the full local transcri
 ```bash
 python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
 python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --model small --json
 ```
 
 When the user gives a podcast RSS feed and wants the most recent episodes:
@@ -118,11 +135,30 @@ Quality choices:
 - `accurate`: best default when the machine can handle it; uses `large-v3-turbo-q5_0`.
 - `fast`: lighter fallback; uses `base`.
 
+Model choices:
+
+- `tiny`: lowest resource use, best for weak or older machines
+- `base`: safe lightweight default for many 8GB-class machines
+- `small`: more balanced quality and speed for 8GB to 16GB machines
+- `medium`: better quality for 16GB+ machines
+- `large-v3-turbo-q5_0`: best default quality when the machine is strong enough
+
 Default rule:
 
 1. Run `python -m workbench.cli doctor` if setup status is unknown.
-2. Use `accurate` when doctor recommends it or when the user asks for best quality.
-3. Use `fast` when doctor recommends it, memory is constrained, or the user asks for speed.
+2. Run `python -m workbench.cli list-models` to inspect the machine-specific model recommendation.
+3. If the user wants explicit control, run `python -m workbench.cli download-model <model>`.
+4. Use `accurate` when doctor recommends it or when the user asks for best quality.
+5. Use `fast` when doctor recommends it, memory is constrained, or the user asks for speed.
+
+Useful model commands:
+
+```bash
+python -m workbench.cli list-models
+python -m workbench.cli list-models --json
+python -m workbench.cli download-model base
+python -m workbench.cli download-model small
+```
 
 ## Agent CLI usage for interview transcripts
 
@@ -131,6 +167,7 @@ When the user wants a speaker-attributed transcript for a podcast or conversatio
 ```bash
 python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
 python -m workbench.cli speaker-transcript /path/to/run_xxx
+python -m workbench.cli speaker-transcript /path/to/audio.wav --model base --json
 ```
 
 The first command accepts a raw audio file and will create a workbench run if needed. The second reuses an existing single-source run directory.
@@ -190,6 +227,14 @@ $env:TRANSCRIBE_MODEL_DIR="C:\path\to\whisper-models"
 ```
 
 If no model is found, first transcription may download the selected model locally. This download is not an LLM/API call.
+
+Recommended agent behavior for model setup:
+
+1. Run `doctor`
+2. Run `list-models`
+3. Pick a model based on the user's machine and tolerance for speed vs. quality
+4. Optionally pre-download it with `download-model`
+5. Pass `--model <name>` when you want deterministic behavior across runs
 
 ## Output contract
 

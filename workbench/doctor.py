@@ -12,7 +12,15 @@ from pathlib import Path
 from typing import Any
 
 from .speaker_transcript import HF_TOKEN_ENV_VARS, detect_speaker_backend_status
-from .transcription import DEFAULT_MODEL_NAME, DEFAULT_MODEL_ROOT, PROJECT_NAME, PROJECT_TAGLINE, resolve_whisper_model
+from .transcription import (
+    DEFAULT_MODEL_NAME,
+    DEFAULT_MODEL_ROOT,
+    PROJECT_NAME,
+    PROJECT_TAGLINE,
+    list_supported_whisper_models,
+    recommend_whisper_model,
+    resolve_whisper_model,
+)
 
 FAST_MODEL_NAME = "base"
 REQUIRED_BINARIES = ["ffmpeg", "whisper-cli"]
@@ -45,6 +53,9 @@ class DoctorReport:
     models: list[ModelCheck]
     recommended_quality: str
     recommendation_reason: str
+    recommended_model: str
+    recommended_model_reason: str
+    supported_models: list[dict[str, Any]]
     speaker_transcript: dict[str, Any]
     notes: list[str]
 
@@ -129,6 +140,7 @@ def run_doctor() -> DoctorReport:
     accurate_model = check_model(DEFAULT_MODEL_NAME)
     fast_model = check_model(FAST_MODEL_NAME)
     recommended_quality, reason = recommend_quality(memory_gb, accurate_model, fast_model)
+    recommended_model, recommended_model_reason = recommend_whisper_model(memory_gb)
     speaker_backend = detect_speaker_backend_status()
     pyannote_installed = bool(speaker_backend["pyannote_installed"])
     hf_token_env = speaker_backend["hf_token_env"] or detect_hf_token_env()
@@ -158,6 +170,9 @@ def run_doctor() -> DoctorReport:
         models=[accurate_model, fast_model],
         recommended_quality=recommended_quality,
         recommendation_reason=reason,
+        recommended_model=recommended_model,
+        recommended_model_reason=recommended_model_reason,
+        supported_models=list_supported_whisper_models(),
         speaker_transcript={
             "pyannote_installed": pyannote_installed,
             "hf_token_env": hf_token_env or "",
@@ -191,6 +206,11 @@ def print_human_report(report: DoctorReport) -> None:
         print(f"  {mark} {model.name} {model.path or ''}")
     print(f"\nRecommended quality: {report.recommended_quality}")
     print(f"Reason: {report.recommendation_reason}")
+    print(f"Recommended model: {report.recommended_model}")
+    print(f"Model reason: {report.recommended_model_reason}")
+    print("\nSupported models:")
+    for model in report.supported_models:
+        print(f"  - {model['name']}: {model['summary']} (suggested memory >= {model['min_memory_gb']}GB)")
     print("\nSpeaker transcript:")
     print(f"  pyannote.audio installed: {report.speaker_transcript['pyannote_installed']}")
     print(f"  HF token env: {report.speaker_transcript['hf_token_env'] or 'missing'}")

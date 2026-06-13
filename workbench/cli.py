@@ -11,7 +11,13 @@ from uuid import uuid4
 from .doctor import print_human_report, report_to_dict, run_doctor
 from .speaker_transcript import build_speaker_transcript
 from .sources import resolve_feed, resolve_sources
-from .transcription import DEFAULT_MODEL_NAME, transcribe_media_sources
+from .transcription import (
+    DEFAULT_MODEL_NAME,
+    list_supported_whisper_models,
+    resolve_requested_model,
+    resolve_whisper_model,
+    transcribe_media_sources,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNS_ROOT = ROOT / "outputs" / "transcriptions"
@@ -46,7 +52,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
 def cmd_transcribe(args: argparse.Namespace) -> int:
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
-    model = QUALITY_TO_MODEL.get(args.quality, DEFAULT_MODEL_NAME)
+    doctor_report = run_doctor()
+    model = resolve_requested_model(args.model, args.quality, memory_gb=doctor_report.memory_gb)
     descriptors = resolve_sources(args.sources)
     payload = transcribe_media_sources(
         descriptors,
@@ -96,7 +103,8 @@ def cmd_transcribe_page(args: argparse.Namespace) -> int:
         return 1
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
-    model = QUALITY_TO_MODEL.get(args.quality, DEFAULT_MODEL_NAME)
+    doctor_report = run_doctor()
+    model = resolve_requested_model(args.model, args.quality, memory_gb=doctor_report.memory_gb)
     payload = transcribe_media_sources(
         [descriptor],
         output_dir=output_dir,
@@ -126,7 +134,8 @@ def cmd_transcribe_feed(args: argparse.Namespace) -> int:
     descriptors = resolve_feed(args.url, limit=args.limit)
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
-    model = QUALITY_TO_MODEL.get(args.quality, DEFAULT_MODEL_NAME)
+    doctor_report = run_doctor()
+    model = resolve_requested_model(args.model, args.quality, memory_gb=doctor_report.memory_gb)
     payload = transcribe_media_sources(
         descriptors,
         output_dir=output_dir,
@@ -153,18 +162,52 @@ def cmd_transcribe_feed(args: argparse.Namespace) -> int:
 
 
 def cmd_speaker_transcript(args: argparse.Namespace) -> int:
+    doctor_report = run_doctor()
     payload = build_speaker_transcript(
         args.input_path,
         quality=args.quality,
         output_dir=args.output_dir,
         min_speakers=args.min_speakers,
         max_speakers=args.max_speakers,
+        model_name=resolve_requested_model(args.model, args.quality, memory_gb=doctor_report.memory_gb),
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"Generated {Path(payload['run_dir']) / 'transcript.speakers.md'}")
         print(payload["preview_text"])
+    return 0
+
+
+def cmd_list_models(args: argparse.Namespace) -> int:
+    report = run_doctor()
+    payload = {
+        "recommended_quality": report.recommended_quality,
+        "recommended_quality_reason": report.recommendation_reason,
+        "recommended_model": report.recommended_model,
+        "recommended_model_reason": report.recommended_model_reason,
+        "models": list_supported_whisper_models(),
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Recommended model: {report.recommended_model}")
+        print(f"Reason: {report.recommended_model_reason}")
+        print("\nAvailable Whisper models:")
+        for item in payload["models"]:
+            print(f"- {item['name']} [{item['tier']}] suggested memory >= {item['min_memory_gb']}GB")
+            print(f"  {item['summary']}")
+    return 0
+
+
+def cmd_download_model(args: argparse.Namespace) -> int:
+    model_path = resolve_whisper_model(args.model)
+    payload = {"model": args.model, "path": str(model_path)}
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Downloaded or reused model: {args.model}")
+        print(f"Path: {model_path}")
     return 0
 
 
@@ -184,6 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser = subparsers.add_parser("transcribe", help="Transcribe local files or media URLs locally")
     transcribe_parser.add_argument("sources", nargs="+", help="Local file paths or remote media/page URLs")
     transcribe_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    transcribe_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     transcribe_parser.add_argument("--output-dir", type=Path)
     transcribe_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     transcribe_parser.set_defaults(func=cmd_transcribe)
@@ -196,6 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
     page_parser = subparsers.add_parser("transcribe-page", help="Resolve one media page URL and transcribe it locally")
     page_parser.add_argument("url", help="Single platform page URL such as YouTube, Bilibili, or Xiaoyuzhou")
     page_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    page_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     page_parser.add_argument("--output-dir", type=Path)
     page_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     page_parser.set_defaults(func=cmd_transcribe_page)
@@ -204,6 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
     feed_parser.add_argument("url", help="RSS or podcast feed URL")
     feed_parser.add_argument("--limit", type=int, default=3)
     feed_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    feed_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     feed_parser.add_argument("--output-dir", type=Path)
     feed_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     feed_parser.set_defaults(func=cmd_transcribe_feed)
@@ -211,11 +257,21 @@ def build_parser() -> argparse.ArgumentParser:
     speaker_parser = subparsers.add_parser("speaker-transcript", help="Build a speaker-attributed interview transcript")
     speaker_parser.add_argument("input_path", help="Audio file, artifact directory, or single-source run directory")
     speaker_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    speaker_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     speaker_parser.add_argument("--output-dir", type=Path)
     speaker_parser.add_argument("--min-speakers", type=int, default=2)
     speaker_parser.add_argument("--max-speakers", type=int, default=2)
     speaker_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     speaker_parser.set_defaults(func=cmd_speaker_transcript)
+
+    list_models_parser = subparsers.add_parser("list-models", help="Show supported whisper.cpp models and the recommended choice for this machine")
+    list_models_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    list_models_parser.set_defaults(func=cmd_list_models)
+
+    download_model_parser = subparsers.add_parser("download-model", help="Download or reuse a specific whisper.cpp model locally")
+    download_model_parser.add_argument("model", help="Model name such as tiny, base, small, medium, or large-v3-turbo-q5_0")
+    download_model_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    download_model_parser.set_defaults(func=cmd_download_model)
 
     return parser
 

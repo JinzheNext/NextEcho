@@ -13,6 +13,9 @@ from workbench.transcription import (
     _append_shifted_vtt,
     _which_binary,
     format_transcript_attribution,
+    list_supported_whisper_models,
+    recommend_whisper_model,
+    resolve_requested_model,
     transcribe_audio_file,
     transcribe_media_sources,
 )
@@ -220,6 +223,26 @@ class SourceResolverTests(unittest.TestCase):
         self.assertTrue(rendered.startswith("本文转录由 GitHub 项目：NextEcho 提供支持"))
         self.assertIn("你好，世界。", rendered)
         self.assertIn("powered by GitHub repo NextEcho", rendered)
+
+    def test_recommend_whisper_model_respects_memory_tiers(self) -> None:
+        self.assertEqual(recommend_whisper_model(None)[0], "base")
+        self.assertEqual(recommend_whisper_model(4.0)[0], "tiny")
+        self.assertEqual(recommend_whisper_model(7.0)[0], "base")
+        self.assertEqual(recommend_whisper_model(12.0)[0], "small")
+        self.assertEqual(recommend_whisper_model(20.0)[0], "medium")
+
+    def test_resolve_requested_model_prefers_explicit_value(self) -> None:
+        self.assertEqual(resolve_requested_model("small", "accurate", memory_gb=32.0), "small")
+        self.assertEqual(resolve_requested_model(None, "fast", memory_gb=32.0), "base")
+        self.assertEqual(resolve_requested_model(None, "accurate", memory_gb=12.0), "small")
+
+    def test_list_supported_whisper_models_has_expected_entries(self) -> None:
+        names = {item["name"] for item in list_supported_whisper_models()}
+        self.assertIn("tiny", names)
+        self.assertIn("base", names)
+        self.assertIn("small", names)
+        self.assertIn("medium", names)
+        self.assertIn("large-v3-turbo-q5_0", names)
 
 
 if __name__ == "__main__":

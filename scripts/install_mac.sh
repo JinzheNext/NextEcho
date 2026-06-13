@@ -3,9 +3,17 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+APP_URL="http://127.0.0.1:8765"
+
+show_alert() {
+  local message="$1"
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e "display alert \"NextEcho\" message \"$message\""
+  fi
+}
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 is required. Install Python 3.10+ first."
+  show_alert "未检测到 Python 3。请先安装 Python 3.10 或更高版本，再重新双击安装器。"
   exit 1
 fi
 
@@ -25,26 +33,28 @@ for bin in ffmpeg whisper-cli; do
 done
 
 if [ "${#missing[@]}" -gt 0 ]; then
-  echo "Missing required system dependencies: ${missing[*]}"
   if command -v brew >/dev/null 2>&1; then
-    echo "Suggested install: brew install ffmpeg whisper-cpp"
+    brew install ffmpeg whisper-cpp
   else
-    echo "Install Homebrew, then run: brew install ffmpeg whisper-cpp"
+    show_alert "NextEcho 需要 Homebrew 来自动安装 ffmpeg 和 whisper.cpp。请先安装 Homebrew，然后重新双击安装器。"
+    exit 1
   fi
 fi
 
 if ! command -v yt-dlp >/dev/null 2>&1; then
-  echo "Optional dependency yt-dlp is missing. Webpage URL extraction may fail."
-  echo "Suggested install: brew install yt-dlp"
+  if command -v brew >/dev/null 2>&1; then
+    brew install yt-dlp || true
+  fi
 fi
 
 mkdir -p models/whisper.cpp outputs/transcriptions
 python -m workbench.cli doctor || true
+.venv/bin/python -m workbench.cli download-model base || true
 
-printf "\nInstall complete. Start the web UI with:\n"
-echo "  source .venv/bin/activate && python -m workbench.cli serve"
-echo "Then open http://127.0.0.1:8765"
-echo
-echo "Optional for speaker-attributed interview transcripts:"
-echo "  source .venv/bin/activate && pip install -r requirements-speakers.txt"
-echo "  export HF_TOKEN=your_token_here"
+if command -v curl >/dev/null 2>&1 && ! curl -sSf "$APP_URL" >/dev/null 2>&1; then
+  nohup "$ROOT_DIR/.venv/bin/python" app.py >/tmp/nextecho-install.log 2>&1 &
+  sleep 3
+fi
+
+open "$APP_URL"
+show_alert "NextEcho 安装完成，浏览器即将打开。以后可以直接双击 Open NextEcho.command 或 NextEcho.app 使用。"
