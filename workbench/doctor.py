@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import importlib.util
+import os
 import platform
 import shutil
 import subprocess
@@ -9,7 +11,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .transcription import DEFAULT_MODEL_NAME, DEFAULT_MODEL_ROOT, resolve_whisper_model
+from .speaker_transcript import HF_TOKEN_ENV_VARS, detect_speaker_backend_status
+from .transcription import DEFAULT_MODEL_NAME, DEFAULT_MODEL_ROOT, PROJECT_NAME, PROJECT_TAGLINE, resolve_whisper_model
 
 FAST_MODEL_NAME = "base"
 REQUIRED_BINARIES = ["ffmpeg", "whisper-cli"]
@@ -42,6 +45,7 @@ class DoctorReport:
     models: list[ModelCheck]
     recommended_quality: str
     recommendation_reason: str
+    speaker_transcript: dict[str, Any]
     notes: list[str]
 
 
@@ -98,6 +102,20 @@ def recommend_quality(memory_gb: float | None, accurate_model: ModelCheck, fast_
     return "accurate", "未找到本地模型；首次运行会按高精度默认模型下载。"
 
 
+def package_available(module_name: str) -> bool:
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except ModuleNotFoundError:
+        return False
+
+
+def detect_hf_token_env() -> str | None:
+    for name in HF_TOKEN_ENV_VARS:
+        if os.environ.get(name):
+            return name
+    return None
+
+
 def run_doctor() -> DoctorReport:
     binary_checks = [
         BinaryCheck(name=name, path=command_path(name), required=True, ok=command_path(name) is not None)
@@ -111,6 +129,10 @@ def run_doctor() -> DoctorReport:
     accurate_model = check_model(DEFAULT_MODEL_NAME)
     fast_model = check_model(FAST_MODEL_NAME)
     recommended_quality, reason = recommend_quality(memory_gb, accurate_model, fast_model)
+    speaker_backend = detect_speaker_backend_status()
+    pyannote_installed = bool(speaker_backend["pyannote_installed"])
+    hf_token_env = speaker_backend["hf_token_env"] or detect_hf_token_env()
+    fallback_backend_available = bool(speaker_backend["fallback_backend_available"])
     notes: list[str] = []
     if not any(binary.name == "yt-dlp" and binary.ok for binary in binary_checks):
         notes.append("yt-dlp 未安装：本地文件和直链媒体仍可用，但网页链接解析可能失败。")
@@ -119,6 +141,12 @@ def run_doctor() -> DoctorReport:
     missing_required = [binary.name for binary in binary_checks if binary.required and not binary.ok]
     if missing_required:
         notes.append(f"缺少必需依赖：{', '.join(missing_required)}。")
+    if not pyannote_installed:
+        notes.append("pyannote.audio 未安装：访谈逐字稿的说话人分离能力当前不可用。")
+    if not hf_token_env:
+        notes.append("未检测到 Hugging Face 访问令牌：pyannote 说话人分离模型无法下载。")
+    if fallback_backend_available and not hf_token_env:
+        notes.append("将使用本地 segment-clustering fallback 生成 Speaker 1 / Speaker 2；如需更稳的 pyannote 效果，再补 HF_TOKEN。")
     ok = not missing_required
     return DoctorReport(
         ok=ok,
@@ -130,6 +158,13 @@ def run_doctor() -> DoctorReport:
         models=[accurate_model, fast_model],
         recommended_quality=recommended_quality,
         recommendation_reason=reason,
+        speaker_transcript={
+            "pyannote_installed": pyannote_installed,
+            "hf_token_env": hf_token_env or "",
+            "fallback_backend_available": fallback_backend_available,
+            "selected_backend": speaker_backend["selected_backend"],
+            "ready": bool(speaker_backend["ready"]) and ok,
+        },
         notes=notes,
     )
 
@@ -140,7 +175,8 @@ def report_to_dict(report: DoctorReport) -> dict[str, Any]:
 
 def print_human_report(report: DoctorReport) -> None:
     status = "OK" if report.ok else "NEEDS_ATTENTION"
-    print(f"Local Transcription Workbench Doctor: {status}")
+    print(f"{PROJECT_NAME} Doctor: {status}")
+    print(f"Tagline: {PROJECT_TAGLINE}")
     print(f"OS: {report.os} / {report.machine}")
     print(f"Python: {report.python}")
     print(f"Memory: {report.memory_gb if report.memory_gb is not None else 'unknown'} GB")
@@ -155,6 +191,12 @@ def print_human_report(report: DoctorReport) -> None:
         print(f"  {mark} {model.name} {model.path or ''}")
     print(f"\nRecommended quality: {report.recommended_quality}")
     print(f"Reason: {report.recommendation_reason}")
+    print("\nSpeaker transcript:")
+    print(f"  pyannote.audio installed: {report.speaker_transcript['pyannote_installed']}")
+    print(f"  HF token env: {report.speaker_transcript['hf_token_env'] or 'missing'}")
+    print(f"  fallback backend available: {report.speaker_transcript['fallback_backend_available']}")
+    print(f"  selected backend: {report.speaker_transcript['selected_backend'] or 'none'}")
+    print(f"  ready: {report.speaker_transcript['ready']}")
     if report.notes:
         print("\nNotes:")
         for note in report.notes:

@@ -9,6 +9,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from .doctor import print_human_report, report_to_dict, run_doctor
+from .speaker_transcript import build_speaker_transcript
+from .sources import resolve_feed, resolve_sources
 from .transcription import DEFAULT_MODEL_NAME, transcribe_media_sources
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,8 +47,9 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
     model = QUALITY_TO_MODEL.get(args.quality, DEFAULT_MODEL_NAME)
+    descriptors = resolve_sources(args.sources)
     payload = transcribe_media_sources(
-        args.sources,
+        descriptors,
         output_dir=output_dir,
         model_name=model,
         language="auto",
@@ -55,6 +58,7 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
     result = {
         "output_dir": str(payload["output_dir"]),
         "manifest_path": str(payload["manifest_path"]),
+        "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
         "results": payload["results"],
     }
     if args.json:
@@ -63,6 +67,104 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
         print(f"Generated {payload['manifest_path']}")
         for item in payload["results"]:
             print(f"- {item.get('source_label')}: {item.get('status')} {item.get('text_path')}")
+        if payload.get("errors_path"):
+            print(f"Errors: {payload['errors_path']}")
+    return _payload_exit_code(payload)
+
+
+def cmd_resolve_sources(args: argparse.Namespace) -> int:
+    payload = [item.to_dict() for item in resolve_sources(args.sources)]
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        for item in payload:
+            print(f"{item['platform']}: {item['title'] or item['canonical_url']} [{item['resolver']}]")
+            if item.get("error"):
+                print(f"  error: {item['error']}")
+    return 0
+
+
+def cmd_transcribe_page(args: argparse.Namespace) -> int:
+    descriptors = resolve_sources([args.url])
+    descriptor = descriptors[0]
+    if descriptor.error:
+        result = {"source": descriptor.to_dict(), "error": descriptor.error}
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(descriptor.error)
+        return 1
+    RUNS_ROOT.mkdir(parents=True, exist_ok=True)
+    output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
+    model = QUALITY_TO_MODEL.get(args.quality, DEFAULT_MODEL_NAME)
+    payload = transcribe_media_sources(
+        [descriptor],
+        output_dir=output_dir,
+        model_name=model,
+        language="auto",
+        max_seconds=0,
+    )
+    result = {
+        "source": descriptor.to_dict(),
+        "output_dir": str(payload["output_dir"]),
+        "manifest_path": str(payload["manifest_path"]),
+        "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
+        "results": payload["results"],
+    }
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"Generated {payload['manifest_path']}")
+        for item in payload["results"]:
+            print(f"- {item.get('source_label')}: {item.get('status')} {item.get('text_path')}")
+        if payload.get("errors_path"):
+            print(f"Errors: {payload['errors_path']}")
+    return _payload_exit_code(payload)
+
+
+def cmd_transcribe_feed(args: argparse.Namespace) -> int:
+    descriptors = resolve_feed(args.url, limit=args.limit)
+    RUNS_ROOT.mkdir(parents=True, exist_ok=True)
+    output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
+    model = QUALITY_TO_MODEL.get(args.quality, DEFAULT_MODEL_NAME)
+    payload = transcribe_media_sources(
+        descriptors,
+        output_dir=output_dir,
+        model_name=model,
+        language="auto",
+        max_seconds=0,
+    )
+    result = {
+        "feed_url": args.url,
+        "output_dir": str(payload["output_dir"]),
+        "manifest_path": str(payload["manifest_path"]),
+        "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
+        "results": payload["results"],
+    }
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"Generated {payload['manifest_path']}")
+        for item in payload["results"]:
+            print(f"- {item.get('source_label')}: {item.get('status')} {item.get('text_path')}")
+        if payload.get("errors_path"):
+            print(f"Errors: {payload['errors_path']}")
+    return _payload_exit_code(payload)
+
+
+def cmd_speaker_transcript(args: argparse.Namespace) -> int:
+    payload = build_speaker_transcript(
+        args.input_path,
+        quality=args.quality,
+        output_dir=args.output_dir,
+        min_speakers=args.min_speakers,
+        max_speakers=args.max_speakers,
+    )
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Generated {Path(payload['run_dir']) / 'transcript.speakers.md'}")
+        print(payload["preview_text"])
     return 0
 
 
@@ -86,6 +188,35 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     transcribe_parser.set_defaults(func=cmd_transcribe)
 
+    resolve_parser = subparsers.add_parser("resolve-sources", help="Resolve URLs or local files into source descriptors")
+    resolve_parser.add_argument("sources", nargs="+", help="Local file paths or remote media/page URLs")
+    resolve_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    resolve_parser.set_defaults(func=cmd_resolve_sources)
+
+    page_parser = subparsers.add_parser("transcribe-page", help="Resolve one media page URL and transcribe it locally")
+    page_parser.add_argument("url", help="Single platform page URL such as YouTube, Bilibili, or Xiaoyuzhou")
+    page_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    page_parser.add_argument("--output-dir", type=Path)
+    page_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    page_parser.set_defaults(func=cmd_transcribe_page)
+
+    feed_parser = subparsers.add_parser("transcribe-feed", help="Resolve an RSS feed and transcribe recent episodes locally")
+    feed_parser.add_argument("url", help="RSS or podcast feed URL")
+    feed_parser.add_argument("--limit", type=int, default=3)
+    feed_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    feed_parser.add_argument("--output-dir", type=Path)
+    feed_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    feed_parser.set_defaults(func=cmd_transcribe_feed)
+
+    speaker_parser = subparsers.add_parser("speaker-transcript", help="Build a speaker-attributed interview transcript")
+    speaker_parser.add_argument("input_path", help="Audio file, artifact directory, or single-source run directory")
+    speaker_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    speaker_parser.add_argument("--output-dir", type=Path)
+    speaker_parser.add_argument("--min-speakers", type=int, default=2)
+    speaker_parser.add_argument("--max-speakers", type=int, default=2)
+    speaker_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    speaker_parser.set_defaults(func=cmd_speaker_transcript)
+
     return parser
 
 
@@ -93,6 +224,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))
+
+
+def _payload_exit_code(payload: dict[str, object]) -> int:
+    results = payload.get("results", [])
+    if not isinstance(results, list):
+        return 0
+    return 1 if any(isinstance(item, dict) and item.get("status") == "failed" for item in results) else 0
 
 
 if __name__ == "__main__":

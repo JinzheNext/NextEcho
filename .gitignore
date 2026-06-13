@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .venv/
+dist/
+logs/
 outputs/transcriptions/*
 !outputs/transcriptions/.gitkeep
 models/whisper.cpp/*.bin

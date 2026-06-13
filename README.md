@@ -1,40 +1,205 @@
-# Local Transcription Workbench
+# NextEcho
 
-一个本地优先的音视频转写工作台：上传文件或粘贴媒体链接，输出可复现素材包。它既可以给人用网页操作，也可以给 Claude Code / Codex 这类 Agent 通过 CLI 调用。
+> 让播客自动转录进知识库
 
-## 能力
+[English README](README.en.md) | [开源合规说明](OPEN_SOURCE_COMPLIANCE.md) | [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
-- 本地文件与远程媒体链接转写
-- 纯本地链路：`curl / yt-dlp + ffmpeg + whisper-cli`
+NextEcho 是一个本地优先的音视频转写工作台。你可以上传本地文件，或者粘贴 YouTube、B 站、小宇宙、播客 RSS 等链接，把内容转成可复用的文字资产，并落盘为结构化素材包。
+
+它同时适合两类用户：
+
+- 人类用户：直接用网页界面操作
+- Agent：通过 CLI 或网页能力接入到工作流里
+
+![NextEcho Web View](/Users/a1-6/Documents/jerry_projects/local-transcription-workbench/NextEcho-webview.png)
+
+## 这是什么
+
+NextEcho 适合做这些事：
+
+- 把播客、视频、访谈快速转成全文
+- 把一期节目沉淀进你的知识库或笔记系统
+- 保留源文件、音频、中间产物和字幕，方便后续复用
+- 让 Claude Code、Codex、Cursor Agent 之类工具直接调用本地转录能力
+
+核心特点：
+
+- 本地优先，不依赖云端 ASR
+- 支持本地文件和远程链接
+- 支持网页端和命令行
 - 默认保留 `source.*`、`audio.wav`、`transcript.txt/json/srt/vtt`
-- 提供轻量 HTML 工作台
-- 提供 Agent 可调用 CLI 与安装说明
+- 转录文本默认带项目署名，便于传播时保留来源
 
-## 快速运行
+## 支持什么输入
+
+- 本地文件：`mp3`、`mp4`、`m4a`、`wav`、`flac`、`aac`、`mov`、`webm`
+- 平台页面：YouTube、B 站、小宇宙
+- 直链媒体：音频或视频文件 URL
+- RSS / 播客 feed
+
+## 先安装
+
+### macOS
+
+推荐直接运行安装脚本：
+
+```bash
+bash scripts/install_mac.sh
+```
+
+如果你想手动安装，最少需要这些依赖：
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+brew install ffmpeg whisper-cpp yt-dlp
 python -m workbench.cli doctor
-python -m workbench.cli serve
 ```
 
-打开：`http://127.0.0.1:8765`
+### Windows PowerShell
 
-Windows PowerShell：
+推荐运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
+```
+
+如果手动安装，需要确保：
+
+- 已安装 Python 3.10+
+- `ffmpeg` 在 PATH 中
+- `whisper-cli` 在 PATH 中
+- 如果要解析平台页面，建议安装 `yt-dlp`
+
+然后执行：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python -m workbench.cli doctor
+```
+
+### 安装完成后先自检
+
+```bash
+python -m workbench.cli doctor
+```
+
+看到这些就说明主链路基本可用：
+
+- `ffmpeg` 已找到
+- `whisper-cli` 已找到
+- 至少有一个 Whisper 模型可用，或者允许首次下载
+
+## 给人类用户怎么用
+
+### 方式一：直接用网页
+
+这是最适合大多数人的方式。
+
+1. 启动本地网站：
+
+```bash
 python -m workbench.cli serve
 ```
 
-## 给 Agent 安装
+2. 打开浏览器访问：
 
-把这个 repo 给 Claude Code / Codex / 其他 Agent，然后让它读取：
+```text
+http://127.0.0.1:8765
+```
+
+3. 在网页里任选一种输入方式：
+
+- 上传本地音视频文件
+- 粘贴一个或多个链接，每行一个
+
+4. 选择质量：
+
+- `高精度`：默认推荐，优先使用 `large-v3-turbo-q5_0`
+- `更快`：速度优先，使用 `base`
+
+5. 点击开始转录，等待生成结果。
+
+网页端适合这些场景：
+
+- 你只是想快速转一期节目
+- 你不想碰命令行参数
+- 你想直观看到最近的转录记录和产物路径
+
+### 方式二：双击打开 Mac App
+
+如果你在 macOS 上，希望像普通 App 一样启动：
+
+```bash
+bash scripts/build_mac_app.sh
+```
+
+生成后会得到：
+
+```text
+dist/NextEcho.app
+```
+
+双击后它会尝试：
+
+- 检查本地环境
+- 启动服务
+- 自动打开 `http://127.0.0.1:8765`
+
+日志写入：
+
+```text
+logs/app.log
+```
+
+### 方式三：直接用命令行
+
+适合想要批量跑、写脚本、或者把转录结果接进自己工作流的人。
+
+最常用的命令如下。
+
+#### 1. 转录本地文件
+
+```bash
+python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
+```
+
+#### 2. 转录直链媒体
+
+```bash
+python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fast
+```
+
+#### 3. 先识别来源，再决定是否转录
+
+```bash
+python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+```
+
+#### 4. 直接转录平台页面
+
+```bash
+python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+```
+
+#### 5. 转录播客 RSS
+
+```bash
+python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
+```
+
+## 给 Agent 怎么用
+
+NextEcho 既可以给 Agent 走命令行，也可以让 Agent 启动网页给用户操作。
+
+### 方式一：让 Agent 走 CLI
+
+这是最稳的接法。把仓库给 Agent 后，让它读取：
 
 ```text
 AGENT_INSTALL.md
@@ -42,75 +207,131 @@ AGENT_INSTALL.md
 
 推荐对 Agent 说：
 
-> 请按 AGENT_INSTALL.md 帮我安装本地转写工作台，并验证网页端和 CLI 都能使用。
+> 请按 AGENT_INSTALL.md 安装 NextEcho，并验证网页端和 CLI 都能使用。
 
-## 跨平台安装脚本
+当 Agent 通过 CLI 工作时，常见调用方式如下。
 
-macOS：
-
-```bash
-bash scripts/install_mac.sh
-```
-
-Windows PowerShell：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
-```
-
-## CLI
-
-自检：
+#### 1. 让 Agent 先做环境检查
 
 ```bash
 python -m workbench.cli doctor
 python -m workbench.cli doctor --json
 ```
 
-启动网页：
+#### 2. 让 Agent 转录一个本地文件或直链
+
+```bash
+python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
+python -m workbench.cli transcribe "https://example.com/video.mp4" --quality accurate --json
+```
+
+#### 3. 让 Agent 先解析平台页面
+
+```bash
+python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+```
+
+#### 4. 让 Agent 直接跑平台链接
+
+```bash
+python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+```
+
+#### 5. 让 Agent 处理 RSS feed
+
+```bash
+python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
+```
+
+Agent 工作时建议遵循这套顺序：
+
+1. 先跑 `doctor`
+2. 如果输入是平台链接，先跑 `resolve-sources`
+3. 再决定是 `transcribe`、`transcribe-page` 还是 `transcribe-feed`
+4. 先读取 `manifest.json`，再读取每个 item 下的 `metadata.json` 和 `transcript.txt`
+
+### 方式二：让 Agent 启动网页给用户操作
+
+如果用户更习惯可视化操作，可以让 Agent 直接启动：
 
 ```bash
 python -m workbench.cli serve
 ```
 
-本地转写：
+然后让用户打开：
 
-```bash
-python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
-python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fast
+```text
+http://127.0.0.1:8765
 ```
 
-质量档位：
+这种方式适合：
 
-- `accurate`：高精度，优先 `large-v3-turbo-q5_0`
-- `fast`：更快，优先 `base`
+- 用户要自己粘链接和上传文件
+- Agent 只负责搭环境和打开入口
+- 用户想人工检查最终结果
 
-## Token 说明
+## 访谈逐字稿怎么用
 
-转写计算在本地完成，不调用云端 LLM 或云端 ASR，因此音视频解析本身不消耗 LLM token。
+如果你希望输出 `Speaker 1 / Speaker 2` 形式的访谈逐字稿，需要额外准备说话人分离依赖。
 
-如果通过 Agent 发起任务，Agent 理解你的指令、运行命令、读取结果时会消耗少量 Agent 编排 token；但真正的转写计算仍然是本地完成。
+### 轻量本地 fallback
 
-## 模型复用
-
-如果你已经有 Whisper 模型，可以直接复用，不必重新下载：
+如果你不想配置 Hugging Face token，可以先装：
 
 ```bash
-export TRANSCRIBE_MODEL_DIR=/path/to/your/whisper-models
+pip install -r requirements-speakers-lite.txt
+```
+
+这会启用 `segment-clustering` 后端，适合先跑通流程。
+
+### 更稳的 pyannote 主方案
+
+如果你要更强的 speaker diarization，再装：
+
+```bash
+pip install -r requirements-speakers.txt
+```
+
+然后设置：
+
+```bash
+export HF_TOKEN=your_token_here
 ```
 
 PowerShell：
 
 ```powershell
-$env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
+$env:HF_TOKEN="your_token_here"
 ```
 
-程序会优先寻找显式模型路径、`TRANSCRIBE_MODEL_DIR` / `WHISPER_MODEL_DIR`，再看项目本地模型目录；都没有时才下载。
+### 使用命令
 
-## 目录产物
+#### 1. 直接从音频生成访谈逐字稿
+
+```bash
+python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
+```
+
+#### 2. 从已有单条转录结果继续生成
+
+```bash
+python -m workbench.cli speaker-transcript /path/to/run_xxx
+```
+
+程序会输出：
+
+- `transcript.speakers.json`
+- `transcript.speakers.txt`
+- `transcript.speakers.md`
+- `speaker_map.json`
+
+## 产物会输出到哪里
+
+每次运行都会生成一个 `run_xxx/` 目录，结构如下：
 
 ```text
-run_xxx/
+outputs/transcriptions/run_xxx/
 ├── manifest.json
 ├── run_config.json
 └── items/
@@ -123,3 +344,57 @@ run_xxx/
         ├── transcript.srt
         └── transcript.vtt
 ```
+
+如果生成了访谈逐字稿，通常还会在 run 根目录看到：
+
+- `transcript.speakers.json`
+- `transcript.speakers.txt`
+- `transcript.speakers.md`
+- `speaker_map.json`
+
+## 模型复用
+
+如果你已经有 Whisper 模型，不必重复下载，可以直接复用：
+
+```bash
+export TRANSCRIBE_MODEL_DIR=/path/to/your/whisper-models
+```
+
+PowerShell：
+
+```powershell
+$env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
+```
+
+程序会优先查找：
+
+- 显式模型路径
+- `TRANSCRIBE_MODEL_DIR`
+- `WHISPER_MODEL_DIR`
+- 项目本地模型目录
+
+如果都没有，首次运行时才会自动下载。
+
+## 关于 token 和成本
+
+- 转录计算在本地完成，不调用云端 LLM 或云端 ASR
+- 音视频解析本身不消耗 LLM token
+- 如果通过 Agent 发起任务，Agent 在理解指令、运行命令、读取结果时，仍会消耗少量编排 token
+- 如果采用 pyannote，首次模型下载可能需要 Hugging Face token，但这不是 LLM/API 计费
+
+## 开源与合规
+
+为了让仓库公开发布时更规范，仓库里已经补充了这些文档：
+
+- [OPEN_SOURCE_COMPLIANCE.md](OPEN_SOURCE_COMPLIANCE.md)：开源发布前的合规结论、风险说明、发布策略
+- [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)：第三方依赖与许可证清单
+- `NOTICE`：第三方组件与商标声明
+
+当前仓库 License：
+
+- `AGPL-3.0`
+
+这意味着：
+
+- 任何人都可以使用、修改和分发本项目
+- 如果别人修改后再对外提供网络服务，也需要按 AGPL 的要求公开对应源码
