@@ -59,6 +59,7 @@ def build_speaker_transcript(
     input_path: str | Path,
     *,
     quality: str = "accurate",
+    model_name: str | None = None,
     output_dir: Path | None = None,
     min_speakers: int = 2,
     max_speakers: int = 2,
@@ -139,11 +140,11 @@ def resolve_speaker_workspace(
     path = Path(input_path).expanduser().resolve()
     if path.is_file():
         run_dir = output_dir or (Path(__file__).resolve().parent.parent / "outputs" / "transcriptions" / f"run_{now_slug()}_{uuid4().hex[:8]}")
-        model_name = QUALITY_TO_MODEL.get(quality, DEFAULT_MODEL_NAME)
+        chosen_model = model_name or QUALITY_TO_MODEL.get(quality, DEFAULT_MODEL_NAME)
         payload = transcribe_media_sources(
             [str(path)],
             output_dir=run_dir,
-            model_name=model_name,
+            model_name=chosen_model,
             language="zh",
             max_seconds=0,
         )

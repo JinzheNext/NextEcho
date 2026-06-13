@@ -32,6 +32,33 @@ PROJECT_NAME = "NextEcho"
 PROJECT_TAGLINE = "让播客自动转录进知识库"
 TRANSCRIPT_ATTRIBUTION_HEADER = "本文转录由 GitHub 项目：NextEcho 提供支持，作者 @金哲Next（小红书、公众号同名）"
 TRANSCRIPT_ATTRIBUTION_FOOTER = "powered by GitHub repo NextEcho - 让播客自动转录进知识库"
+WHISPER_MODEL_SPECS = {
+    "tiny": {
+        "tier": "smallest",
+        "summary": "最快、最省资源，适合老机器或快速预览。",
+        "min_memory_gb": 4.0,
+    },
+    "base": {
+        "tier": "fast",
+        "summary": "轻量稳定，适合 8GB 左右内存和日常批量转写。",
+        "min_memory_gb": 6.0,
+    },
+    "small": {
+        "tier": "balanced",
+        "summary": "精度和速度更平衡，适合 8GB 到 16GB 机器。",
+        "min_memory_gb": 8.0,
+    },
+    "medium": {
+        "tier": "quality",
+        "summary": "更高精度，适合 16GB 以上机器。",
+        "min_memory_gb": 16.0,
+    },
+    "large-v3-turbo-q5_0": {
+        "tier": "best",
+        "summary": "默认高精度方案，适合追求质量的现代机器。",
+        "min_memory_gb": 16.0,
+    },
+}
 
 
 def transcribe_media_sources(
@@ -116,6 +143,45 @@ def transcribe_media_sources(
         "results": results,
         "errors_path": errors_path,
     }
+
+
+def list_supported_whisper_models() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for name, spec in WHISPER_MODEL_SPECS.items():
+        rows.append(
+            {
+                "name": name,
+                "tier": spec["tier"],
+                "summary": spec["summary"],
+                "min_memory_gb": spec["min_memory_gb"],
+            }
+        )
+    return rows
+
+
+def recommend_whisper_model(memory_gb: float | None) -> tuple[str, str]:
+    if memory_gb is None:
+        return "base", "无法读取内存，建议先从 base 开始；如果机器表现稳定，再升级到更大的模型。"
+    if memory_gb < 6:
+        return "tiny", "内存低于 6GB，建议先用 tiny。"
+    if memory_gb < 8:
+        return "base", "内存低于 8GB，建议先用 base。"
+    if memory_gb < 16:
+        return "small", "内存介于 8GB 到 16GB，建议先用 small 或 base。"
+    if memory_gb < 24:
+        return "medium", "内存介于 16GB 到 24GB，建议先用 medium。"
+    return DEFAULT_MODEL_NAME, "内存充足，建议直接使用默认高精度模型。"
+
+
+def resolve_requested_model(model_name: str | None, quality: str, *, memory_gb: float | None = None) -> str:
+    if model_name:
+        return model_name
+    if quality == "fast":
+        return "base"
+    if quality == "accurate":
+        recommended_model, _ = recommend_whisper_model(memory_gb)
+        return DEFAULT_MODEL_NAME if recommended_model in {"medium", DEFAULT_MODEL_NAME} else recommended_model
+    return DEFAULT_MODEL_NAME
 
 
 def transcribe_single_source(

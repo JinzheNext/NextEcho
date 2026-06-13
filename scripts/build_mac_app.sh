@@ -56,21 +56,27 @@ show_alert() {
 
 if [ ! -d "\$ROOT_DIR/.venv" ]; then
   echo "[launcher] missing .venv" >> "\$LOG_FILE"
-  show_alert "未检测到 .venv。请先运行 bash scripts/install_mac.sh 完成环境准备。"
-  exit 1
+  bash "\$ROOT_DIR/scripts/install_mac.sh"
+  exit 0
 fi
 
 if [ ! -x "\$ROOT_DIR/.venv/bin/python" ]; then
   echo "[launcher] missing python in virtualenv" >> "\$LOG_FILE"
-  show_alert ".venv 已存在，但没有可执行的 Python。请重新运行 bash scripts/install_mac.sh。"
-  exit 1
+  bash "\$ROOT_DIR/scripts/install_mac.sh"
+  exit 0
 fi
 
 cd "\$ROOT_DIR"
-"$ROOT_DIR/.venv/bin/python" -m workbench.cli doctor >> "\$LOG_FILE" 2>&1 || true
+"\$ROOT_DIR/.venv/bin/python" -m workbench.cli doctor >> "\$LOG_FILE" 2>&1 || true
+
+if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v whisper-cli >/dev/null 2>&1; then
+  echo "[launcher] missing ffmpeg or whisper-cli" >> "\$LOG_FILE"
+  bash "\$ROOT_DIR/scripts/install_mac.sh"
+  exit 0
+fi
 
 if ! curl -sSf "\$APP_URL" >/dev/null 2>&1; then
-  nohup "$ROOT_DIR/.venv/bin/python" app.py >> "\$LOG_FILE" 2>&1 &
+  nohup "\$ROOT_DIR/.venv/bin/python" app.py >> "\$LOG_FILE" 2>&1 &
   sleep 2
 fi
 

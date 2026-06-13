@@ -35,15 +35,52 @@ Core characteristics:
 - Direct media URLs: audio or video file links
 - RSS and podcast feeds
 
+## Recommended User Path
+
+If you are a human user, the recommended path is a double-click flow with no terminal typing:
+
+### macOS
+
+1. Double-click `Install NextEcho.command`
+2. After setup finishes, double-click `Open NextEcho.command` or open `dist/NextEcho.app`
+
+### Windows
+
+1. Double-click `Install NextEcho.bat`
+2. After setup finishes, double-click `Open NextEcho.bat`
+
+These one-click launchers try to handle the following automatically:
+
+- create the Python virtual environment
+- install Python dependencies
+- check and try to install `ffmpeg` and `whisper-cli`
+- pre-download the default `base` model
+- start the local site
+- open the browser at `http://127.0.0.1:8765`
+
 ## Installation
 
 ### macOS
 
-The fastest path is the install script:
+The fastest path is the double-click installer:
+
+- `Install NextEcho.command`
+
+Under the hood, it calls:
 
 ```bash
 bash scripts/install_mac.sh
 ```
+
+That script will:
+
+- check whether Python 3 is available
+- create `.venv`
+- install `requirements.txt`
+- check `ffmpeg` and `whisper-cli`
+- auto-install missing system tools through Homebrew when available
+- pre-download the `base` model
+- start the local site and open the browser
 
 If you prefer to install manually, the minimum setup is:
 
@@ -57,7 +94,11 @@ python -m workbench.cli doctor
 
 ### Windows PowerShell
 
-The recommended path is:
+The recommended path is the double-click installer:
+
+- `Install NextEcho.bat`
+
+Under the hood, it calls:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
@@ -91,23 +132,48 @@ The main pipeline is ready when:
 - `whisper-cli` is found
 - at least one Whisper model is available, or first-run download is allowed
 
+### How to Choose a Model
+
+If you want to choose a model explicitly based on the machine instead of relying on the default:
+
+1. Inspect the machine recommendation first:
+
+```bash
+python -m workbench.cli doctor
+python -m workbench.cli list-models
+```
+
+2. Pick a model size:
+
+- `tiny`: lowest resource usage, best for older machines or quick previews
+- `base`: lightweight and stable, a good fit for roughly 8GB machines
+- `small`: more balanced accuracy and speed, a good fit for 8GB to 16GB machines
+- `medium`: higher accuracy, best for 16GB+ machines
+- `large-v3-turbo-q5_0`: the default high-accuracy model for stronger machines
+
+3. Download the exact model you want:
+
+```bash
+python -m workbench.cli download-model base
+python -m workbench.cli download-model small
+python -m workbench.cli download-model large-v3-turbo-q5_0
+```
+
+4. Use that model explicitly during transcription:
+
+```bash
+python -m workbench.cli transcribe /path/to/audio.mp3 --model base --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
+```
+
 ## For Human Users
 
 ### Option 1: Use the Web App
 
 This is the best default for most people.
 
-1. Start the local site:
-
-```bash
-python -m workbench.cli serve
-```
-
-2. Open:
-
-```text
-http://127.0.0.1:8765
-```
+1. Double-click `Open NextEcho.command` on macOS or `Open NextEcho.bat` on Windows
+2. The browser will open `http://127.0.0.1:8765`
 
 3. Choose one input method in the UI:
 
@@ -144,6 +210,7 @@ dist/NextEcho.app
 When opened, it will try to:
 
 - check the local environment
+- trigger the installer automatically if dependencies are missing
 - start the service
 - open `http://127.0.0.1:8765`
 
@@ -163,6 +230,7 @@ Most common commands:
 
 ```bash
 python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
+python -m workbench.cli transcribe /path/to/audio.mp3 --model base --json
 ```
 
 #### 2. Transcribe a direct media URL
@@ -183,12 +251,27 @@ python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61
 ```bash
 python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
 ```
 
 #### 5. Transcribe a podcast RSS feed
 
 ```bash
 python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3 --quality fast --json
+```
+
+#### 6. Inspect supported models for the current machine
+
+```bash
+python -m workbench.cli list-models
+python -m workbench.cli list-models --json
+```
+
+#### 7. Pre-download a specific model
+
+```bash
+python -m workbench.cli download-model base
+python -m workbench.cli download-model large-v3-turbo-q5_0
 ```
 
 ## For Agents
@@ -214,6 +297,7 @@ Common agent-side commands:
 ```bash
 python -m workbench.cli doctor
 python -m workbench.cli doctor --json
+python -m workbench.cli list-models --json
 ```
 
 #### 2. Transcribe a local file or direct media URL
@@ -221,6 +305,7 @@ python -m workbench.cli doctor --json
 ```bash
 python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
 python -m workbench.cli transcribe "https://example.com/video.mp4" --quality accurate --json
+python -m workbench.cli transcribe /path/to/audio.mp3 --model base --json
 ```
 
 #### 3. Resolve a platform page first
@@ -234,6 +319,7 @@ python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61
 ```bash
 python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
 ```
 
 #### 5. Process an RSS feed
@@ -245,9 +331,11 @@ python -m workbench.cli transcribe-feed "https://example.com/feed.xml" --limit 3
 Recommended agent flow:
 
 1. Run `doctor`
-2. If the input is a platform link, run `resolve-sources`
-3. Choose between `transcribe`, `transcribe-page`, or `transcribe-feed`
-4. Read `manifest.json` first, then each item's `metadata.json` and `transcript.txt`
+2. Run `list-models` and choose between `tiny`, `base`, `small`, `medium`, or `large-v3-turbo-q5_0` for the user's machine
+3. If useful, run `download-model <model>` first
+4. If the input is a platform link, run `resolve-sources`
+5. Choose between `transcribe`, `transcribe-page`, or `transcribe-feed`
+6. Read `manifest.json` first, then each item's `metadata.json` and `transcript.txt`
 
 ### Option 2: Let the Agent Launch the Web App for the User
 
@@ -309,6 +397,7 @@ $env:HF_TOKEN="your_token_here"
 
 ```bash
 python -m workbench.cli speaker-transcript /path/to/audio.wav --quality accurate --json
+python -m workbench.cli speaker-transcript /path/to/audio.wav --model base --json
 ```
 
 #### 2. Continue from an existing single-source run directory
