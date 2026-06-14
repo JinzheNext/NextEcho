@@ -32,6 +32,10 @@ function progressPresentation(job) {
     item_complete: { title: '步骤 5/5：整理结果', note: '单条素材已经识别完成，正在写出文本与字幕文件。', mode: 'determinate' },
     item_failed: { title: '步骤 5/5：整理结果', note: '某条素材没有成功完成，请看错误摘要。', mode: 'determinate' },
     cached: { title: '步骤 5/5：读取缓存', note: '这条素材之前已经转过，正在直接复用结果。', mode: 'determinate' },
+    preprocess: { title: '步骤 2/5：准备访谈音频', note: '正在检查音频并准备说话人分离。', mode: 'indeterminate' },
+    diarization: { title: '步骤 3/5：区分说话人', note: '正在分析多人对话中的说话人切换。', mode: 'indeterminate' },
+    align: { title: '步骤 4/5：对齐转写内容', note: '正在把文本片段对齐到对应说话人。', mode: 'indeterminate' },
+    write: { title: '步骤 5/5：写出访谈逐字稿', note: '正在输出 Markdown、TXT 和 JSON 结果。', mode: 'determinate' },
     complete: { title: '步骤 5/5：转录完成', note: '结果已经准备好，可以直接查看全文和下载产物。', mode: 'determinate' },
     failed: { title: '任务失败', note: '请查看错误信息，决定是否重试。', mode: 'determinate' },
   };
@@ -333,6 +337,8 @@ runsEl.addEventListener('click', async (event) => {
 resultsEl.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action="speaker-transcript"]');
   if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
   button.disabled = true;
   activeTaskStartedAt = Date.now();
   statusEl.textContent = '访谈逐字稿生成中…';
@@ -358,6 +364,8 @@ resultsEl.addEventListener('click', async (event) => {
     statusEl.textContent = '失败';
     resultsEl.classList.add('empty');
     resultsEl.textContent = error.message;
+  } finally {
+    button.disabled = false;
   }
 });
 

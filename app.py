@@ -21,6 +21,8 @@ RUNS_ROOT = ROOT / "outputs" / "transcriptions"
 ALLOWED_EXTENSIONS = {".mp3", ".mp4", ".m4a", ".wav", ".flac", ".aac", ".mov", ".webm"}
 TERMINAL_ITEM_STATUSES = {"ready", "empty", "failed", "cached"}
 STALE_JOB_SECONDS = 180
+TRANSCRIPTION_JOB = "transcription"
+SPEAKER_TRANSCRIPT_JOB = "speaker_transcript"
 QUALITY_TO_MODEL = {
     "accurate": DEFAULT_MODEL_NAME,
     "fast": "base",
@@ -170,28 +172,45 @@ def synthesize_manifest_if_complete(run_dir: Path) -> Path | None:
 def reconcile_job_state(job: dict) -> dict:
     if job.get("status") != "running":
         return job
+    job_type = job.get("job_type") or TRANSCRIPTION_JOB
     run_id = job.get("run_id") or ""
     run_dir = RUNS_ROOT / run_id
-    manifest_path = synthesize_manifest_if_complete(run_dir)
-    if manifest_path and manifest_path.exists():
-        result = serialize_run(run_dir)
-        job.update(
-            status="completed",
-            result=result,
-            progress=100,
-            stage="complete",
-            message="任务已自动收尾",
-            elapsed_seconds=result.get("total_elapsed_seconds", job.get("elapsed_seconds", 0)),
-            error="",
-        )
-        return job
+    if job_type == TRANSCRIPTION_JOB:
+        manifest_path = synthesize_manifest_if_complete(run_dir)
+        if manifest_path and manifest_path.exists():
+            result = serialize_run(run_dir)
+            job.update(
+                status="completed",
+                result=result,
+                progress=100,
+                stage="complete",
+                message="任务已自动收尾",
+                elapsed_seconds=result.get("total_elapsed_seconds", job.get("elapsed_seconds", 0)),
+                error="",
+            )
+            return job
+    elif job_type == SPEAKER_TRANSCRIPT_JOB:
+        speaker_transcript = load_speaker_transcript(run_dir)
+        if speaker_transcript:
+            result = serialize_run(run_dir)
+            job.update(
+                status="completed",
+                result=result,
+                progress=100,
+                stage="complete",
+                message="访谈逐字稿已完成",
+                error="",
+            )
+            return job
 
     last_updated = run_last_updated_epoch(run_dir) if run_dir.exists() else 0.0
     is_stale = last_updated and (time.time() - last_updated) >= STALE_JOB_SECONDS
     if is_stale:
         item_metadata = load_item_metadata(run_dir)
         detail = "运行目录长时间没有更新。"
-        if item_metadata:
+        if job_type == SPEAKER_TRANSCRIPT_JOB:
+            detail = "访谈逐字稿任务长时间没有写出说话人结果，常见原因是依赖缺失或服务中断。"
+        elif item_metadata:
             detail = "条目产物已部分写出，但任务未完成收尾。"
         elif any(run_dir.rglob("*")):
             detail = "仅生成了部分中间文件，常见原因是服务重启或本地进程中断。"
@@ -380,6 +399,7 @@ def transcribe():
     with JOBS_LOCK:
         JOBS[job_id] = {
             "job_id": job_id,
+            "job_type": TRANSCRIPTION_JOB,
             "run_id": run_id,
             "status": "running",
             "stage": "queued",
@@ -457,6 +477,7 @@ def create_speaker_transcript(run_id: str):
     with JOBS_LOCK:
         JOBS[job_id] = {
             "job_id": job_id,
+            "job_type": SPEAKER_TRANSCRIPT_JOB,
             "run_id": run_id,
             "status": "running",
             "stage": "queued",
