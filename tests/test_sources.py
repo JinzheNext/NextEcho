@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from workbench.sources import SourceDescriptor, resolve_feed, resolve_source
+from workbench.sources import SourceDescriptor, _cookies_browser_candidates, build_ytdlp_command, resolve_feed, resolve_source
 from workbench.transcription import (
     LONG_AUDIO_CPU_FALLBACK_MS,
     _append_shifted_srt,
@@ -22,10 +23,67 @@ from workbench.transcription import (
 
 
 class SourceResolverTests(unittest.TestCase):
+    def test_transcribe_media_sources_records_elapsed_after_processing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            descriptor = SourceDescriptor(
+                input=str(root / "sample.mp3"),
+                source_type="local_file",
+                platform="local",
+                canonical_url="",
+                resolved_media_url="",
+                title="sample",
+                author="",
+                duration_seconds=0,
+                published_at="",
+                resolver="direct",
+                source_label="001_sample",
+            )
+            transcript_dir = root / "out"
+            fake_time = iter([10.0, 16.4])
+
+            def fake_transcribe_single_source(**_: object) -> dict:
+                item_dir = transcript_dir / "items" / "001_sample"
+                item_dir.mkdir(parents=True, exist_ok=True)
+                transcript_path = item_dir / "transcript.txt"
+                transcript_path.write_text("hello", encoding="utf-8")
+                return {
+                    "source": descriptor.input,
+                    "source_label": "001_sample",
+                    "status": "ready",
+                    "created_at": "2026-06-13T00:00:00Z",
+                    "updated_at": "2026-06-13T00:00:00Z",
+                    "char_count": 5,
+                    "text_path": str(transcript_path),
+                    "json_path": "",
+                    "srt_path": "",
+                    "vtt_path": "",
+                    "media_path": "",
+                    "audio_path": "",
+                    "output_dir": str(item_dir),
+                    "excerpt": "hello",
+                    "error": "",
+                }
+
+            with patch("workbench.transcription.time.monotonic", side_effect=lambda: next(fake_time)):
+                with patch("workbench.transcription.resolve_whisper_model", return_value=Path("/tmp/model.bin")):
+                    with patch("workbench.transcription._which_binary", side_effect=lambda name: f"/usr/bin/{name}"):
+                        with patch("workbench.transcription.transcribe_single_source", side_effect=fake_transcribe_single_source):
+                            payload = transcribe_media_sources([descriptor], output_dir=transcript_dir)
+
+            self.assertEqual(payload["elapsed_seconds"], 6)
+            manifest = json.loads((transcript_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["elapsed_seconds"], 6)
+            self.assertTrue(manifest["completed_at"])
+            run_config = json.loads((transcript_dir / "run_config.json").read_text(encoding="utf-8"))
+            self.assertEqual(run_config["elapsed_seconds"], 6)
+            self.assertTrue(run_config["completed_at"])
+
     def test_which_binary_uses_stable_local_lookup(self) -> None:
-        with patch("workbench.transcription.shutil.which", return_value="/usr/bin/curl") as mock_which:
+        with patch("workbench.binaries.shutil.which", return_value="/usr/bin/curl") as mock_which:
             self.assertEqual(_which_binary("curl"), "/usr/bin/curl")
-        mock_which.assert_called_once_with("curl")
+        self.assertGreaterEqual(mock_which.call_count, 1)
+        self.assertEqual(mock_which.call_args_list[0].args[0], "curl")
 
     def test_resolve_youtube_with_ytdlp_metadata(self) -> None:
         payload = {
@@ -77,6 +135,267 @@ class SourceResolverTests(unittest.TestCase):
         self.assertEqual(descriptor.duration_seconds, 87 * 60)
         self.assertEqual(descriptor.resolved_media_url, "https://media.example/episode.m4a")
         self.assertFalse(descriptor.error)
+
+    def test_resolve_apple_podcasts_page_metadata(self) -> None:
+        html = """
+        <html>
+          <head>
+            <title>The Daily - Podcast - Apple Podcasts</title>
+            <meta property="og:title" content="The Daily">
+          </head>
+          <body>
+            <div>Creator</div>
+            <div>The New York Times</div>
+            <a href="https://www.nytimes.com/the-daily">Show Website</a>
+            <div>37 min</div>
+          </body>
+        </html>
+        """
+        publisher_html = """
+        <html>
+          <head>
+            <link rel="alternate" type="application/rss+xml" href="https://example.com/feed.xml">
+          </head>
+        </html>
+        """
+        rss_xml = """
+        <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+          <channel>
+            <item>
+              <title>The Daily</title>
+              <link>https://www.nytimes.com/the-daily</link>
+              <itunes:duration>37:00</itunes:duration>
+              <enclosure url="https://cdn.example.com/daily-episode.mp3" />
+            </item>
+          </channel>
+        </rss>
+        """
+        response = MagicMock()
+        response.read.return_value = html.encode("utf-8")
+        response.headers.get_content_charset.return_value = "utf-8"
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        publisher_response = MagicMock()
+        publisher_response.read.return_value = publisher_html.encode("utf-8")
+        publisher_response.headers.get_content_charset.return_value = "utf-8"
+        publisher_response.__enter__.return_value = publisher_response
+        publisher_response.__exit__.return_value = None
+        rss_response = MagicMock()
+        rss_response.read.return_value = rss_xml.encode("utf-8")
+        rss_response.headers.get_content_charset.return_value = "utf-8"
+        rss_response.__enter__.return_value = rss_response
+        rss_response.__exit__.return_value = None
+        with patch("workbench.sources.urlopen", side_effect=[response, publisher_response, rss_response]):
+            descriptor = resolve_source("https://podcasts.apple.com/us/podcast/the-daily/id1200361736")
+        self.assertEqual(descriptor.platform, "apple_podcasts")
+        self.assertEqual(descriptor.resolver, "apple_podcasts_page")
+        self.assertEqual(descriptor.title, "The Daily")
+        self.assertEqual(descriptor.resolved_media_url, "https://cdn.example.com/daily-episode.mp3")
+        self.assertFalse(descriptor.error)
+
+    def test_resolve_apple_podcasts_fallback_contains_rss_candidates(self) -> None:
+        html = """
+        <html>
+          <head>
+            <title>岩中花述 - Apple Podcasts</title>
+          </head>
+          <body>
+            <a href="https://podcast.example.com">Show Website</a>
+          </body>
+        </html>
+        """
+        response = MagicMock()
+        response.read.return_value = html.encode("utf-8")
+        response.headers.get_content_charset.return_value = "utf-8"
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        publisher_response = MagicMock()
+        publisher_response.read.return_value = "<html></html>".encode("utf-8")
+        publisher_response.headers.get_content_charset.return_value = "utf-8"
+        publisher_response.__enter__.return_value = publisher_response
+        publisher_response.__exit__.return_value = None
+        with patch("workbench.sources.urlopen", side_effect=[response, publisher_response]):
+            descriptor = resolve_source("https://podcasts.apple.com/cn/podcast/example/id1?i=100")
+        self.assertIn("已识别 Apple Podcasts 页面", descriptor.error)
+        self.assertEqual(descriptor.show_website, "https://podcast.example.com")
+
+    def test_build_ytdlp_command_for_youtube_enables_ejs_and_js_runtimes(self) -> None:
+        with patch("workbench.sources.find_binary", side_effect=lambda name: {
+            "yt-dlp": "/usr/local/bin/yt-dlp",
+            "deno": "/usr/local/bin/deno",
+            "node": "/usr/local/bin/node",
+        }.get(name)):
+            command = build_ytdlp_command(
+                "https://www.youtube.com/watch?v=pyqUiHyz_-c",
+                platform="youtube",
+                command_kind="metadata",
+            )
+        self.assertIn("--remote-components", command)
+        self.assertIn("ejs:github", command)
+        self.assertIn("deno:/usr/local/bin/deno", command)
+        self.assertIn("node:/usr/local/bin/node", command)
+
+    def test_build_ytdlp_command_prefers_cookies_file_when_configured(self) -> None:
+        with patch.dict("workbench.sources.os.environ", {"TRANSCRIBE_YTDLP_COOKIES_FILE": "/tmp/cookies.txt"}, clear=False):
+            with patch("workbench.sources.find_binary", side_effect=lambda name: "/usr/local/bin/yt-dlp" if name == "yt-dlp" else None):
+                command = build_ytdlp_command(
+                    "https://www.youtube.com/watch?v=pyqUiHyz_-c",
+                    platform="youtube",
+                    command_kind="metadata",
+                    browser="chrome",
+                )
+        self.assertIn("--cookies", command)
+        self.assertIn("/tmp/cookies.txt", command)
+        self.assertNotIn("--cookies-from-browser", command)
+
+    def test_resolve_bilibili_retries_with_browser_cookies_on_412(self) -> None:
+        failure = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [BiliBili] BV1soizB5Eog: Unable to download webpage: HTTP Error 412: Precondition Failed",
+        )
+        payload = {
+            "title": "Bilibili sample",
+            "uploader": "Uploader",
+            "duration": 120,
+            "upload_date": "20260601",
+            "webpage_url": "https://www.bilibili.com/video/BV1soizB5Eog",
+            "url": "https://media.example/video.mp4",
+        }
+        completed = MagicMock(stdout=json.dumps(payload))
+        with patch("workbench.sources.os_platform.system", return_value="Darwin"):
+            with patch("workbench.sources.subprocess.run", side_effect=[failure, completed]) as mock_run:
+                descriptor = resolve_source("https://www.bilibili.com/video/BV1soizB5Eog")
+        self.assertFalse(descriptor.error)
+        retry_command = mock_run.call_args_list[1].args[0]
+        self.assertIn("--cookies-from-browser", retry_command)
+        self.assertIn("chrome", retry_command)
+
+    def test_resolve_bilibili_formats_antibot_error(self) -> None:
+        failure = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [BiliBili] BV1soizB5Eog: Unable to download webpage: HTTP Error 412: Precondition Failed",
+        )
+        with patch("workbench.sources.subprocess.run", side_effect=failure):
+            descriptor = resolve_source("https://www.bilibili.com/video/BV1soizB5Eog")
+        self.assertIn("Bilibili blocked the request with anti-bot protection", descriptor.error)
+        self.assertIn("update yt-dlp", descriptor.error)
+
+    def test_resolve_youtube_retries_with_browser_cookies_on_bot_check(self) -> None:
+        failure = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [youtube] pyqUiHyz_-c: Sign in to confirm you're not a bot.",
+        )
+        payload = {
+            "title": "YouTube sample",
+            "uploader": "Uploader",
+            "duration": 180,
+            "upload_date": "20260601",
+            "webpage_url": "https://www.youtube.com/watch?v=pyqUiHyz_-c",
+            "url": "https://media.example/video.mp4",
+        }
+        completed = MagicMock(stdout=json.dumps(payload))
+        with patch("workbench.sources.os_platform.system", return_value="Darwin"):
+            with patch("workbench.sources._browser_profile_exists", side_effect=lambda browser: browser == "firefox"):
+                with patch("workbench.sources.subprocess.run", side_effect=[failure, completed]) as mock_run:
+                    descriptor = resolve_source("https://www.youtube.com/watch?v=pyqUiHyz_-c")
+        self.assertFalse(descriptor.error)
+        retry_command = mock_run.call_args_list[1].args[0]
+        self.assertIn("--cookies-from-browser", retry_command)
+        self.assertIn("firefox", retry_command)
+
+    def test_resolve_youtube_formats_bot_check_error(self) -> None:
+        failure = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [youtube] pyqUiHyz_-c: Sign in to confirm you're not a bot.",
+        )
+        with patch("workbench.sources.subprocess.run", side_effect=failure):
+            descriptor = resolve_source("https://www.youtube.com/watch?v=pyqUiHyz_-c")
+        self.assertIn("YouTube asked for a bot check", descriptor.error)
+        self.assertIn("browser cookies", descriptor.error)
+
+    def test_resolve_youtube_formats_reload_cookie_error(self) -> None:
+        failure = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [youtube] pyqUiHyz_-c: The page needs to be reloaded.",
+        )
+        with patch("workbench.sources.subprocess.run", side_effect=failure):
+            descriptor = resolve_source("https://www.youtube.com/watch?v=pyqUiHyz_-c")
+        self.assertIn("cookies stale", descriptor.error)
+        self.assertIn("TRANSCRIBE_YTDLP_COOKIES_FILE", descriptor.error)
+
+    def test_resolve_permission_error_formats_macos_cookie_guidance(self) -> None:
+        failure = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [Errno 1] Operation not permitted: '/Users/test/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies'",
+        )
+        with patch("workbench.sources.subprocess.run", side_effect=failure):
+            descriptor = resolve_source("https://www.youtube.com/watch?v=pyqUiHyz_-c")
+        self.assertIn("macOS blocked access", descriptor.error)
+        self.assertIn("firefox or chrome", descriptor.error)
+
+    def test_cookie_browser_candidates_skip_missing_profiles_on_macos(self) -> None:
+        def fake_exists(self: Path) -> bool:
+            return str(self).endswith("/Google/Chrome/Default/Cookies")
+
+        with patch("workbench.sources.os_platform.system", return_value="Darwin"):
+            with patch("pathlib.Path.exists", fake_exists):
+                candidates = _cookies_browser_candidates("youtube")
+        self.assertIn("chrome", candidates)
+        self.assertNotIn("edge", candidates)
+
+    def test_resolve_configured_missing_browser_falls_back_to_next_candidate(self) -> None:
+        initial_antibot = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [youtube] pyqUiHyz_-c: Sign in to confirm you're not a bot.",
+        )
+        missing_edge = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr='ERROR: could not find edge cookies database in "/Users/test/Library/Application Support/Microsoft Edge"',
+        )
+        payload = {
+            "title": "YouTube sample",
+            "uploader": "Uploader",
+            "duration": 180,
+            "upload_date": "20260601",
+            "webpage_url": "https://www.youtube.com/watch?v=pyqUiHyz_-c",
+            "url": "https://media.example/video.mp4",
+        }
+        completed = MagicMock(stdout=json.dumps(payload))
+        with patch.dict("workbench.sources.os.environ", {"TRANSCRIBE_YTDLP_BROWSER": "edge"}, clear=False):
+            with patch("workbench.sources.os_platform.system", return_value="Darwin"):
+                with patch("workbench.sources._browser_profile_exists", side_effect=lambda browser: browser == "chrome"):
+                    with patch("workbench.sources.subprocess.run", side_effect=[initial_antibot, missing_edge, completed]) as mock_run:
+                        descriptor = resolve_source("https://www.youtube.com/watch?v=pyqUiHyz_-c")
+        self.assertFalse(descriptor.error)
+        retry_command = mock_run.call_args_list[2].args[0]
+        self.assertIn("--cookies-from-browser", retry_command)
+        self.assertIn("chrome", retry_command)
+
+    def test_resolve_error_includes_attempt_history(self) -> None:
+        initial_antibot = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr="ERROR: [youtube] pyqUiHyz_-c: Sign in to confirm you're not a bot.",
+        )
+        missing_chrome = subprocess.CalledProcessError(
+            1,
+            ["yt-dlp"],
+            stderr='ERROR: could not find chrome cookies database in "/Users/test/Library/Application Support/Google/Chrome"',
+        )
+        with patch("workbench.sources._browser_profile_exists", side_effect=lambda browser: browser == "chrome"):
+            with patch("workbench.sources.subprocess.run", side_effect=[initial_antibot, missing_chrome]):
+                descriptor = resolve_source("https://www.youtube.com/watch?v=pyqUiHyz_-c")
+        self.assertIn("Tried:", descriptor.error)
+        self.assertIn("direct:", descriptor.error)
+        self.assertIn("chrome:", descriptor.error)
 
     def test_resolve_feed_returns_enclosure_items(self) -> None:
         xml = """

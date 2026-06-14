@@ -8,12 +8,15 @@ import subprocess
 import tempfile
 import time
 import re
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
 
-from .sources import SourceDescriptor, resolve_sources
+from .enhancement import enhance_transcript_artifacts
+from .sources import SourceDescriptor, build_ytdlp_command, detect_platform, resolve_sources
+from .binaries import find_binary
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -69,8 +72,14 @@ def transcribe_media_sources(
     language: str = "zh",
     max_seconds: int = DEFAULT_MAX_SECONDS,
     output_formats: list[str] | None = None,
+    glossary_text: str = "",
+    enable_enhancement: bool = True,
+    ai_polish: bool = False,
+    ai_style: str = "",
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
+    started_at = now_iso()
+    started_monotonic = time.monotonic()
     descriptors = _coerce_descriptors(sources)
     output_dir.mkdir(parents=True, exist_ok=True)
     items_dir = output_dir / "items"
@@ -87,12 +96,21 @@ def transcribe_media_sources(
     formats = dedupe_strings(output_formats or DEFAULT_OUTPUT_FORMATS)
     generated_at = now_iso()
     run_config = {
+        "started_at": started_at,
+        "completed_at": "",
+        "elapsed_seconds": 0,
         "generated_at": generated_at,
         "model_name": model_name,
         "model_path": str(model_path),
         "language": language,
         "max_seconds": max_seconds,
         "output_formats": formats,
+        "enhancement": {
+            "enabled": enable_enhancement,
+            "ai_polish": ai_polish,
+            "ai_style": ai_style,
+            "user_glossary_supplied": bool(glossary_text.strip()),
+        },
         "source_count": len(descriptors),
     }
     run_config_path = output_dir / "run_config.json"
@@ -109,6 +127,10 @@ def transcribe_media_sources(
             language=language,
             max_seconds=max_seconds,
             output_formats=formats,
+            glossary_text=glossary_text,
+            enable_enhancement=enable_enhancement,
+            ai_polish=ai_polish,
+            ai_style=ai_style,
             index=index,
             progress_callback=progress_callback,
             base_progress=base_progress,
@@ -116,14 +138,23 @@ def transcribe_media_sources(
         )
         results.append(result)
     failed_results = [item for item in results if item.get("status") == "failed"]
+    completed_at = now_iso()
+    elapsed_seconds = max(0, round(time.monotonic() - started_monotonic))
+    run_config["completed_at"] = completed_at
+    run_config["elapsed_seconds"] = elapsed_seconds
+    run_config_path.write_text(json.dumps(run_config, ensure_ascii=False, indent=2), encoding="utf-8")
 
     manifest = {
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "elapsed_seconds": elapsed_seconds,
         "generated_at": generated_at,
         "model_name": model_name,
         "model_path": str(model_path),
         "language": language,
         "max_seconds": max_seconds,
         "output_formats": formats,
+        "enhancement": run_config["enhancement"],
         "run_config_path": str(run_config_path),
         "items_dir": str(items_dir),
         "results": results,
@@ -137,6 +168,9 @@ def transcribe_media_sources(
         errors_path.write_text(json.dumps({"generated_at": generated_at, "items": failed_results}, ensure_ascii=False, indent=2), encoding="utf-8")
     _emit_progress(progress_callback, stage="complete", message="转写完成", progress=100)
     return {
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "elapsed_seconds": elapsed_seconds,
         "output_dir": output_dir,
         "manifest_path": manifest_path,
         "run_config_path": run_config_path,
@@ -194,6 +228,10 @@ def transcribe_single_source(
     language: str,
     max_seconds: int,
     output_formats: list[str],
+    glossary_text: str,
+    enable_enhancement: bool,
+    ai_polish: bool,
+    ai_style: str,
     index: int,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     base_progress: int = 15,
@@ -262,6 +300,16 @@ def transcribe_single_source(
                 output_formats=output_formats,
             )
         transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
+        enhancement = (
+            enhance_transcript_artifacts(
+                item_dir,
+                user_glossary_text=glossary_text,
+                ai_polish=ai_polish,
+                ai_style=ai_style,
+            )
+            if enable_enhancement and transcript_text.strip()
+            else _empty_enhancement_payload()
+        )
         metadata = _build_metadata(
             descriptor=descriptor,
             source_label=source_label,
@@ -271,6 +319,7 @@ def transcribe_single_source(
             media_path=persisted_media_path,
             audio_path=audio_path,
             created_at=now_iso(),
+            enhancement=enhancement,
         )
         _emit_progress(progress_callback, stage="item_complete", message=f"{source_label} 已完成", progress=_item_progress(base_progress, 1.0, item_count))
     except Exception as exc:
@@ -284,6 +333,7 @@ def transcribe_single_source(
             audio_path=item_dir / "audio.wav",
             created_at=now_iso(),
             error=str(exc),
+            enhancement=_empty_enhancement_payload(),
         )
         _emit_progress(progress_callback, stage="item_failed", message=f"{source_label} 失败：{exc}", progress=_item_progress(base_progress, 1.0, item_count))
     _write_json(item_dir / "metadata.json", metadata)
@@ -395,7 +445,7 @@ def prepare_media_source(source: str | SourceDescriptor, work_dir: Path) -> Path
             raise FileNotFoundError(local_path)
         return local_path
     if parsed.scheme in {"http", "https"}:
-        if descriptor.resolver in {"direct", "xiaoyuzhou_page"} and descriptor.resolved_media_url:
+        if descriptor.resolver in {"direct", "xiaoyuzhou_page", "apple_podcasts_page", "rss"} and descriptor.resolved_media_url:
             return _download_direct_media(descriptor.resolved_media_url, work_dir)
         download_source = descriptor.canonical_url or descriptor.input
         if _looks_like_direct_media_url(download_source):
@@ -804,22 +854,61 @@ def _download_direct_media(source: str, work_dir: Path) -> Path:
 
 
 def _download_media_with_ytdlp(source: str, work_dir: Path) -> Path:
-    yt_dlp_bin = _which_binary("yt-dlp")
-    if not yt_dlp_bin:
-        raise FileNotFoundError("yt-dlp")
     output_template = str(work_dir / "source.%(ext)s")
-    command = [
-        yt_dlp_bin,
-        "--no-playlist",
-        "-o",
-        output_template,
-        source,
-    ]
+    platform = detect_platform(source)
     try:
-        subprocess.run(command, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or exc.stdout or "").strip()
-        raise RuntimeError(stderr or "yt-dlp failed to download this media page.") from exc
+        base_command = build_ytdlp_command(
+            source,
+            platform=platform,
+            command_kind="download",
+            output_template=output_template,
+        )
+    except FileNotFoundError:
+        raise FileNotFoundError("yt-dlp")
+    commands = [base_command]
+    configured_browser = os.environ.get("TRANSCRIBE_YTDLP_BROWSER", "").strip()
+    if platform in {"bilibili", "youtube"}:
+        if platform == "youtube" and sys.platform == "darwin":
+            browsers = ["firefox", "chrome", "brave", "edge"]
+        elif platform == "youtube" and os.name == "nt":
+            browsers = ["firefox", "chrome", "brave", "edge"]
+        elif platform == "youtube":
+            browsers = ["firefox", "chrome", "chromium", "brave", "edge"]
+        elif sys.platform == "darwin":
+            browsers = ["chrome", "edge", "firefox", "brave"]
+        elif os.name == "nt":
+            browsers = ["edge", "chrome", "firefox", "brave"]
+        else:
+            browsers = ["firefox", "chrome", "chromium", "edge", "brave"]
+        if configured_browser:
+            browsers = [configured_browser] + [item for item in browsers if item != configured_browser]
+        for browser in browsers:
+            commands.append(
+                build_ytdlp_command(
+                    source,
+                    platform=platform,
+                    command_kind="download",
+                    browser=browser,
+                    output_template=output_template,
+                )
+            )
+    last_stderr = ""
+    for attempt_index, command in enumerate(commands):
+        try:
+            subprocess.run(command, capture_output=True, text=True, check=True)
+            last_stderr = ""
+            break
+        except subprocess.CalledProcessError as exc:
+            stderr = (exc.stderr or exc.stdout or "").strip()
+            last_stderr = stderr or "yt-dlp failed to download this media page."
+            lower = last_stderr.lower()
+            if attempt_index == 0 and platform in {"bilibili", "youtube"} and any(token in lower for token in ["http error 412", "precondition failed", "http error 403", "cloudflare", "captcha", "sign in to confirm you’re not a bot", "sign in to confirm you're not a bot", "confirm you're not a bot"]) and len(commands) > 1:
+                continue
+            if attempt_index + 1 < len(commands):
+                continue
+            raise RuntimeError(last_stderr) from exc
+    if last_stderr:
+        raise RuntimeError(last_stderr)
     matches = sorted(work_dir.glob("source.*"))
     if not matches:
         raise FileNotFoundError("yt-dlp output not found")
@@ -827,7 +916,7 @@ def _download_media_with_ytdlp(source: str, work_dir: Path) -> Path:
 
 
 def _which_binary(name: str) -> str | None:
-    return shutil.which(name)
+    return find_binary(name)
 
 
 def _infer_source_label(source: str, index: int) -> str:
@@ -925,7 +1014,9 @@ def _build_metadata(
     audio_path: Path,
     created_at: str,
     error: str = "",
+    enhancement: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    enhancement = enhancement or _empty_enhancement_payload()
     payload = {
         "source": descriptor.input,
         "source_label": source_label,
@@ -939,6 +1030,9 @@ def _build_metadata(
         "vtt_path": str(item_dir / "transcript.vtt"),
         "media_path": str(media_path),
         "audio_path": str(audio_path),
+        "enhanced_text_path": str(enhancement.get("enhanced_text_path") or ""),
+        "enhanced_json_path": str(enhancement.get("enhanced_json_path") or ""),
+        "enhancement": enhancement,
         "output_dir": str(item_dir),
         "excerpt": transcript_text[:400],
         "error": error,
@@ -947,6 +1041,16 @@ def _build_metadata(
     payload["source_label"] = source_label
     payload["error"] = error or descriptor.error
     return payload
+
+
+def _empty_enhancement_payload() -> dict[str, Any]:
+    return {
+        "enabled": False,
+        "enhanced_text_path": "",
+        "enhanced_json_path": "",
+        "rules_applied": [],
+        "ai": {"requested": False, "applied": False, "reason": ""},
+    }
 
 
 def _item_progress(base_progress: int, fraction: float, item_count: int) -> int:

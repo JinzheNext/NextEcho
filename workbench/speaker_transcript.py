@@ -51,6 +51,12 @@ class SpeakerTextTurn:
     text: str
 
 
+@dataclass
+class AudioWindow:
+    start: float
+    end: float
+
+
 def now_slug() -> str:
     return datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
@@ -62,11 +68,11 @@ def build_speaker_transcript(
     model_name: str | None = None,
     output_dir: Path | None = None,
     min_speakers: int = 2,
-    max_speakers: int = 2,
+    max_speakers: int = 6,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     backend_status = ensure_speaker_dependencies()
-    workspace = resolve_speaker_workspace(input_path, quality=quality, output_dir=output_dir)
+    workspace = resolve_speaker_workspace(input_path, quality=quality, output_dir=output_dir, model_name=model_name)
     _emit_progress(progress_callback, stage="preprocess", message="准备访谈音频", progress=10)
     derived_dir = workspace["run_dir"] / "derived"
     derived_dir.mkdir(parents=True, exist_ok=True)
@@ -94,11 +100,17 @@ def build_speaker_transcript(
         intro_range[1] if intro_removed else 0.0,
     )
     preview_text = build_preview_text(speaker_turns, 200)
+    speaker_count_detected = len({turn.speaker for turn in diarization_turns})
+    fallback_used = backend_name != "pyannote"
+    quality_note = "高精度说话人分离（pyannote）" if backend_name == "pyannote" else "本地简化分离（准确度较低）"
 
     payload = {
         "source_audio": str(workspace["source_audio_path"]),
         "run_dir": str(workspace["run_dir"]),
         "backend": backend_name,
+        "speaker_count_detected": speaker_count_detected,
+        "fallback_used": fallback_used,
+        "quality_note": quality_note,
         "intro_removed": intro_removed,
         "intro_range": intro_range,
         "preprocess": {
@@ -136,6 +148,7 @@ def resolve_speaker_workspace(
     *,
     quality: str,
     output_dir: Path | None,
+    model_name: str | None = None,
 ) -> dict[str, Path]:
     path = Path(input_path).expanduser().resolve()
     if path.is_file():
@@ -313,41 +326,53 @@ def run_segment_clustering_diarization(
 ) -> list[DiarizationTurn]:
     import numpy as np
     from sklearn.cluster import AgglomerativeClustering
+    from sklearn.metrics import silhouette_score
     from sklearn.preprocessing import StandardScaler
 
     sr, samples = load_wave_samples(audio_path)
-    eligible_segments = [segment for segment in transcript_segments if segment.end > intro_end and normalize_text(segment.text)]
+    windows = build_audio_windows(transcript_segments, intro_end=intro_end)
 
     features: list[Any] = []
-    kept_segments: list[TranscriptSegment] = []
-    for segment in eligible_segments:
-        vector = extract_segment_feature(samples, sr, segment.start, segment.end)
+    kept_windows: list[AudioWindow] = []
+    for window in windows:
+        vector = extract_segment_feature(samples, sr, window.start, window.end)
         if vector is None:
             continue
         features.append(vector)
-        kept_segments.append(segment)
+        kept_windows.append(window)
 
-    if not kept_segments:
+    if not kept_windows:
         return []
 
-    if len(kept_segments) == 1:
-        return [DiarizationTurn("Speaker 1", kept_segments[0].start, kept_segments[0].end)]
+    if len(kept_windows) == 1:
+        return [DiarizationTurn("Speaker 1", kept_windows[0].start, kept_windows[0].end)]
 
-    speaker_count = min(max(min_speakers, 2), max_speakers, len(kept_segments))
     matrix = StandardScaler().fit_transform(np.vstack(features))
-    labels = AgglomerativeClustering(n_clusters=speaker_count, linkage="ward").fit_predict(matrix)
-    labels = smooth_cluster_labels(labels.tolist(), kept_segments)
+    min_clusters = min(max(min_speakers, 2), len(kept_windows))
+    max_clusters = min(max(max_speakers, min_clusters), len(kept_windows) - 1 if len(kept_windows) > 2 else len(kept_windows))
+    best_labels: list[int] | None = None
+    best_score = float("-inf")
+    for speaker_count in range(min_clusters, max_clusters + 1):
+        labels = AgglomerativeClustering(n_clusters=speaker_count, linkage="ward").fit_predict(matrix).tolist()
+        if len(set(labels)) < 2 or len(kept_windows) <= speaker_count:
+            current_score = -1.0
+        else:
+            current_score = float(silhouette_score(matrix, labels))
+        if current_score > best_score or best_labels is None:
+            best_score = current_score
+            best_labels = labels
+    labels = smooth_window_labels(best_labels or [0] * len(kept_windows), kept_windows)
 
     speaker_map: dict[int, str] = {}
     turns: list[DiarizationTurn] = []
-    for label, segment in zip(labels, kept_segments):
+    for label, window in zip(labels, kept_windows):
         if label not in speaker_map:
             speaker_map[label] = f"Speaker {len(speaker_map) + 1}"
         turns.append(
             DiarizationTurn(
                 speaker=speaker_map[label],
-                start=segment.start,
-                end=segment.end,
+                start=window.start,
+                end=window.end,
             )
         )
     return merge_adjacent_diarization_turns(turns)
@@ -419,12 +444,12 @@ def extract_segment_feature(samples: Any, sample_rate: int, start: float, end: f
     return np.concatenate([matrix.mean(axis=0), matrix.std(axis=0), np.asarray([len(chunk) / sample_rate], dtype=np.float32)])
 
 
-def smooth_cluster_labels(labels: list[int], segments: list[TranscriptSegment]) -> list[int]:
+def smooth_window_labels(labels: list[int], windows: list[AudioWindow]) -> list[int]:
     if len(labels) < 3:
         return labels
     smoothed = labels[:]
     for index in range(1, len(labels) - 1):
-        duration = segments[index].end - segments[index].start
+        duration = windows[index].end - windows[index].start
         if duration <= 6.0 and labels[index - 1] == labels[index + 1] != labels[index]:
             smoothed[index] = labels[index - 1]
     return smoothed
@@ -436,7 +461,7 @@ def merge_adjacent_diarization_turns(turns: list[DiarizationTurn]) -> list[Diari
     merged = [turns[0]]
     for turn in turns[1:]:
         current = merged[-1]
-        if turn.speaker == current.speaker and turn.start - current.end <= 1.0:
+        if turn.speaker == current.speaker and turn.start - current.end <= 2.0:
             current.end = turn.end
             continue
         merged.append(turn)
@@ -490,6 +515,36 @@ def build_preview_text(turns: list[SpeakerTextTurn], limit: int) -> str:
     return "".join(turn.text for turn in turns)[:limit]
 
 
+def build_audio_windows(
+    transcript_segments: list[TranscriptSegment],
+    *,
+    intro_end: float,
+    window_seconds: float = 3.2,
+    step_seconds: float = 1.6,
+) -> list[AudioWindow]:
+    windows: list[AudioWindow] = []
+    for segment in transcript_segments:
+        if segment.end <= intro_end:
+            continue
+        start = max(segment.start, intro_end)
+        end = segment.end
+        duration = end - start
+        if duration <= 0.8:
+            continue
+        if duration <= window_seconds:
+            windows.append(AudioWindow(start=start, end=end))
+            continue
+        cursor = start
+        while cursor < end:
+            window_end = min(end, cursor + window_seconds)
+            if window_end - cursor >= 1.2:
+                windows.append(AudioWindow(start=cursor, end=window_end))
+            if window_end >= end:
+                break
+            cursor += step_seconds
+    return windows
+
+
 def write_speaker_outputs(run_dir: Path, payload: dict[str, Any]) -> None:
     json_path = run_dir / "transcript.speakers.json"
     txt_path = run_dir / "transcript.speakers.txt"
@@ -499,7 +554,8 @@ def write_speaker_outputs(run_dir: Path, payload: dict[str, Any]) -> None:
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     txt_path.write_text(render_speaker_text(payload["speaker_turns"], with_timestamps=False), encoding="utf-8")
     md_path.write_text(render_speaker_text(payload["speaker_turns"], with_timestamps=True), encoding="utf-8")
-    map_path.write_text(json.dumps({"Speaker 1": "", "Speaker 2": ""}, ensure_ascii=False, indent=2), encoding="utf-8")
+    speaker_map = {turn["speaker"]: "" for turn in payload["speaker_turns"]}
+    map_path.write_text(json.dumps(speaker_map, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def render_speaker_text(speaker_turns: list[dict[str, Any]], *, with_timestamps: bool) -> str:

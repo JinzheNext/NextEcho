@@ -4,7 +4,7 @@
 
 [中文 README](README.md) | [Open Source Compliance](OPEN_SOURCE_COMPLIANCE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md)
 
-NextEcho is a local-first audio and video transcription workbench. You can upload local files or paste YouTube, Bilibili, Xiaoyuzhou, and podcast RSS links, then turn them into reusable text assets with a structured artifact bundle on disk.
+NextEcho is a local-first audio and video transcription workbench. You can upload local files or paste Bilibili, Xiaoyuzhou, Apple Podcasts, and podcast RSS links, then turn them into reusable text assets with a structured artifact bundle on disk.
 
 It is designed for two kinds of users:
 
@@ -31,7 +31,7 @@ Core characteristics:
 ## Supported Inputs
 
 - Local files: `mp3`, `mp4`, `m4a`, `wav`, `flac`, `aac`, `mov`, `webm`
-- Platform pages: YouTube, Bilibili, Xiaoyuzhou
+- Platform pages: Bilibili, Xiaoyuzhou, Apple Podcasts
 - Direct media URLs: audio or video file links
 - RSS and podcast feeds
 
@@ -242,8 +242,9 @@ python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fas
 #### 3. Resolve a source before deciding whether to transcribe it
 
 ```bash
-python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.bilibili.com/video/BV1g6okBLEtL/" --json
 python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+python -m workbench.cli resolve-sources "https://podcasts.apple.com/us/podcast/the-daily/id1200361736" --json
 ```
 
 #### 4. Transcribe a platform page directly
@@ -317,7 +318,7 @@ python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61
 #### 4. Transcribe a platform page directly
 
 ```bash
-python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
 ```
@@ -461,6 +462,13 @@ The program checks, in order:
 - the local project model directory
 
 If none are available, it will download the required model on first run.
+
+## Troubleshooting
+
+- If a platform page fails to resolve, first confirm that `yt-dlp` is available. Some sites require browser cookies or trigger anti-bot checks.
+- If Bilibili returns `HTTP Error 412 / Precondition Failed`, open the same video in your browser first and confirm it plays normally, then retry in NextEcho. If needed, update `yt-dlp` and launch NextEcho with `TRANSCRIBE_YTDLP_BROWSER=chrome`; `firefox`, `edge`, and `brave` are also supported.
+- If an Apple Podcasts link is recognized but no direct audio is found, switch to the show RSS feed, the publisher’s episode page, or a direct audio URL. Apple Podcasts is best treated as a show entry point rather than the final audio source.
+- If the first run is slow, it is usually downloading or loading a model for the first time. Run `python -m workbench.cli doctor` and inspect the recommended model and model paths.
 
 ## Token and Cost Notes
 

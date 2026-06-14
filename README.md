@@ -4,7 +4,7 @@
 
 [English README](README.en.md) | [开源合规说明](OPEN_SOURCE_COMPLIANCE.md) | [第三方许可证清单](THIRD_PARTY_LICENSES.md)
 
-NextEcho 是一个本地优先的音视频转写工作台。你可以上传本地文件，或者粘贴 YouTube、B 站、小宇宙、播客 RSS 等链接，把内容转成可复用的文字资产，并落盘为结构化素材包。
+NextEcho 是一个本地优先的音视频转写工作台。你可以上传本地文件，或者粘贴 B 站、小宇宙、Apple Podcasts、播客 RSS 等链接，把内容转成可复用的文字资产，并落盘为结构化素材包。
 
 它同时适合两类用户：
 
@@ -33,7 +33,7 @@ NextEcho 适合做这些事：
 ## 支持什么输入
 
 - 本地文件：`mp3`、`mp4`、`m4a`、`wav`、`flac`、`aac`、`mov`、`webm`
-- 平台页面：YouTube、B 站、小宇宙
+- 平台页面：B 站、小宇宙、Apple Podcasts
 - 直链媒体：音频或视频文件 URL
 - RSS / 播客 feed
 
@@ -244,8 +244,9 @@ python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fas
 #### 3. 先识别来源，再决定是否转录
 
 ```bash
-python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.bilibili.com/video/BV1g6okBLEtL/" --json
 python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+python -m workbench.cli resolve-sources "https://podcasts.apple.com/us/podcast/the-daily/id1200361736" --json
 ```
 
 #### 4. 直接转录平台页面
@@ -319,7 +320,7 @@ python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61
 #### 4. 让 Agent 直接跑平台链接
 
 ```bash
-python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
 ```
@@ -463,6 +464,13 @@ $env:TRANSCRIBE_MODEL_DIR="C:\path\to\your\whisper-models"
 - 项目本地模型目录
 
 如果都没有，首次运行时才会自动下载。
+
+## 常见问题
+
+- 平台页面解析失败：先确认 `yt-dlp` 可用，再重试。某些站点需要浏览器 cookies，或者会触发平台风控。
+- B 站返回 `HTTP Error 412 / Precondition Failed`：先在浏览器里打开同一个视频，确认能正常播放，再回到 NextEcho 重试。必要时先更新 `yt-dlp`，或者在启动前设置 `TRANSCRIBE_YTDLP_BROWSER=chrome`，也可以换成 `firefox`、`edge`、`brave`。
+- Apple Podcasts 链接已识别，但没有直接音频：优先改贴播客 RSS、节目官网里的单集页面，或者可直接访问的音频链接。Apple Podcasts 更适合作为节目入口，而不是最终音频源。
+- 首次运行较慢：通常是在下载模型或首次加载模型。先跑 `python -m workbench.cli doctor`，检查模型路径和推荐模型。
 
 ## 关于 token 和成本
 

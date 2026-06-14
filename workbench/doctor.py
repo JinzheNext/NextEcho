@@ -4,7 +4,6 @@ import json
 import importlib.util
 import os
 import platform
-import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .speaker_transcript import HF_TOKEN_ENV_VARS, detect_speaker_backend_status
+from .binaries import find_binary
 from .transcription import (
     DEFAULT_MODEL_NAME,
     DEFAULT_MODEL_ROOT,
@@ -61,7 +61,7 @@ class DoctorReport:
 
 
 def command_path(name: str) -> str | None:
-    return shutil.which(name)
+    return find_binary(name)
 
 
 def detect_memory_gb() -> float | None:
@@ -156,9 +156,9 @@ def run_doctor() -> DoctorReport:
     if not pyannote_installed:
         notes.append("pyannote.audio 未安装：访谈逐字稿的说话人分离能力当前不可用。")
     if not hf_token_env:
-        notes.append("未检测到 Hugging Face 访问令牌：pyannote 说话人分离模型无法下载。")
+        notes.append("未检测到 Hugging Face 访问令牌：无法启用 pyannote 高精度说话人分离。")
     if fallback_backend_available and not hf_token_env:
-        notes.append("将使用本地 segment-clustering fallback 生成 Speaker 1 / Speaker 2；如需更稳的 pyannote 效果，再补 HF_TOKEN。")
+        notes.append("当前会回退到本地 segment-clustering 方案；它可用，但多人访谈的准确率低于 pyannote。")
     ok = not missing_required
     return DoctorReport(
         ok=ok,

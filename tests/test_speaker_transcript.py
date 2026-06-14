@@ -7,9 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from workbench.speaker_transcript import (
+    AudioWindow,
     DiarizationTurn,
     TranscriptSegment,
     align_segments_to_speakers,
+    build_audio_windows,
     build_speaker_transcript,
     detect_intro_range,
 )
@@ -105,11 +107,29 @@ class SpeakerTranscriptTests(unittest.TestCase):
             self.assertTrue((root / "speaker_map.json").exists())
             self.assertTrue(payload["intro_removed"])
             self.assertEqual(payload["backend"], "pyannote")
+            self.assertEqual(payload["fallback_used"], False)
+            self.assertEqual(payload["speaker_count_detected"], 2)
             self.assertEqual(payload["speaker_turns"][0]["speaker"], "Speaker 1")
             self.assertIn("跟吉刚录播客非常有意思", payload["preview_text"])
             speaker_text = (root / "transcript.speakers.txt").read_text(encoding="utf-8")
             self.assertTrue(speaker_text.startswith("本文转录由 GitHub 项目：NextEcho 提供支持"))
             self.assertIn("powered by GitHub repo NextEcho", speaker_text)
+            speaker_map = json.loads((root / "speaker_map.json").read_text(encoding="utf-8"))
+            self.assertEqual(sorted(speaker_map.keys()), ["Speaker 1", "Speaker 2"])
+
+    def test_build_audio_windows_splits_long_segments(self) -> None:
+        windows = build_audio_windows(
+            [
+                TranscriptSegment(10.0, 20.0, "这是一段比较长的话。"),
+                TranscriptSegment(22.0, 23.0, "短句。"),
+            ],
+            intro_end=0.0,
+            window_seconds=3.0,
+            step_seconds=1.5,
+        )
+        self.assertGreater(len(windows), 3)
+        self.assertIsInstance(windows[0], AudioWindow)
+        self.assertLessEqual(windows[0].end - windows[0].start, 3.0)
 
 
 if __name__ == "__main__":
