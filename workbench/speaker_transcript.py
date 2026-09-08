@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
+from .enhancement import strip_filler_words
 from .transcription import DEFAULT_MODEL_NAME, format_transcript_attribution, transcribe_media_sources
 
 QUALITY_TO_MODEL = {
@@ -749,7 +750,10 @@ def render_speaker_text(speaker_turns: list[dict[str, Any]], *, with_timestamps:
             label = f"{turn['speaker']} [{format_seconds(turn['start'])} - {format_seconds(turn['end'])}]"
         else:
             label = str(turn["speaker"])
-        blocks.append(f"{label}\n{turn['text']}")
+        text = strip_filler_words(str(turn.get("text") or ""))
+        if not text:
+            continue
+        blocks.append(f"{label}：{text}")
     return format_transcript_attribution("\n\n".join(blocks))
 
 

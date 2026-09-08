@@ -16,10 +16,18 @@ from workbench.speaker_transcript import (
     build_speaker_transcript,
     detect_intro_range,
     apply_context_speaker_names,
+    render_speaker_text,
 )
 
 
 class SpeakerTranscriptTests(unittest.TestCase):
+    def test_render_speaker_text_uses_dialogue_format_and_removes_fillers(self) -> None:
+        rendered = render_speaker_text(
+            [{"speaker": "孟岩", "start": 0.0, "end": 2.0, "text": "嗯大家好。"}],
+            with_timestamps=False,
+        )
+        self.assertIn("孟岩：大家好。", rendered)
+
     def test_detect_intro_range_uses_repeated_promo(self) -> None:
         segments = [
             TranscriptSegment(0.0, 30.0, "请不吝点赞 订阅 转发 打赏支持明镜与点点栏目"),

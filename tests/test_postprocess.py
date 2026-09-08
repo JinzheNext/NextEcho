@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from workbench.enhancement import default_glossary_rules
-from workbench.postprocess import Segment, process_transcript_artifacts, validate_polish_response
+from workbench.enhancement import default_glossary_rules, strip_filler_words
+from workbench.postprocess import Segment, context_keywords, process_transcript_artifacts, render_dialogue_line, validate_polish_response
 
 
 def final_summary() -> dict:
@@ -26,6 +26,20 @@ def final_summary() -> dict:
 
 
 class PostprocessTests(unittest.TestCase):
+    def test_removes_fillers_and_keeps_dialogue_speaker(self) -> None:
+        self.assertEqual(strip_filler_words("嗯嗯大家好呃，哈"), "大家好，")
+        self.assertEqual(render_dialogue_line(Segment("seg", "嗯大家好。", 0, 1000, "孟岩")), "孟岩：大家好。")
+
+    def test_context_keywords_exclude_fillers(self) -> None:
+        keywords = context_keywords(
+            {
+                "shownotes": {"text": "AI 时代的人机协作与信息输入。"},
+                "comments": [{"text": "嗯，AI 时代更需要心力。"}, {"text": "人机协作值得长期讨论。"}],
+            }
+        )
+        self.assertIn("人机", keywords)
+        self.assertNotIn("嗯", keywords)
+
     def test_polish_validator_preserves_numbers_and_protected_terms(self) -> None:
         source = [Segment("seg_00000", "NextEcho 在 2026 年发布。", 0, 1000)]
         rules = default_glossary_rules("protect: NextEcho")

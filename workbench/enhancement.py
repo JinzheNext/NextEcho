@@ -102,6 +102,20 @@ def normalize_text_for_enhancement(text: str) -> str:
     return normalized.strip()
 
 
+def strip_filler_words(text: str) -> str:
+    """Remove common speech fillers while leaving the raw transcript untouched.
+
+    ASR often emits standalone hesitation runs (嗯、呃、啊、哈).  These are
+    presentation noise in a readable transcript, but the original transcript
+    remains the evidence artifact.  We intentionally keep this list narrow so
+    meaningful words such as “对” and “吧” are not removed.
+    """
+    cleaned = re.sub(r"[嗯呃额啊哈唉诶]+", "", text)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
 def apply_glossary(text: str, rules: GlossaryRules) -> tuple[str, list[dict[str, str]]]:
     protected_placeholders: dict[str, str] = {}
     protected_text = text
