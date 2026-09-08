@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from workbench.enhancement import default_glossary_rules, strip_filler_words
-from workbench.postprocess import Segment, context_keywords, process_transcript_artifacts, render_dialogue_line, validate_polish_response
+from workbench.postprocess import Segment, context_keywords, merge_dialogue_segments, process_transcript_artifacts, render_dialogue_line, validate_polish_response
 
 
 def final_summary() -> dict:
@@ -29,6 +29,16 @@ class PostprocessTests(unittest.TestCase):
     def test_removes_fillers_and_keeps_dialogue_speaker(self) -> None:
         self.assertEqual(strip_filler_words("嗯嗯大家好呃，哈"), "大家好，")
         self.assertEqual(render_dialogue_line(Segment("seg", "嗯大家好。", 0, 1000, "孟岩")), "孟岩：大家好。")
+
+    def test_merges_same_speaker_segments_for_readable_dialogue(self) -> None:
+        merged = merge_dialogue_segments(
+            [
+                Segment("seg_00000", "跟", 0, 800, "孟岩"),
+                Segment("seg_00001", "纪刚录博客。", 850, 1800, "孟岩"),
+                Segment("seg_00002", "大家好。", 2000, 2600, "李继刚"),
+            ]
+        )
+        self.assertEqual([(item.speaker, item.text) for item in merged], [("孟岩", "跟纪刚录博客。"), ("李继刚", "大家好。")])
 
     def test_context_keywords_exclude_fillers(self) -> None:
         keywords = context_keywords(

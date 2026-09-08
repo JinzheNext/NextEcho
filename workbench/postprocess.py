@@ -519,8 +519,14 @@ def validate_quotes(summary: dict[str, Any], segments: list[Segment]) -> None:
 def write_enhanced_artifacts(item_dir: Path, raw_payload: dict[str, Any], segments: list[Segment], rules: GlossaryRules, audit: dict[str, Any], profile: str) -> dict[str, str]:
     from .transcription import format_transcript_attribution, write_subtitles_from_segments
 
-    text_lines = [render_dialogue_line(item) for item in segments]
-    text = "\n".join(line for line in text_lines if line)
+    # The structured JSON and subtitles stay at ASR-segment granularity so
+    # every edit remains traceable to its original time range.  The readable
+    # TXT, however, should look like a real conversation: consecutive
+    # segments from the same speaker are rendered as one dialogue block.
+    dialogue_segments = merge_dialogue_segments(segments)
+    text_lines = [render_dialogue_line(item) for item in dialogue_segments]
+    subtitle_lines = [render_dialogue_line(item) for item in segments]
+    text = "\n\n".join(line for line in text_lines if line)
     enhanced_json = dict(raw_payload)
     enhanced_json["enhancement"] = {
         "profile": profile,
@@ -537,7 +543,7 @@ def write_enhanced_artifacts(item_dir: Path, raw_payload: dict[str, Any], segmen
     vtt_path = item_dir / "transcript.enhanced.vtt"
     txt_path.write_text(format_transcript_attribution(text), encoding="utf-8")
     json_path.write_text(json.dumps(enhanced_json, ensure_ascii=False, indent=2), encoding="utf-8")
-    subtitle_rows = [{"text": line, "offsets": {"from": item.start_ms, "to": item.end_ms}} for item, line in zip(segments, text_lines) if line]
+    subtitle_rows = [{"text": line, "offsets": {"from": item.start_ms, "to": item.end_ms}} for item, line in zip(segments, subtitle_lines) if line]
     write_subtitles_from_segments(subtitle_rows, srt_path=srt_path, vtt_path=vtt_path)
     return {"enhanced_text_path": str(txt_path), "enhanced_json_path": str(json_path), "enhanced_srt_path": str(srt_path), "enhanced_vtt_path": str(vtt_path)}
 
@@ -576,6 +582,34 @@ def render_dialogue_line(segment: Segment) -> str:
     if segment.speaker and text:
         return f"{segment.speaker}：{text}"
     return text
+
+
+def merge_dialogue_segments(segments: list[Segment], *, max_gap_ms: int = 1000) -> list[Segment]:
+    """Merge adjacent same-speaker segments for human-readable TXT output.
+
+    This only changes presentation.  Callers keep the original ``segments``
+    for JSON and subtitle artifacts, preserving exact IDs and timestamps.
+    Empty filler-only segments are omitted from the readable blocks but are
+    still present in the structured enhanced JSON.
+    """
+    merged: list[Segment] = []
+    for segment in segments:
+        text = strip_filler_words(segment.text)
+        if not text:
+            continue
+        current = Segment(segment.id, text, segment.start_ms, segment.end_ms, segment.speaker)
+        if merged and current.speaker == merged[-1].speaker and current.start_ms - merged[-1].end_ms <= max_gap_ms:
+            previous = merged[-1]
+            merged[-1] = Segment(
+                previous.id,
+                f"{previous.text}{current.text}",
+                previous.start_ms,
+                max(previous.end_ms, current.end_ms),
+                previous.speaker,
+            )
+        else:
+            merged.append(current)
+    return merged
 
 
 def render_reference_hint(refs: Any, segment_index: dict[str, Segment]) -> str:
