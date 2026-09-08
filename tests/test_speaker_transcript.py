@@ -113,7 +113,7 @@ class SpeakerTranscriptTests(unittest.TestCase):
             self.assertIn("跟吉刚录播客非常有意思", payload["preview_text"])
             speaker_text = (root / "transcript.speakers.txt").read_text(encoding="utf-8")
             self.assertTrue(speaker_text.startswith("本文转录由 GitHub 项目：NextEcho 提供支持"))
-            self.assertIn("powered by GitHub repo NextEcho", speaker_text)
+            self.assertIn("powered by github.com/JinzheNext/NextEcho - 让播客自动转录进知识库", speaker_text)
             speaker_map = json.loads((root / "speaker_map.json").read_text(encoding="utf-8"))
             self.assertEqual(sorted(speaker_map.keys()), ["Speaker 1", "Speaker 2"])
 

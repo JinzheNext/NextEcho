@@ -31,3 +31,8 @@ System-installed dependencies may vary by machine and should be re-audited if bu
 - Keep this file updated when `requirements*.txt`, packaging scripts, or bundled assets change.
 - If you start shipping app bundles, installers, or binary releases, replace `system dependency` entries with exact versions.
 - FFmpeg requires the most caution. A user-installed FFmpeg binary and a bundled FFmpeg binary are different compliance situations.
+# 本地模型运行时补充
+
+- `mlx-qwen3-asr` 0.3.5：Apache-2.0；仅作为 Apple Silicon 可选运行时。
+- Qwen3-ASR 0.6B / 1.7B：Apache-2.0；模型权重由用户主动下载并保存在本地。
+- Qwen3.5 9B：Apache-2.0；通过本机 Ollama 主动拉取并仅用于本地推理。

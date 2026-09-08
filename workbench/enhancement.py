@@ -205,7 +205,9 @@ def enhance_transcript_artifacts(
 
     enhanced_text_path = item_dir / "transcript.enhanced.txt"
     enhanced_json_path = item_dir / "transcript.enhanced.json"
-    enhanced_text_path.write_text(final_text.strip() + "\n", encoding="utf-8")
+    from .transcription import format_transcript_attribution
+
+    enhanced_text_path.write_text(format_transcript_attribution(final_text), encoding="utf-8")
 
     json_payload: dict[str, Any] = {}
     if json_path.exists():

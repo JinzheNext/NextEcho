@@ -5,6 +5,9 @@ Important components referenced by this repository include:
 - Flask
 - whisper.cpp / whisper-cli
 - Whisper model artifacts
+- mlx-qwen3-asr (optional Apple Silicon runtime)
+- Qwen3-ASR model weights (optional local model artifacts)
+- Qwen3.5 model weights via Ollama (optional local model artifacts)
 - yt-dlp
 - FFmpeg
 - pyannote.audio

@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from .doctor import print_human_report, report_to_dict, run_doctor
 from .enhancement import load_glossary_text
+from .postprocess import process_transcript_artifacts
 from .speaker_transcript import build_speaker_transcript
 from .sources import resolve_feed, resolve_sources
 from .transcription import (
@@ -32,6 +33,11 @@ def now_slug() -> str:
     return datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
 
+def warn_legacy_whisper_model(args: argparse.Namespace) -> None:
+    if getattr(args, "model", None):
+        print("提示：--model 仍用于 Whisper 兼容路径；Qwen3-ASR 请使用 --asr-model。", file=sys.stderr)
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     report = run_doctor()
     if args.json:
@@ -50,6 +56,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 
 def cmd_transcribe(args: argparse.Namespace) -> int:
+    warn_legacy_whisper_model(args)
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
     doctor_report = run_doctor()
@@ -59,12 +66,15 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
         descriptors,
         output_dir=output_dir,
         model_name=model,
-        language="auto",
-        max_seconds=0,
+        language=args.language,
+        max_seconds=int(getattr(args, "max_seconds", 0) or 0),
         glossary_text=load_glossary_text(args.glossary) if getattr(args, "glossary", None) else "",
-        enable_enhancement=bool(args.enhance or args.glossary or args.ai_polish),
+        enable_enhancement=bool(args.enhance or args.glossary or args.ai_polish or getattr(args, "postprocess_profile", "off") != "off"),
         ai_polish=bool(args.ai_polish),
         ai_style=args.ai_style or "",
+        asr_engine=getattr(args, "asr_engine", "auto"),
+        asr_model=getattr(args, "asr_model", "") or "",
+        postprocess_profile=getattr(args, "postprocess_profile", "off"),
     )
     result = {
         "output_dir": str(payload["output_dir"]),
@@ -96,6 +106,7 @@ def cmd_resolve_sources(args: argparse.Namespace) -> int:
 
 
 def cmd_transcribe_page(args: argparse.Namespace) -> int:
+    warn_legacy_whisper_model(args)
     descriptors = resolve_sources([args.url])
     descriptor = descriptors[0]
     if descriptor.error:
@@ -113,12 +124,15 @@ def cmd_transcribe_page(args: argparse.Namespace) -> int:
         [descriptor],
         output_dir=output_dir,
         model_name=model,
-        language="auto",
-        max_seconds=0,
+        language=args.language,
+        max_seconds=int(getattr(args, "max_seconds", 0) or 0),
         glossary_text=load_glossary_text(args.glossary) if getattr(args, "glossary", None) else "",
-        enable_enhancement=bool(args.enhance or args.glossary or args.ai_polish),
+        enable_enhancement=bool(args.enhance or args.glossary or args.ai_polish or getattr(args, "postprocess_profile", "off") != "off"),
         ai_polish=bool(args.ai_polish),
         ai_style=args.ai_style or "",
+        asr_engine=getattr(args, "asr_engine", "auto"),
+        asr_model=getattr(args, "asr_model", "") or "",
+        postprocess_profile=getattr(args, "postprocess_profile", "off"),
     )
     result = {
         "source": descriptor.to_dict(),
@@ -139,6 +153,7 @@ def cmd_transcribe_page(args: argparse.Namespace) -> int:
 
 
 def cmd_transcribe_feed(args: argparse.Namespace) -> int:
+    warn_legacy_whisper_model(args)
     descriptors = resolve_feed(args.url, limit=args.limit)
     RUNS_ROOT.mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir or (RUNS_ROOT / f"run_{now_slug()}_{uuid4().hex[:8]}")
@@ -148,12 +163,15 @@ def cmd_transcribe_feed(args: argparse.Namespace) -> int:
         descriptors,
         output_dir=output_dir,
         model_name=model,
-        language="auto",
-        max_seconds=0,
+        language=args.language,
+        max_seconds=int(getattr(args, "max_seconds", 0) or 0),
         glossary_text=load_glossary_text(args.glossary) if getattr(args, "glossary", None) else "",
-        enable_enhancement=bool(args.enhance or args.glossary or args.ai_polish),
+        enable_enhancement=bool(args.enhance or args.glossary or args.ai_polish or getattr(args, "postprocess_profile", "off") != "off"),
         ai_polish=bool(args.ai_polish),
         ai_style=args.ai_style or "",
+        asr_engine=getattr(args, "asr_engine", "auto"),
+        asr_model=getattr(args, "asr_model", "") or "",
+        postprocess_profile=getattr(args, "postprocess_profile", "off"),
     )
     result = {
         "feed_url": args.url,
@@ -199,6 +217,7 @@ def cmd_list_models(args: argparse.Namespace) -> int:
         "recommended_model": report.recommended_model,
         "recommended_model_reason": report.recommended_model_reason,
         "models": list_supported_whisper_models(),
+        "local_ai": report.local_ai,
     }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -209,6 +228,8 @@ def cmd_list_models(args: argparse.Namespace) -> int:
         for item in payload["models"]:
             print(f"- {item['name']} [{item['tier']}] suggested memory >= {item['min_memory_gb']}GB")
             print(f"  {item['summary']}")
+        print(f"\nQwen3-ASR MLX available: {payload['local_ai']['qwen_mlx_available']}")
+        print(f"Ollama ready: {payload['local_ai']['ollama'].get('ready')}")
     return 0
 
 
@@ -220,6 +241,48 @@ def cmd_download_model(args: argparse.Namespace) -> int:
     else:
         print(f"Downloaded or reused model: {args.model}")
         print(f"Path: {model_path}")
+    return 0
+
+
+def cmd_enhance(args: argparse.Namespace) -> int:
+    run_dir = Path(args.run_dir).expanduser().resolve()
+    item_dirs = [run_dir] if (run_dir / "transcript.json").exists() else sorted((run_dir / "items").glob("*"))
+    processed_dirs: list[Path] = []
+    results: list[dict] = []
+    for item_dir in item_dirs:
+        if not (item_dir / "transcript.json").exists():
+            continue
+        results.append(
+            process_transcript_artifacts(
+                item_dir,
+                profile=args.profile,
+                user_glossary_text=load_glossary_text(args.glossary) if args.glossary else "",
+                style=args.ai_style or "",
+            )
+        )
+        processed_dirs.append(item_dir)
+        metadata_path = item_dir / "metadata.json"
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["enhancement"] = results[-1]
+            metadata.update(results[-1].get("paths") or {})
+            metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    if not results:
+        raise FileNotFoundError("No transcript.json found in the supplied run directory")
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for item_dir, audit in zip(processed_dirs, results):
+            for item in manifest.get("results") or []:
+                if Path(str(item.get("output_dir") or "")).resolve() == item_dir.resolve():
+                    item["enhancement"] = audit
+                    item.update(audit.get("paths") or {})
+        manifest.setdefault("postprocess", {})["profile"] = args.profile
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    if args.json:
+        print(json.dumps({"run_dir": str(run_dir), "results": results}, ensure_ascii=False, indent=2))
+    else:
+        print(f"Generated knowledge artifacts for {len(results)} item(s).")
     return 0
 
 
@@ -239,12 +302,17 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser = subparsers.add_parser("transcribe", help="Transcribe local files or media URLs locally")
     transcribe_parser.add_argument("sources", nargs="+", help="Local file paths or remote media/page URLs")
     transcribe_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    transcribe_parser.add_argument("--language", default="auto", help="ASR language hint, for example zh, en, or auto")
     transcribe_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     transcribe_parser.add_argument("--output-dir", type=Path)
+    transcribe_parser.add_argument("--max-seconds", type=int, default=0, help="Only process the first N seconds; useful for gold-set comparisons")
     transcribe_parser.add_argument("--glossary", type=Path, help="Optional glossary file with `wrong => right` rules")
     transcribe_parser.add_argument("--enhance", action="store_true", help="Generate enhanced transcript artifacts")
     transcribe_parser.add_argument("--ai-polish", action="store_true", help="Run optional AI polish on the enhanced transcript when configured")
     transcribe_parser.add_argument("--ai-style", default="", help="Optional style hint passed to AI polish")
+    transcribe_parser.add_argument("--asr-engine", choices=["auto", "qwen3-asr", "whisper-cpp"], default="auto")
+    transcribe_parser.add_argument("--asr-model", default="", help="Explicit Qwen3-ASR model ID")
+    transcribe_parser.add_argument("--postprocess-profile", choices=["off", "balanced", "quality", "fast"], default="fast")
     transcribe_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     transcribe_parser.set_defaults(func=cmd_transcribe)
 
@@ -256,12 +324,17 @@ def build_parser() -> argparse.ArgumentParser:
     page_parser = subparsers.add_parser("transcribe-page", help="Resolve one media page URL and transcribe it locally")
     page_parser.add_argument("url", help="Single platform page URL such as Bilibili, Xiaoyuzhou, or Apple Podcasts")
     page_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    page_parser.add_argument("--language", default="auto", help="ASR language hint, for example zh, en, or auto")
     page_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     page_parser.add_argument("--output-dir", type=Path)
+    page_parser.add_argument("--max-seconds", type=int, default=0, help="Only process the first N seconds; useful for gold-set comparisons")
     page_parser.add_argument("--glossary", type=Path, help="Optional glossary file with `wrong => right` rules")
     page_parser.add_argument("--enhance", action="store_true", help="Generate enhanced transcript artifacts")
     page_parser.add_argument("--ai-polish", action="store_true", help="Run optional AI polish on the enhanced transcript when configured")
     page_parser.add_argument("--ai-style", default="", help="Optional style hint passed to AI polish")
+    page_parser.add_argument("--asr-engine", choices=["auto", "qwen3-asr", "whisper-cpp"], default="auto")
+    page_parser.add_argument("--asr-model", default="", help="Explicit Qwen3-ASR model ID")
+    page_parser.add_argument("--postprocess-profile", choices=["off", "balanced", "quality", "fast"], default="fast")
     page_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     page_parser.set_defaults(func=cmd_transcribe_page)
 
@@ -269,12 +342,17 @@ def build_parser() -> argparse.ArgumentParser:
     feed_parser.add_argument("url", help="RSS or podcast feed URL")
     feed_parser.add_argument("--limit", type=int, default=3)
     feed_parser.add_argument("--quality", choices=sorted(QUALITY_TO_MODEL), default="accurate")
+    feed_parser.add_argument("--language", default="auto", help="ASR language hint, for example zh, en, or auto")
     feed_parser.add_argument("--model", help="Explicit whisper.cpp model name or local model path")
     feed_parser.add_argument("--output-dir", type=Path)
+    feed_parser.add_argument("--max-seconds", type=int, default=0, help="Only process the first N seconds per episode")
     feed_parser.add_argument("--glossary", type=Path, help="Optional glossary file with `wrong => right` rules")
     feed_parser.add_argument("--enhance", action="store_true", help="Generate enhanced transcript artifacts")
     feed_parser.add_argument("--ai-polish", action="store_true", help="Run optional AI polish on the enhanced transcript when configured")
     feed_parser.add_argument("--ai-style", default="", help="Optional style hint passed to AI polish")
+    feed_parser.add_argument("--asr-engine", choices=["auto", "qwen3-asr", "whisper-cpp"], default="auto")
+    feed_parser.add_argument("--asr-model", default="", help="Explicit Qwen3-ASR model ID")
+    feed_parser.add_argument("--postprocess-profile", choices=["off", "balanced", "quality", "fast"], default="fast")
     feed_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     feed_parser.set_defaults(func=cmd_transcribe_feed)
 
@@ -296,6 +374,14 @@ def build_parser() -> argparse.ArgumentParser:
     download_model_parser.add_argument("model", help="Model name such as tiny, base, small, medium, or large-v3-turbo-q5_0")
     download_model_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     download_model_parser.set_defaults(func=cmd_download_model)
+
+    enhance_parser = subparsers.add_parser("enhance", help="Generate local polished transcript and knowledge artifacts for an existing run")
+    enhance_parser.add_argument("run_dir", type=Path)
+    enhance_parser.add_argument("--profile", choices=["balanced", "quality", "fast"], default="fast")
+    enhance_parser.add_argument("--glossary", type=Path)
+    enhance_parser.add_argument("--ai-style", default="")
+    enhance_parser.add_argument("--json", action="store_true")
+    enhance_parser.set_defaults(func=cmd_enhance)
 
     return parser
 

@@ -28,6 +28,9 @@ fi
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -U "yt-dlp[default]"
+if [ "$(uname -m)" = "arm64" ]; then
+  python -m pip install -r requirements-apple-silicon.txt
+fi
 
 missing=()
 for bin in ffmpeg whisper-cli; do

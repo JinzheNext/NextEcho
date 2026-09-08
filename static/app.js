@@ -11,6 +11,8 @@ const resolveButtonEl = document.querySelector('#resolve-button');
 const sourcePreviewEl = document.querySelector('#source-preview');
 const urlsEl = document.querySelector('#urls');
 const progressNoteEl = document.querySelector('#progress-note');
+const modelStatusEl = document.querySelector('#model-status');
+const modelStatusLabelEl = document.querySelector('#model-status-label');
 let activeTaskStartedAt = 0;
 
 function formatElapsed(seconds) {
@@ -29,6 +31,9 @@ function progressPresentation(job) {
     media: { title: '步骤 2/5：获取媒体', note: '正在下载或复制原始媒体文件。', mode: 'indeterminate' },
     audio: { title: '步骤 3/5：抽取音频', note: '正在把原始媒体转换成转录可用的音频。', mode: 'indeterminate' },
     asr: { title: '步骤 4/5：语音识别进行中', note: '长音频通常会在这一步停留最久。这里显示的是处理阶段，不是逐字识别的精确百分比。', mode: 'indeterminate' },
+    polish: { title: '步骤 5/6：保真整理中', note: '本地模型正在修正标点、断句和术语；原始转录不会被改写。', mode: 'indeterminate' },
+    summarize: { title: '步骤 6/6：生成知识稿', note: '正在逐块汇总摘要、章节、行动项和可回溯引用。', mode: 'indeterminate' },
+    knowledge_complete: { title: '步骤 6/6：知识稿已生成', note: '增强稿、摘要 JSON 和 Obsidian Markdown 已写出。', mode: 'determinate' },
     item_complete: { title: '步骤 5/5：整理结果', note: '单条素材已经识别完成，正在写出文本与字幕文件。', mode: 'determinate' },
     item_failed: { title: '步骤 5/5：整理结果', note: '某条素材没有成功完成，请看错误摘要。', mode: 'determinate' },
     cached: { title: '步骤 5/5：读取缓存', note: '这条素材之前已经转过，正在直接复用结果。', mode: 'determinate' },
@@ -106,7 +111,7 @@ function renderResults(payload) {
   const summaryBanner = `
     <article class="summary-banner">
       <strong>本次转录已完成</strong>
-      <span>${formatElapsed(totalElapsedSeconds)}</span>
+      <span>${formatElapsed(totalElapsedSeconds)}${manifest.partial_count ? ` · ${manifest.partial_count} 条智能加工部分完成` : ''}</span>
     </article>
   `;
   const errorsBanner = manifest.error_count
@@ -129,13 +134,20 @@ function renderResults(payload) {
     const json = artifactLink(runId, item.json_path);
     const enhancedTxt = artifactLink(runId, item.enhanced_text_path);
     const enhancedJson = artifactLink(runId, item.enhanced_json_path);
+    const enhancedSrt = artifactLink(runId, item.enhanced_srt_path);
+    const enhancedVtt = artifactLink(runId, item.enhanced_vtt_path);
+    const summaryJson = artifactLink(runId, item.summary_json_path);
+    const knowledge = artifactLink(runId, item.knowledge_markdown_path);
     const media = artifactLink(runId, item.media_path);
     const audio = artifactLink(runId, item.audio_path);
     const details = [item.status, `${item.char_count ?? 0} 字`, item.author || '', item.duration_seconds ? `${Math.round(item.duration_seconds / 60)} 分钟` : '']
       .filter(Boolean)
       .join(' · ');
+    const asrNote = item.asr?.actual_model
+      ? `<p class="source-meta-row">ASR：${item.asr.actual_engine || 'local'} / ${item.asr.actual_model}${item.asr.fallbacks?.length ? ` · ${item.asr.fallbacks.length} 次自动回退` : ''}</p>`
+      : '';
     const enhancementNote = item.enhancement?.enabled
-      ? `<p class="source-meta-row">已生成增强稿${item.enhancement?.ai?.applied ? ' · 已应用 AI 润色' : ''}${item.enhancement?.ai?.requested && !item.enhancement?.ai?.applied ? ` · ${item.enhancement.ai.reason}` : ''}</p>`
+      ? `<p class="source-meta-row">知识加工：${item.enhancement?.actual_models?.length ? item.enhancement.actual_models.join('、') : '确定性整理'}${item.enhancement?.status === 'partial' ? ' · 部分完成，已保留原始稿' : ''}</p>`
       : '';
     return `
       <article class="result-card">
@@ -143,6 +155,7 @@ function renderResults(payload) {
           <span class="platform-pill">${item.platform || 'local'}</span>
           <strong>${item.title || item.source_label}</strong>
           <p>${details}</p>
+          ${asrNote}
           ${enhancementNote}
           ${item.error ? `<p class="source-error">${item.error}</p>` : ''}
         </div>
@@ -151,11 +164,16 @@ function renderResults(payload) {
           ${txt ? `<a href="${txt}?download=1">下载 TXT</a>` : ''}
           ${enhancedTxt ? `<a href="${enhancedTxt}" target="_blank">查看增强稿</a>` : ''}
           ${enhancedTxt ? `<a href="${enhancedTxt}?download=1">下载增强 TXT</a>` : ''}
+          ${enhancedSrt ? `<a href="${enhancedSrt}?download=1">下载增强字幕</a>` : ''}
+          ${enhancedVtt ? `<a href="${enhancedVtt}?download=1">下载增强 VTT</a>` : ''}
           ${srt ? `<a href="${srt}?download=1">下载字幕</a>` : ''}
           ${json ? `<a href="${json}?download=1">下载 JSON</a>` : ''}
           ${enhancedJson ? `<a href="${enhancedJson}?download=1">下载增强 JSON</a>` : ''}
+          ${summaryJson ? `<a href="${summaryJson}" target="_blank">查看知识摘要</a>` : ''}
+          ${knowledge ? `<a href="${knowledge}" target="_blank">打开 Obsidian 知识稿</a>` : ''}
           ${media ? `<a href="${media}?download=1">下载原视频</a>` : ''}
           ${audio ? `<a href="${audio}?download=1">下载音频</a>` : ''}
+          <button type="button" class="secondary-button" data-action="enhance" data-run-id="${runId}">重新整理与摘要</button>
         </nav>
       </article>
     `;
@@ -203,10 +221,40 @@ async function loadRuns() {
   const payload = await response.json();
   runsEl.innerHTML = payload.runs.map((run) => `
     <button class="run-row" data-run-id="${run.run_id}" type="button">
-      <strong>${run.run_id}</strong>
-      <span>${run.item_count} 条 · ${run.quality}${run.error_count ? ` · ${run.error_count} 失败` : ''}</span>
+      <strong>${run.display_title || run.run_id}</strong>
+      <span>${run.item_count} 条 · ${run.quality}${run.error_count ? ` · ${run.error_count} 失败` : ''} · ${run.run_id}</span>
     </button>
   `).join('') || '<p class="muted">暂无历史运行。</p>';
+}
+
+function renderModelStatus(payload) {
+  const ollama = payload.ollama || {};
+  const rows = [
+    `Apple Silicon：${payload.apple_silicon ? '是' : '否'}`,
+    `Qwen ASR 运行时：${payload.qwen_mlx_available ? '已安装' : '未安装，将回退 Whisper'}`,
+    `Ollama：${ollama.ready ? '已连接' : '未启动'}`,
+    `快速模型：${ollama.fast_model_ready ? 'qwen3:4b 已就绪' : 'qwen3:4b 未下载'}`,
+    `高质量模型：${ollama.quality_model_ready ? 'Qwen 9B 已就绪' : 'Qwen 9B 未下载'}`,
+  ];
+  const actions = [];
+  if (!ollama.fast_model_ready) actions.push('<button type="button" class="secondary-button" data-action="download-model" data-kind="llm-fast">下载快速模型</button>');
+  if (!ollama.quality_model_ready) actions.push('<button type="button" class="secondary-button" data-action="download-model" data-kind="llm-quality">下载 9B 高质量模型</button>');
+  if (payload.qwen_mlx_available) actions.push('<button type="button" class="secondary-button" data-action="download-model" data-kind="asr-accurate">准备 Qwen ASR 1.7B</button>');
+  modelStatusEl.classList.remove('empty');
+  modelStatusEl.innerHTML = `<div class="source-meta-row">${rows.join(' · ')}</div><nav>${actions.join('')}</nav>`;
+  modelStatusLabelEl.textContent = ollama.ready ? '本地服务已连接' : '需要启动 Ollama';
+}
+
+async function loadModelStatus() {
+  try {
+    const response = await fetch('/api/models/status');
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || '无法读取模型状态');
+    renderModelStatus(payload);
+  } catch (error) {
+    modelStatusLabelEl.textContent = '读取失败';
+    modelStatusEl.textContent = error.message;
+  }
 }
 
 function updateProgress(job) {
@@ -335,29 +383,34 @@ runsEl.addEventListener('click', async (event) => {
 });
 
 resultsEl.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-action="speaker-transcript"]');
+  const button = event.target.closest('[data-action]');
   if (!button) return;
   event.preventDefault();
   event.stopPropagation();
   button.disabled = true;
   activeTaskStartedAt = Date.now();
-  statusEl.textContent = '访谈逐字稿生成中…';
+  const isEnhance = button.dataset.action === 'enhance';
+  statusEl.textContent = isEnhance ? '智能整理与摘要生成中…' : '访谈逐字稿生成中…';
   progressShellEl.classList.remove('hidden');
   progressCopyEl.classList.remove('hidden');
   progressNoteEl.classList.remove('hidden');
   progressShellEl.classList.remove('progress-shell-indeterminate');
   progressBarEl.classList.remove('progress-bar-indeterminate');
   progressBarEl.style.width = '0%';
-  progressCopyEl.textContent = `步骤 1/5：访谈逐字稿任务已创建 · ${formatElapsed(0)}`;
-  progressNoteEl.textContent = '系统正在准备访谈逐字稿任务。';
+  progressCopyEl.textContent = `步骤 1/5：${isEnhance ? '智能整理' : '访谈逐字稿'}任务已创建 · ${formatElapsed(0)}`;
+  progressNoteEl.textContent = isEnhance ? '系统将只读取原始结构化转录，不会重新下载或转写音频。' : '系统正在准备访谈逐字稿任务。';
   try {
-    const response = await fetch(`/api/runs/${button.dataset.runId}/speaker-transcript`, {
+    const endpoint = isEnhance
+      ? `/api/runs/${button.dataset.runId}/enhance`
+      : `/api/runs/${button.dataset.runId}/speaker-transcript`;
+    const response = await fetch(endpoint, {
       method: 'POST',
+      ...(isEnhance ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile: 'fast' }) } : {}),
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || '无法启动访谈逐字稿任务');
+    if (!response.ok) throw new Error(payload.error || (isEnhance ? '无法启动智能整理任务' : '无法启动访谈逐字稿任务'));
     const result = await waitForJob(payload.job_id);
-    statusEl.textContent = '访谈逐字稿已完成';
+    statusEl.textContent = isEnhance ? '智能整理与摘要已完成' : '访谈逐字稿已完成';
     renderResults(result);
     await loadRuns();
   } catch (error) {
@@ -369,4 +422,30 @@ resultsEl.addEventListener('click', async (event) => {
   }
 });
 
+modelStatusEl.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action="download-model"]');
+  if (!button) return;
+  const kind = button.dataset.kind;
+  if (!window.confirm('模型下载可能占用数 GB 磁盘空间，确认现在下载吗？')) return;
+  button.disabled = true;
+  modelStatusLabelEl.textContent = '下载中…';
+  try {
+    const response = await fetch('/api/models/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || '无法开始下载');
+    await waitForJob(payload.job_id);
+    await loadModelStatus();
+  } catch (error) {
+    modelStatusLabelEl.textContent = '下载失败';
+    modelStatusEl.insertAdjacentHTML('beforeend', `<div class="source-error">${error.message}</div>`);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 loadRuns();
+loadModelStatus();

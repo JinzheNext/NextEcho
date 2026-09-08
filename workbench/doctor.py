@@ -11,15 +11,26 @@ from pathlib import Path
 from typing import Any
 
 from .speaker_transcript import HF_TOKEN_ENV_VARS, detect_speaker_backend_status
+from .asr import (
+    QWEN_ACCURATE_MODEL,
+    QWEN_FAST_MODEL,
+    QWEN_FORCED_ALIGNER_MODEL,
+    is_apple_silicon,
+    qwen_forced_aligner_cached,
+    qwen_memory_safe,
+    qwen_mlx_available,
+    qwen_model_cached,
+)
+from .postprocess import FAST_MODEL, QUALITY_MODEL, ollama_status
 from .binaries import find_binary
 from .transcription import (
     DEFAULT_MODEL_NAME,
     DEFAULT_MODEL_ROOT,
+    KNOWN_MODEL_ROOTS,
     PROJECT_NAME,
     PROJECT_TAGLINE,
     list_supported_whisper_models,
     recommend_whisper_model,
-    resolve_whisper_model,
 )
 
 FAST_MODEL_NAME = "base"
@@ -57,6 +68,7 @@ class DoctorReport:
     recommended_model_reason: str
     supported_models: list[dict[str, Any]]
     speaker_transcript: dict[str, Any]
+    local_ai: dict[str, Any]
     notes: list[str]
 
 
@@ -89,12 +101,12 @@ def detect_memory_gb() -> float | None:
 
 
 def check_model(name: str) -> ModelCheck:
-    try:
-        path = resolve_whisper_model(name)
-        return ModelCheck(name=name, path=str(path), ok=path.exists() and path.stat().st_size > 0)
-    except Exception:
-        candidate = DEFAULT_MODEL_ROOT / f"ggml-{name}.bin"
-        return ModelCheck(name=name, path=str(candidate), ok=False)
+    candidate = Path(name).expanduser()
+    candidates = [candidate] if candidate.is_absolute() else [root / f"ggml-{name}.bin" for root in [DEFAULT_MODEL_ROOT, *KNOWN_MODEL_ROOTS]]
+    for path in candidates:
+        if path.exists() and path.stat().st_size > 0:
+            return ModelCheck(name=name, path=str(path), ok=True)
+    return ModelCheck(name=name, path=str(candidates[0]), ok=False)
 
 
 def recommend_quality(memory_gb: float | None, accurate_model: ModelCheck, fast_model: ModelCheck) -> tuple[str, str]:
@@ -110,7 +122,7 @@ def recommend_quality(memory_gb: float | None, accurate_model: ModelCheck, fast_
         return "accurate", "只有高精度模型可用；如运行失败请下载 base 模型或释放内存。"
     if fast_model.ok:
         return "fast", "未找到高精度模型，但找到 base 模型，推荐更快模式。"
-    return "accurate", "未找到本地模型；首次运行会按高精度默认模型下载。"
+    return "accurate", "未找到本地模型；请先在模型管理中确认下载，或运行 download-model。"
 
 
 def package_available(module_name: str) -> bool:
@@ -142,6 +154,22 @@ def run_doctor() -> DoctorReport:
     recommended_quality, reason = recommend_quality(memory_gb, accurate_model, fast_model)
     recommended_model, recommended_model_reason = recommend_whisper_model(memory_gb)
     speaker_backend = detect_speaker_backend_status()
+    local_ai = {
+        "apple_silicon": is_apple_silicon(),
+        "qwen_mlx_available": qwen_mlx_available(),
+        "qwen_memory_safe": qwen_memory_safe(),
+        "qwen_asr_models": {"accurate": QWEN_ACCURATE_MODEL, "fast": QWEN_FAST_MODEL},
+        "qwen_asr_model_cache": {
+            "accurate": qwen_model_cached(QWEN_ACCURATE_MODEL),
+            "fast": qwen_model_cached(QWEN_FAST_MODEL),
+        },
+        "qwen_forced_aligner": {
+            "model": QWEN_FORCED_ALIGNER_MODEL,
+            "cached": qwen_forced_aligner_cached(),
+        },
+        "ollama": ollama_status(),
+        "llm_models": {"fast": FAST_MODEL, "quality": QUALITY_MODEL},
+    }
     pyannote_installed = bool(speaker_backend["pyannote_installed"])
     hf_token_env = speaker_backend["hf_token_env"] or detect_hf_token_env()
     fallback_backend_available = bool(speaker_backend["fallback_backend_available"])
@@ -159,6 +187,16 @@ def run_doctor() -> DoctorReport:
         notes.append("未检测到 Hugging Face 访问令牌：无法启用 pyannote 高精度说话人分离。")
     if fallback_backend_available and not hf_token_env:
         notes.append("当前会回退到本地 segment-clustering 方案；它可用，但多人访谈的准确率低于 pyannote。")
+    if local_ai["apple_silicon"] and not local_ai["qwen_mlx_available"]:
+        notes.append("Apple Silicon Qwen3-ASR 未安装：高精度转录会回退到 whisper.cpp。")
+    elif local_ai["apple_silicon"] and not any(local_ai["qwen_asr_model_cache"].values()):
+        notes.append("Qwen3-ASR 运行时已安装，但本地权重尚未完成缓存；auto 将继续使用 whisper.cpp。")
+    elif local_ai["apple_silicon"] and not local_ai["qwen_forced_aligner"]["cached"]:
+        notes.append("Qwen3-ASR 主模型已缓存，但 ForcedAligner 未完成；需要补齐它才能生成可靠时间戳。")
+    if local_ai["qwen_mlx_available"] and not local_ai["qwen_memory_safe"]:
+        notes.append("当前 Swap 超过 MLX 安全门禁；auto 暂不加载 Qwen，释放内存或重启后再试。")
+    if not local_ai["ollama"].get("ready"):
+        notes.append("本机 Ollama 未就绪：知识整理与摘要不可用。")
     ok = not missing_required
     return DoctorReport(
         ok=ok,
@@ -180,6 +218,7 @@ def run_doctor() -> DoctorReport:
             "selected_backend": speaker_backend["selected_backend"],
             "ready": bool(speaker_backend["ready"]) and ok,
         },
+        local_ai=local_ai,
         notes=notes,
     )
 
@@ -217,6 +256,10 @@ def print_human_report(report: DoctorReport) -> None:
     print(f"  fallback backend available: {report.speaker_transcript['fallback_backend_available']}")
     print(f"  selected backend: {report.speaker_transcript['selected_backend'] or 'none'}")
     print(f"  ready: {report.speaker_transcript['ready']}")
+    print("\nLocal AI:")
+    print(f"  Apple Silicon: {report.local_ai['apple_silicon']}")
+    print(f"  Qwen3-ASR MLX available: {report.local_ai['qwen_mlx_available']}")
+    print(f"  Ollama ready: {report.local_ai['ollama'].get('ready')}")
     if report.notes:
         print("\nNotes:")
         for note in report.notes:

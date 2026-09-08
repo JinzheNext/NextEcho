@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
 
+from .asr import TranscriptResult, choose_asr_engine, qwen_model_for_quality, transcribe_qwen_mlx
 from .enhancement import enhance_transcript_artifacts
 from .sources import SourceDescriptor, build_ytdlp_command, detect_platform, resolve_sources
 from .binaries import find_binary
@@ -30,11 +31,17 @@ DEFAULT_MAX_SECONDS = 0
 DEFAULT_OUTPUT_FORMATS = ["txt", "json", "srt", "vtt"]
 WHISPER_MODEL_BASE_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 LONG_AUDIO_CHUNK_MS = 10 * 60 * 1000
+# Keep chunks large enough to reduce boundary artefacts.  The overlap is
+# removed deterministically when the chunk outputs are merged, so it is only
+# a temporary ASR context window and never duplicated in final artifacts.
+LONG_AUDIO_CHUNK_OVERLAP_MS = 30 * 1000
 LONG_AUDIO_CPU_FALLBACK_MS = 15 * 60 * 1000
+PERSISTED_MEDIA_BASENAME = "录音原声"
+PERSISTED_AUDIO_NAME = "转录音频.wav"
 PROJECT_NAME = "NextEcho"
 PROJECT_TAGLINE = "让播客自动转录进知识库"
 TRANSCRIPT_ATTRIBUTION_HEADER = "本文转录由 GitHub 项目：NextEcho 提供支持，作者 @金哲Next（小红书、公众号同名）"
-TRANSCRIPT_ATTRIBUTION_FOOTER = "powered by GitHub repo NextEcho - 让播客自动转录进知识库"
+TRANSCRIPT_ATTRIBUTION_FOOTER = "powered by github.com/JinzheNext/NextEcho - 让播客自动转录进知识库"
 WHISPER_MODEL_SPECS = {
     "tiny": {
         "tier": "smallest",
@@ -76,6 +83,9 @@ def transcribe_media_sources(
     enable_enhancement: bool = True,
     ai_polish: bool = False,
     ai_style: str = "",
+    asr_engine: str = "auto",
+    asr_model: str = "",
+    postprocess_profile: str = "off",
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     started_at = now_iso()
@@ -84,6 +94,8 @@ def transcribe_media_sources(
     output_dir.mkdir(parents=True, exist_ok=True)
     items_dir = output_dir / "items"
     items_dir.mkdir(parents=True, exist_ok=True)
+    auto_qwen_model = asr_model or qwen_model_for_quality("fast" if model_name == "base" else "accurate")
+    selected_asr_engine = choose_asr_engine(asr_engine, model=auto_qwen_model)
     _emit_progress(progress_callback, stage="model", message="准备模型", progress=5)
     model_path = resolve_whisper_model(model_name)
     _emit_progress(progress_callback, stage="model_ready", message="模型已就绪", progress=15)
@@ -95,13 +107,23 @@ def transcribe_media_sources(
 
     formats = dedupe_strings(output_formats or DEFAULT_OUTPUT_FORMATS)
     generated_at = now_iso()
+    reported_model_name = (asr_model or auto_qwen_model) if selected_asr_engine == "qwen3-asr" else model_name
+    reported_model_path = "" if selected_asr_engine == "qwen3-asr" else str(model_path)
     run_config = {
         "started_at": started_at,
         "completed_at": "",
         "elapsed_seconds": 0,
         "generated_at": generated_at,
-        "model_name": model_name,
-        "model_path": str(model_path),
+        "model_name": reported_model_name,
+        "model_path": reported_model_path,
+        "whisper_model_name": model_name,
+        "whisper_model_path": str(model_path),
+        "schema_version": 2,
+        "asr": {
+            "requested_engine": asr_engine,
+            "selected_engine": selected_asr_engine,
+            "requested_model": asr_model,
+        },
         "language": language,
         "max_seconds": max_seconds,
         "output_formats": formats,
@@ -109,8 +131,10 @@ def transcribe_media_sources(
             "enabled": enable_enhancement,
             "ai_polish": ai_polish,
             "ai_style": ai_style,
+            "postprocess_profile": postprocess_profile,
             "user_glossary_supplied": bool(glossary_text.strip()),
         },
+        "postprocess": {"profile": postprocess_profile, "enabled": postprocess_profile != "off"},
         "source_count": len(descriptors),
     }
     run_config_path = output_dir / "run_config.json"
@@ -131,6 +155,9 @@ def transcribe_media_sources(
             enable_enhancement=enable_enhancement,
             ai_polish=ai_polish,
             ai_style=ai_style,
+            asr_engine=selected_asr_engine,
+            asr_model=asr_model,
+            postprocess_profile=postprocess_profile,
             index=index,
             progress_callback=progress_callback,
             base_progress=base_progress,
@@ -149,16 +176,32 @@ def transcribe_media_sources(
         "completed_at": completed_at,
         "elapsed_seconds": elapsed_seconds,
         "generated_at": generated_at,
-        "model_name": model_name,
-        "model_path": str(model_path),
+        "model_name": reported_model_name,
+        "model_path": reported_model_path,
+        "whisper_model_name": model_name,
+        "whisper_model_path": str(model_path),
+        "schema_version": 2,
+        "asr": run_config["asr"],
         "language": language,
         "max_seconds": max_seconds,
         "output_formats": formats,
         "enhancement": run_config["enhancement"],
+        "postprocess": {"profile": postprocess_profile, "enabled": postprocess_profile != "off"},
+        "fallbacks": [
+            {"source_label": item.get("source_label", ""), **fallback}
+            for item in results
+            for fallback in (item.get("asr", {}).get("fallbacks") or [])
+        ],
+        "timings": {"total_elapsed_seconds": elapsed_seconds},
+        "artifact_paths": {
+            "items_dir": str(items_dir),
+            "manifest": str(output_dir / "manifest.json"),
+        },
         "run_config_path": str(run_config_path),
         "items_dir": str(items_dir),
         "results": results,
         "error_count": len(failed_results),
+        "partial_count": sum(1 for item in results if (item.get("enhancement") or {}).get("status") == "partial"),
     }
     manifest_path = output_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -233,6 +276,9 @@ def transcribe_single_source(
     ai_polish: bool,
     ai_style: str,
     index: int,
+    asr_engine: str = "whisper-cpp",
+    asr_model: str = "",
+    postprocess_profile: str = "off",
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     base_progress: int = 15,
     item_count: int = 1,
@@ -256,7 +302,7 @@ def transcribe_single_source(
             transcript_text=_safe_read_text(transcript_path),
             item_dir=item_dir,
             media_path=_find_persisted_media(item_dir),
-            audio_path=item_dir / "audio.wav",
+            audio_path=_find_persisted_audio(item_dir),
             created_at=now_iso(),
         )
     if descriptor.error and descriptor.source_type != "local_file" and not descriptor.resolved_media_url:
@@ -267,7 +313,7 @@ def transcribe_single_source(
             transcript_text="",
             item_dir=item_dir,
             media_path=_find_persisted_media(item_dir),
-            audio_path=item_dir / "audio.wav",
+            audio_path=_find_persisted_audio(item_dir),
             created_at=now_iso(),
             error=descriptor.error,
         )
@@ -276,12 +322,12 @@ def transcribe_single_source(
         return metadata
 
     try:
-        with tempfile.TemporaryDirectory(dir=item_dir) as temp_dir:
+        with tempfile.TemporaryDirectory(prefix="临时下载-", dir=item_dir) as temp_dir:
             temp_path = Path(temp_dir)
             _emit_progress(progress_callback, stage="media", message=f"{source_label} 获取媒体", progress=_item_progress(base_progress, 0.1, item_count))
             media_path = prepare_media_source(descriptor, temp_path)
             persisted_media_path = _persist_media(media_path, item_dir)
-            audio_path = item_dir / "audio.wav"
+            audio_path = item_dir / PERSISTED_AUDIO_NAME
             _emit_progress(progress_callback, stage="audio", message=f"{source_label} 抽取音频", progress=_item_progress(base_progress, 0.35, item_count))
             extract_audio(
                 source_path=persisted_media_path,
@@ -290,26 +336,38 @@ def transcribe_single_source(
                 max_seconds=max_seconds,
             )
             _emit_progress(progress_callback, stage="asr", message=f"{source_label} 正在识别", progress=_item_progress(base_progress, 0.55, item_count))
-            transcribe_audio_file(
+            asr_info = transcribe_audio_with_fallback(
                 audio_path=audio_path,
                 output_dir=item_dir,
                 output_base="transcript",
                 whisper_bin=whisper_bin,
-                model_path=model_path,
+                whisper_model_path=model_path,
+                whisper_model_name=model_path.name.removeprefix("ggml-").removesuffix(".bin"),
                 language=language,
                 output_formats=output_formats,
+                engine=asr_engine,
+                model=asr_model or qwen_model_for_quality("fast" if model_path.name == "ggml-base.bin" else "accurate"),
             )
         transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
-        enhancement = (
-            enhance_transcript_artifacts(
-                item_dir,
-                user_glossary_text=glossary_text,
-                ai_polish=ai_polish,
-                ai_style=ai_style,
-            )
-            if enable_enhancement and transcript_text.strip()
-            else _empty_enhancement_payload()
-        )
+        enhancement = _empty_enhancement_payload()
+        if enable_enhancement and transcript_text.strip():
+            if postprocess_profile != "off":
+                from .postprocess import process_transcript_artifacts
+
+                enhancement = process_transcript_artifacts(
+                    item_dir,
+                    profile=postprocess_profile,
+                    user_glossary_text=glossary_text,
+                    style=ai_style,
+                    progress_callback=progress_callback,
+                )
+            else:
+                enhancement = enhance_transcript_artifacts(
+                    item_dir,
+                    user_glossary_text=glossary_text,
+                    ai_polish=ai_polish,
+                    ai_style=ai_style,
+                )
         metadata = _build_metadata(
             descriptor=descriptor,
             source_label=source_label,
@@ -320,6 +378,7 @@ def transcribe_single_source(
             audio_path=audio_path,
             created_at=now_iso(),
             enhancement=enhancement,
+            asr=asr_info,
         )
         _emit_progress(progress_callback, stage="item_complete", message=f"{source_label} 已完成", progress=_item_progress(base_progress, 1.0, item_count))
     except Exception as exc:
@@ -330,10 +389,11 @@ def transcribe_single_source(
             transcript_text="",
             item_dir=item_dir,
             media_path=_find_persisted_media(item_dir),
-            audio_path=item_dir / "audio.wav",
+            audio_path=_find_persisted_audio(item_dir),
             created_at=now_iso(),
             error=str(exc),
             enhancement=_empty_enhancement_payload(),
+            asr={"requested_engine": asr_engine, "actual_engine": "", "fallbacks": []},
         )
         _emit_progress(progress_callback, stage="item_failed", message=f"{source_label} 失败：{exc}", progress=_item_progress(base_progress, 1.0, item_count))
     _write_json(item_dir / "metadata.json", metadata)
@@ -485,10 +545,198 @@ def extract_audio(
 
 def _persist_media(source_path: Path, item_dir: Path) -> Path:
     suffix = source_path.suffix or ".mp4"
-    target_path = item_dir / f"source{suffix}"
+    target_path = item_dir / f"{PERSISTED_MEDIA_BASENAME}{suffix}"
     if source_path.resolve() != target_path.resolve():
         shutil.copy2(source_path, target_path)
     return target_path
+
+
+def transcribe_audio_with_fallback(
+    *,
+    audio_path: Path,
+    output_dir: Path,
+    output_base: str,
+    whisper_bin: str,
+    whisper_model_path: Path,
+    whisper_model_name: str,
+    language: str,
+    output_formats: list[str],
+    engine: str,
+    model: str,
+) -> dict[str, Any]:
+    """Prefer Qwen on supported Macs, but always retain a usable Whisper path."""
+    fallbacks: list[dict[str, str]] = []
+    if engine == "qwen3-asr":
+        qwen_candidates = [model]
+        if model != "Qwen/Qwen3-ASR-0.6B":
+            qwen_candidates.append("Qwen/Qwen3-ASR-0.6B")
+        for candidate in qwen_candidates:
+            try:
+                result = transcribe_qwen_mlx(
+                    audio_path=audio_path,
+                    item_dir=output_dir,
+                    model=candidate,
+                    language=language,
+                )
+                write_qwen_transcript_result(result, output_dir=output_dir, output_base=output_base, output_formats=output_formats)
+                return {
+                    "requested_engine": engine,
+                    "requested_model": model,
+                    "actual_engine": "qwen3-asr",
+                    "actual_model": result.model,
+                    "version": result.version,
+                    "fallbacks": fallbacks,
+                }
+            except Exception as exc:
+                fallbacks.append({"from": candidate, "to": "next", "reason": str(exc), "at": now_iso()})
+    try:
+        transcribe_audio_file(
+            audio_path=audio_path,
+            output_dir=output_dir,
+            output_base=output_base,
+            whisper_bin=whisper_bin,
+            model_path=whisper_model_path,
+            language=language,
+            output_formats=output_formats,
+        )
+        annotate_whisper_transcript(output_dir / f"{output_base}.json", model=whisper_model_name, language=language)
+        return {
+            "requested_engine": engine,
+            "requested_model": model,
+            "actual_engine": "whisper-cpp",
+            "actual_model": whisper_model_name,
+            "version": "",
+            "fallbacks": fallbacks,
+        }
+    except Exception as exc:
+        if whisper_model_name != "base":
+            fallbacks.append({"from": whisper_model_name, "to": "base", "reason": str(exc), "at": now_iso()})
+            base_path = resolve_whisper_model("base")
+            transcribe_audio_file(
+                audio_path=audio_path,
+                output_dir=output_dir,
+                output_base=output_base,
+                whisper_bin=whisper_bin,
+                model_path=base_path,
+                language=language,
+                output_formats=output_formats,
+            )
+            annotate_whisper_transcript(output_dir / f"{output_base}.json", model="base", language=language)
+            return {
+                "requested_engine": engine,
+                "requested_model": model,
+                "actual_engine": "whisper-cpp",
+                "actual_model": "base",
+                "version": "",
+                "fallbacks": fallbacks,
+            }
+        raise
+
+
+def annotate_whisper_transcript(path: Path, *, model: str, language: str) -> None:
+    """Upgrade whisper.cpp JSON in place while retaining its original fields."""
+    if not path.exists():
+        return
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["schema_version"] = 2
+    payload["engine"] = {
+        "backend": "whisper-cpp",
+        "model": model,
+        "version": "",
+    }
+    payload.setdefault("result", {})["language"] = payload.get("result", {}).get("language") or language
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_qwen_transcript_result(
+    result: TranscriptResult,
+    *,
+    output_dir: Path,
+    output_base: str,
+    output_formats: list[str],
+) -> None:
+    segments = aggregate_qwen_words(result.words, fallback_text=result.text)
+    transcript = [
+        {
+            "id": f"seg_{index:05d}",
+            "text": item["text"],
+            "offsets": {"from": item["start_ms"], "to": item["end_ms"]},
+            "timestamps": {"from": _format_srt_timestamp(item["start_ms"]), "to": _format_srt_timestamp(item["end_ms"])},
+        }
+        for index, item in enumerate(segments)
+    ]
+    text = "\n".join(item["text"] for item in segments).strip() or result.text.strip()
+    txt_path = output_dir / f"{output_base}.txt"
+    txt_path.write_text(format_transcript_attribution(text), encoding="utf-8")
+    if "json" in output_formats:
+        (output_dir / f"{output_base}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "engine": {"backend": result.backend, "model": result.model, "version": result.version},
+                    "result": {"language": result.language},
+                    "transcription": transcript,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    if "srt" in output_formats or "vtt" in output_formats:
+        write_subtitles_from_segments(
+            transcript,
+            srt_path=output_dir / f"{output_base}.srt" if "srt" in output_formats else None,
+            vtt_path=output_dir / f"{output_base}.vtt" if "vtt" in output_formats else None,
+        )
+
+
+def aggregate_qwen_words(words: list[dict[str, Any]], *, fallback_text: str) -> list[dict[str, Any]]:
+    grouped: list[dict[str, Any]] = []
+    current: list[str] = []
+    start_ms = 0
+    end_ms = 0
+    for word in words:
+        text = str(word.get("text") or "").strip()
+        if not text:
+            continue
+        word_start = round(float(word.get("start") or 0) * 1000)
+        word_end = round(float(word.get("end") or 0) * 1000)
+        if not current:
+            start_ms = word_start
+        current.append(text)
+        end_ms = max(word_end, word_start)
+        joined = "".join(current)
+        if text.endswith(("。", "？", "！", ".", "?", "!")) or end_ms - start_ms >= 15_000 or len(joined) >= 50:
+            grouped.append({"text": joined, "start_ms": start_ms, "end_ms": end_ms})
+            current = []
+    if current:
+        grouped.append({"text": "".join(current), "start_ms": start_ms, "end_ms": end_ms})
+    if not grouped and fallback_text.strip():
+        grouped.append({"text": fallback_text.strip(), "start_ms": 0, "end_ms": 0})
+    return grouped
+
+
+def write_subtitles_from_segments(segments: Iterable[Any], *, srt_path: Path | None, vtt_path: Path | None) -> None:
+    rows = list(segments)
+    if srt_path is not None:
+        srt: list[str] = []
+        for index, item in enumerate(rows, start=1):
+            text, start_ms, end_ms = _segment_values(item)
+            srt.extend([str(index), f"{_format_srt_timestamp(start_ms)} --> {_format_srt_timestamp(max(end_ms, start_ms + 1))}", text, ""])
+        srt_path.write_text("\n".join(srt).strip() + "\n", encoding="utf-8")
+    if vtt_path is not None:
+        vtt: list[str] = ["WEBVTT", ""]
+        for item in rows:
+            text, start_ms, end_ms = _segment_values(item)
+            vtt.extend([f"{_format_vtt_timestamp(start_ms)} --> {_format_vtt_timestamp(max(end_ms, start_ms + 1))}", text, ""])
+        vtt_path.write_text("\n".join(vtt).strip() + "\n", encoding="utf-8")
+
+
+def _segment_values(item: Any) -> tuple[str, int, int]:
+    if isinstance(item, dict):
+        offsets = item.get("offsets") or {}
+        return str(item.get("text") or ""), int(offsets.get("from") or item.get("start_ms") or 0), int(offsets.get("to") or item.get("end_ms") or 0)
+    return str(item.text), int(item.start_ms), int(item.end_ms)
 
 
 def run_whisper_cli(
@@ -541,8 +789,6 @@ def transcribe_audio_file(
     duration_ms = probe_audio_duration_ms(audio_path)
     should_chunk = duration_ms >= LONG_AUDIO_CPU_FALLBACK_MS
     chunk_model_path = model_path
-    if should_chunk and model_path.name != "ggml-base.bin":
-        chunk_model_path = resolve_whisper_model("base")
     try:
         if should_chunk:
             raise RuntimeError("long_audio_chunk_fallback")
@@ -593,15 +839,19 @@ def transcribe_audio_file_in_chunks(
     aggregated_vtt: list[str] = ["WEBVTT", ""]
     subtitle_index = 1
 
-    with tempfile.TemporaryDirectory(dir=output_dir) as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="临时分片-", dir=output_dir) as temp_dir:
         temp_root = Path(temp_dir)
         for chunk_index in range(chunk_count):
-            offset_ms = chunk_index * LONG_AUDIO_CHUNK_MS
-            chunk_duration_ms = min(LONG_AUDIO_CHUNK_MS, max(duration_ms - offset_ms, 0))
+            trim_before_ms = chunk_index * LONG_AUDIO_CHUNK_MS
+            offset_ms = max(0, trim_before_ms - LONG_AUDIO_CHUNK_OVERLAP_MS)
+            chunk_duration_ms = min(
+                LONG_AUDIO_CHUNK_MS + (LONG_AUDIO_CHUNK_OVERLAP_MS if chunk_index else 0),
+                max(duration_ms - offset_ms, 0),
+            )
             if chunk_duration_ms <= 0:
                 break
-            chunk_audio = temp_root / f"chunk_{chunk_index:03d}.wav"
-            chunk_output_base = temp_root / f"chunk_{chunk_index:03d}" / "transcript"
+            chunk_audio = temp_root / f"片段-{chunk_index + 1:03d}.wav"
+            chunk_output_base = temp_root / f"片段-{chunk_index + 1:03d}" / "转录"
             chunk_output_base.parent.mkdir(parents=True, exist_ok=True)
             extract_audio_segment(
                 source_path=audio_path,
@@ -622,16 +872,30 @@ def transcribe_audio_file_in_chunks(
             chunk_json = chunk_output_base.with_suffix(".json")
             chunk_srt = chunk_output_base.with_suffix(".srt")
             chunk_vtt = chunk_output_base.with_suffix(".vtt")
-            if chunk_txt.exists():
+            if chunk_json.exists():
+                chunk_segments = _load_shifted_transcription_segments(
+                    chunk_json,
+                    offset_ms,
+                    trim_before_ms=trim_before_ms,
+                )
+                aggregated_segments.extend(chunk_segments)
+                chunk_text = "\n".join(str(item.get("text", "")).strip() for item in chunk_segments).strip()
+                if chunk_text:
+                    aggregated_texts.append(chunk_text)
+            elif chunk_txt.exists():
                 text = chunk_txt.read_text(encoding="utf-8").strip()
                 if text:
                     aggregated_texts.append(text)
-            if chunk_json.exists():
-                aggregated_segments.extend(_load_shifted_transcription_segments(chunk_json, offset_ms))
             if chunk_srt.exists():
-                subtitle_index = _append_shifted_srt(chunk_srt, aggregated_srt, offset_ms, subtitle_index)
+                subtitle_index = _append_shifted_srt(
+                    chunk_srt,
+                    aggregated_srt,
+                    offset_ms,
+                    subtitle_index,
+                    trim_before_ms=trim_before_ms,
+                )
             if chunk_vtt.exists():
-                _append_shifted_vtt(chunk_vtt, aggregated_vtt, offset_ms)
+                _append_shifted_vtt(chunk_vtt, aggregated_vtt, offset_ms, trim_before_ms=trim_before_ms)
 
     txt_path = output_dir / f"{output_base}.txt"
     txt_path.write_text("\n".join(aggregated_texts).strip() + "\n", encoding="utf-8")
@@ -641,7 +905,12 @@ def transcribe_audio_file_in_chunks(
         json_payload = {
             "systeminfo": "chunked-cpu-fallback",
             "model": {"path": str(model_path)},
-            "params": {"language": language, "chunk_ms": LONG_AUDIO_CHUNK_MS, "cpu_fallback": True},
+            "params": {
+                "language": language,
+                "chunk_ms": LONG_AUDIO_CHUNK_MS,
+                "overlap_ms": LONG_AUDIO_CHUNK_OVERLAP_MS,
+                "cpu_fallback": True,
+            },
             "result": {"language": language},
             "transcription": aggregated_segments,
         }
@@ -744,7 +1013,12 @@ def _should_retry_with_chunked_cpu(exc: subprocess.CalledProcessError, duration_
     return exc.returncode in {-11, 139} or duration_ms >= LONG_AUDIO_CPU_FALLBACK_MS
 
 
-def _load_shifted_transcription_segments(path: Path, offset_ms: int) -> list[dict[str, Any]]:
+def _load_shifted_transcription_segments(
+    path: Path,
+    offset_ms: int,
+    *,
+    trim_before_ms: int = 0,
+) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     segments: list[dict[str, Any]] = []
     for item in payload.get("transcription", []):
@@ -754,6 +1028,12 @@ def _load_shifted_transcription_segments(path: Path, offset_ms: int) -> list[dic
         offsets = item.get("offsets", {})
         start_ms = int(offsets.get("from", 0)) + offset_ms
         end_ms = int(offsets.get("to", 0)) + offset_ms
+        # The previous chunk owns the boundary.  Dropping every segment that
+        # starts inside the overlap prevents duplicate sentences while the
+        # 30-second look-back still gives Whisper enough context to finish a
+        # sentence that happens to straddle the cut.
+        if trim_before_ms and start_ms < trim_before_ms:
+            continue
         segments.append(
             {
                 "timestamps": {
@@ -770,7 +1050,14 @@ def _load_shifted_transcription_segments(path: Path, offset_ms: int) -> list[dic
     return segments
 
 
-def _append_shifted_srt(path: Path, output: list[str], offset_ms: int, next_index: int) -> int:
+def _append_shifted_srt(
+    path: Path,
+    output: list[str],
+    offset_ms: int,
+    next_index: int,
+    *,
+    trim_before_ms: int = 0,
+) -> int:
     blocks = [block.strip() for block in path.read_text(encoding="utf-8").split("\n\n") if block.strip()]
     for block in blocks:
         lines = block.splitlines()
@@ -779,6 +1066,8 @@ def _append_shifted_srt(path: Path, output: list[str], offset_ms: int, next_inde
         start_raw, end_raw = lines[1].split(" --> ")
         start_ms = _parse_srt_timestamp(start_raw) + offset_ms
         end_ms = _parse_srt_timestamp(end_raw) + offset_ms
+        if trim_before_ms and start_ms < trim_before_ms:
+            continue
         output.extend(
             [
                 str(next_index),
@@ -791,7 +1080,13 @@ def _append_shifted_srt(path: Path, output: list[str], offset_ms: int, next_inde
     return next_index
 
 
-def _append_shifted_vtt(path: Path, output: list[str], offset_ms: int) -> None:
+def _append_shifted_vtt(
+    path: Path,
+    output: list[str],
+    offset_ms: int,
+    *,
+    trim_before_ms: int = 0,
+) -> None:
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped == "WEBVTT":
@@ -800,6 +1095,8 @@ def _append_shifted_vtt(path: Path, output: list[str], offset_ms: int) -> None:
             start_raw, end_raw = stripped.split(" --> ")
             start_ms = _parse_vtt_timestamp(start_raw) + offset_ms
             end_ms = _parse_vtt_timestamp(end_raw) + offset_ms
+            if trim_before_ms and start_ms < trim_before_ms:
+                continue
             output.append(f"{_format_vtt_timestamp(start_ms)} --> {_format_vtt_timestamp(end_ms)}")
         else:
             output.append(line)
@@ -836,7 +1133,7 @@ def _download_direct_media(source: str, work_dir: Path) -> Path:
     curl_bin = _which_binary("curl")
     if not curl_bin:
         raise FileNotFoundError("curl")
-    target = work_dir / f"source{_infer_extension(source)}"
+    target = work_dir / f"{PERSISTED_MEDIA_BASENAME}{_infer_extension(source)}"
     command = [
         curl_bin,
         "-L",
@@ -854,7 +1151,7 @@ def _download_direct_media(source: str, work_dir: Path) -> Path:
 
 
 def _download_media_with_ytdlp(source: str, work_dir: Path) -> Path:
-    output_template = str(work_dir / "source.%(ext)s")
+    output_template = str(work_dir / f"{PERSISTED_MEDIA_BASENAME}.%(ext)s")
     platform = detect_platform(source)
     try:
         base_command = build_ytdlp_command(
@@ -909,7 +1206,7 @@ def _download_media_with_ytdlp(source: str, work_dir: Path) -> Path:
             raise RuntimeError(last_stderr) from exc
     if last_stderr:
         raise RuntimeError(last_stderr)
-    matches = sorted(work_dir.glob("source.*"))
+    matches = sorted(work_dir.glob(f"{PERSISTED_MEDIA_BASENAME}.*"))
     if not matches:
         raise FileNotFoundError("yt-dlp output not found")
     return matches[0]
@@ -924,7 +1221,10 @@ def _infer_source_label(source: str, index: int) -> str:
     if parsed.scheme in {"http", "https"}:
         tail = Path(parsed.path).stem or f"remote-{index:02d}"
         return f"{index:03d}_{slugify(tail)}"
-    return f"{index:03d}_{slugify(Path(source).stem)}"
+    stem = Path(source).stem
+    if stem.lower() in {"source", "audio", "input", "media"}:
+        stem = PERSISTED_MEDIA_BASENAME
+    return f"{index:03d}_{slugify(stem)}"
 
 
 def _infer_extension(source: str) -> str:
@@ -991,8 +1291,20 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _find_persisted_media(item_dir: Path) -> Path:
-    matches = sorted(path for path in item_dir.glob("source.*") if path.is_file())
-    return matches[0] if matches else item_dir / "source"
+    for basename in (PERSISTED_MEDIA_BASENAME, "source"):
+        matches = sorted(path for path in item_dir.glob(f"{basename}.*") if path.is_file())
+        if matches:
+            return matches[0]
+    return item_dir / PERSISTED_MEDIA_BASENAME
+
+
+def _find_persisted_audio(item_dir: Path) -> Path:
+    current = item_dir / PERSISTED_AUDIO_NAME
+    if current.exists():
+        return current
+    # Keep cached runs created before the naming migration readable.
+    legacy = item_dir / "audio.wav"
+    return legacy if legacy.exists() else current
 
 
 def _read_cached_metadata(item_dir: Path) -> dict[str, Any] | None:
@@ -1015,6 +1327,7 @@ def _build_metadata(
     created_at: str,
     error: str = "",
     enhancement: dict[str, Any] | None = None,
+    asr: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     enhancement = enhancement or _empty_enhancement_payload()
     payload = {
@@ -1032,7 +1345,12 @@ def _build_metadata(
         "audio_path": str(audio_path),
         "enhanced_text_path": str(enhancement.get("enhanced_text_path") or ""),
         "enhanced_json_path": str(enhancement.get("enhanced_json_path") or ""),
+        "enhanced_srt_path": str(enhancement.get("enhanced_srt_path") or ""),
+        "enhanced_vtt_path": str(enhancement.get("enhanced_vtt_path") or ""),
+        "summary_json_path": str(enhancement.get("summary_json_path") or ""),
+        "knowledge_markdown_path": str(enhancement.get("knowledge_markdown_path") or ""),
         "enhancement": enhancement,
+        "asr": asr or {},
         "output_dir": str(item_dir),
         "excerpt": transcript_text[:400],
         "error": error,

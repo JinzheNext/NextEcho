@@ -12,6 +12,7 @@ from workbench.transcription import (
     LONG_AUDIO_CPU_FALLBACK_MS,
     _append_shifted_srt,
     _append_shifted_vtt,
+    _infer_source_label,
     _which_binary,
     format_transcript_attribution,
     list_supported_whisper_models,
@@ -467,7 +468,11 @@ class SourceResolverTests(unittest.TestCase):
                         with patch("workbench.transcription.extract_audio", side_effect=fake_extract_audio):
                             with patch("workbench.transcription.run_whisper_cli", side_effect=fake_run_whisper_cli):
                                 with patch("workbench.transcription.probe_audio_duration_ms", return_value=60_000):
-                                    payload = transcribe_media_sources([descriptor], output_dir=output_dir)
+                                    payload = transcribe_media_sources(
+                                        [descriptor],
+                                        output_dir=output_dir,
+                                        asr_engine="whisper-cpp",
+                                    )
             item = payload["results"][0]
             self.assertEqual(item["platform"], "bilibili")
             self.assertEqual(item["title"], "Bilibili sample")
@@ -536,12 +541,16 @@ class SourceResolverTests(unittest.TestCase):
                         output_formats=["txt"],
                     )
             chunked.assert_called_once()
+            self.assertEqual(chunked.call_args.kwargs["model_path"], root / "model.bin")
 
     def test_format_transcript_attribution_wraps_plain_text(self) -> None:
         rendered = format_transcript_attribution("你好，世界。")
         self.assertTrue(rendered.startswith("本文转录由 GitHub 项目：NextEcho 提供支持"))
         self.assertIn("你好，世界。", rendered)
-        self.assertIn("powered by GitHub repo NextEcho", rendered)
+        self.assertIn("powered by github.com/JinzheNext/NextEcho - 让播客自动转录进知识库", rendered)
+
+    def test_generic_local_media_label_is_human_readable(self) -> None:
+        self.assertEqual(_infer_source_label("/tmp/source.m4a", 1), "001_录音原声")
 
     def test_recommend_whisper_model_respects_memory_tiers(self) -> None:
         self.assertEqual(recommend_whisper_model(None)[0], "base")

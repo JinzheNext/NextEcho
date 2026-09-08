@@ -27,8 +27,36 @@ NextEcho 适合做这些事：
 - 本地优先，不依赖云端 ASR
 - 支持本地文件和远程链接
 - 支持网页端和命令行
-- 默认保留 `source.*`、`audio.wav`、`transcript.txt/json/srt/vtt`
+- 默认保留可读命名的 `录音原声.*`、`转录音频.wav`、`transcript.txt/json/srt/vtt`；旧版 `source.*`/`audio.wav` 仍可读取
 - 转录文本默认带项目署名，便于传播时保留来源
+
+## 本地高精度转录与知识加工
+
+在 Apple Silicon Mac 上，NextEcho 可选用 `Qwen3-ASR` 作为高精度本地识别引擎：高精度档使用 1.7B，快速档使用 0.6B；模型运行在独立进程，结束后释放 Metal 内存。其他系统或 Qwen 不可用时，会稳定回退到现有的 whisper.cpp。长音频会分段处理，但不会再因为时长自动降到 `base`。
+
+转录后可以选择完全本地的“智能加工”：
+
+- 统一 4B（默认）：`qwen3:4b` 同时整理逐字稿和汇总知识稿，避免模型切换；
+- 混合均衡：`qwen3:4b` 整理逐字稿，`qwen3.5:9b-q4_K_M` 汇总知识稿；
+- 高质量：全程使用 9B（9B 不可用时自动回退 4B，并记录原因）；
+- 快速：全程使用已安装的 4B；
+- 关闭：只生成原始转录。
+
+加工过程始终保留原始 `transcript.*`，另外生成 `transcript.enhanced.*`、`transcript.summary.json`、`transcript.knowledge.md` 和 `postprocess.audit.json`。知识稿含有可追溯的片段 ID 与时间戳，适合直接导入 Obsidian。
+
+Apple Silicon 的安装脚本会安装可选的 MLX 运行时；模型权重和 Ollama 的 9B 模型不会被静默下载。请在网页模型状态入口确认后下载，或先执行：
+
+```bash
+ollama pull qwen3:4b
+ollama pull qwen3.5:9b-q4_K_M
+python -m workbench.cli doctor
+```
+
+对历史转录重新生成整理稿和知识稿，无需重新下载媒体或执行 ASR：
+
+```bash
+python -m workbench.cli enhance outputs/transcriptions/run_xxx --profile fast
+```
 
 ## 支持什么输入
 
@@ -233,6 +261,7 @@ logs/app.log
 ```bash
 python -m workbench.cli transcribe /path/to/audio.mp3 --quality accurate --json
 python -m workbench.cli transcribe /path/to/audio.mp3 --model base --json
+python -m workbench.cli transcribe /path/to/audio.mp3 --language zh --asr-engine auto --postprocess-profile fast --json
 ```
 
 #### 2. 转录直链媒体
@@ -276,6 +305,14 @@ python -m workbench.cli list-models --json
 python -m workbench.cli download-model base
 python -m workbench.cli download-model large-v3-turbo-q5_0
 ```
+
+#### 8. 对历史转录重新加工
+
+```bash
+python -m workbench.cli enhance outputs/transcriptions/run_20260906_120000_abcd1234 --profile fast --json
+```
+
+`--asr-engine auto|qwen3-asr|whisper-cpp`、`--asr-model` 和 `--postprocess-profile off|balanced|quality|fast` 同样适用于 `transcribe-page` 与 `transcribe-feed`。
 
 ## 给 Agent 怎么用
 
@@ -427,8 +464,8 @@ outputs/transcriptions/run_xxx/
 └── items/
     └── 001_<source_label>/
         ├── metadata.json
-        ├── source.<ext>
-        ├── audio.wav
+        ├── 录音原声.<ext>
+        ├── 转录音频.wav
         ├── transcript.txt
         ├── transcript.json
         ├── transcript.srt

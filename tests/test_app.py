@@ -27,6 +27,18 @@ class AppTests(unittest.TestCase):
         self.assertEqual(payload["ok"], True)
         self.assertEqual(payload["service"], "NextEcho")
 
+    def test_models_status_is_local_and_reports_profiles(self) -> None:
+        with patch("app.ollama_status", return_value={"ready": True, "models": ["qwen3:4b"]}):
+            response = self.client.get("/api/models/status")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIn("Qwen/Qwen3-ASR-1.7B", payload["asr_models"].values())
+        self.assertEqual(payload["llm_models"]["fast"], "qwen3:4b")
+
+    def test_models_download_rejects_unknown_kind(self) -> None:
+        response = self.client.post("/api/models/download", json={"kind": "remote-model"})
+        self.assertEqual(response.status_code, 400)
+
     def test_reconcile_transcription_job_auto_completes_from_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -94,6 +106,35 @@ class AppTests(unittest.TestCase):
                 reconcile_job_state(job)
             self.assertEqual(job["status"], "completed")
             self.assertEqual(job["message"], "访谈逐字稿已完成")
+
+    def test_list_runs_prefers_real_episode_title(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            run_dir = root / "run_demo"
+            run_dir.mkdir(parents=True)
+            (run_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-06-14T00:00:00Z",
+                        "model_name": "base",
+                        "error_count": 0,
+                        "results": [
+                            {
+                                "title": "真实节目标题",
+                                "source_label": "001_demo",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.RUNS_ROOT", root):
+                response = self.client.get("/api/runs")
+            self.assertEqual(response.status_code, 200)
+            payload = response.get_json()
+            self.assertEqual(payload["runs"][0]["display_title"], "真实节目标题")
+            self.assertEqual(payload["runs"][0]["quality"], "更快")
 
 
 if __name__ == "__main__":
