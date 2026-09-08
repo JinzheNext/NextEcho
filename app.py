@@ -313,6 +313,7 @@ def run_transcription_job(
     asr_engine: str = "auto",
     asr_model: str = "",
     postprocess_profile: str = "off",
+    speaker_mode: str = "auto",
 ) -> None:
     started_monotonic = time.monotonic()
     stop_heartbeat = Event()
@@ -350,7 +351,18 @@ def run_transcription_job(
             postprocess_profile=postprocess_profile,
             progress_callback=on_progress,
         )
+        speaker_payload = None
+        if speaker_mode != "off":
+            update_job(job_id, stage="diarization", message="正在区分说话人", progress=96)
+            try:
+                speaker_payload = build_speaker_transcript(run_dir, progress_callback=on_progress)
+            except Exception as exc:
+                if speaker_mode == "required":
+                    raise
+                update_job(job_id, stage="diarization", message=f"说话人区分未完成，原始转录仍可使用：{exc}", progress=96)
         result = serialize_result(payload)
+        if speaker_payload is not None:
+            result["speaker_transcript"] = speaker_payload
         failed_count = int(result["manifest"].get("error_count") or 0)
         partial_count = int(result["manifest"].get("partial_count") or 0)
         total_count = len(result["manifest"].get("results", []))
@@ -568,10 +580,13 @@ def transcribe():
     asr_engine = request.form.get("asr_engine", "auto").strip() or "auto"
     asr_model = request.form.get("asr_model", "").strip()
     postprocess_profile = request.form.get("postprocess_profile", "fast").strip() or "fast"
+    speaker_mode = request.form.get("speaker_mode", "auto").strip() or "auto"
     if postprocess_profile not in {"off", "balanced", "quality", "fast"}:
         return jsonify({"error": "Unsupported postprocess profile."}), 400
     if asr_engine not in {"auto", "qwen3-asr", "whisper-cpp"}:
         return jsonify({"error": "Unsupported ASR engine."}), 400
+    if speaker_mode not in {"off", "auto", "required"}:
+        return jsonify({"error": "Unsupported speaker mode."}), 400
     # Compatibility with the original checkbox: it now means the balanced local workflow.
     if ai_polish and request.form.get("postprocess_profile") is None:
         postprocess_profile = "fast"
@@ -607,6 +622,7 @@ def transcribe():
             "asr_engine": asr_engine,
             "asr_model": asr_model,
             "postprocess_profile": postprocess_profile,
+            "speaker_mode": speaker_mode,
             "result": None,
             "error": "",
         }
@@ -615,6 +631,7 @@ def transcribe():
         args=(
             job_id, sources, run_dir, model, language, max_seconds, glossary_text, ai_polish, ai_style,
             asr_engine, asr_model, postprocess_profile,
+            speaker_mode,
         ),
         daemon=True,
     ).start()

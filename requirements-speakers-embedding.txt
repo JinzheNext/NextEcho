@@ -1,0 +1,4 @@
+# Optional no-token local speaker-embedding backend.
+# pyannote remains the higher-accuracy option when its gated model and HF token
+# are available.
+resemblyzer==0.1.4

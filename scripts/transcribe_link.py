@@ -25,6 +25,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--asr-model", default="")
     parser.add_argument("--output-dir", type=Path, help="Optional explicit run directory")
     parser.add_argument("--max-seconds", type=int, default=0, help="Only process the first N seconds")
+    parser.add_argument("--speaker-mode", choices=["off", "auto", "required"], default="auto")
+    parser.add_argument("--min-speakers", type=int, default=2)
+    parser.add_argument("--max-speakers", type=int, default=6)
     parser.add_argument("--glossary", type=Path)
     parser.add_argument("--ai-style", default="")
     parser.add_argument("--json", action="store_true", help="Print the underlying JSON result")
@@ -47,6 +50,12 @@ def main(argv: list[str] | None = None) -> int:
         args.profile,
         "--max-seconds",
         str(args.max_seconds),
+        "--speaker-mode",
+        args.speaker_mode,
+        "--min-speakers",
+        str(args.min_speakers),
+        "--max-speakers",
+        str(args.max_speakers),
         "--json",
     ]
     if args.asr_model:
@@ -82,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
                 "language": args.language,
                 "asr_engine": args.asr_engine,
                 "asr_model": args.asr_model,
+                "speaker_mode": args.speaker_mode,
+                "min_speakers": args.min_speakers,
+                "max_speakers": args.max_speakers,
                 "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             },
             ensure_ascii=False,

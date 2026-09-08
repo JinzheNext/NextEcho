@@ -99,10 +99,17 @@ def build_speaker_transcript(
         diarization_turns,
         intro_range[1] if intro_removed else 0.0,
     )
+    speaker_turns, speaker_map, speaker_name_inference = apply_context_speaker_names(
+        speaker_turns,
+        context=load_speaker_context(workspace.get("context_path")),
+    )
     preview_text = build_preview_text(speaker_turns, 200)
     speaker_count_detected = len({turn.speaker for turn in diarization_turns})
     fallback_used = backend_name != "pyannote"
-    quality_note = "高精度说话人分离（pyannote）" if backend_name == "pyannote" else "本地简化分离（准确度较低）"
+    quality_note = {
+        "pyannote": "高精度说话人分离（pyannote）",
+        "resemblyzer": "本地 speaker embedding 分离（请人工复核）",
+    }.get(backend_name, "本地简化分离（准确度较低）")
 
     payload = {
         "source_audio": str(workspace["source_audio_path"]),
@@ -111,6 +118,9 @@ def build_speaker_transcript(
         "speaker_count_detected": speaker_count_detected,
         "fallback_used": fallback_used,
         "quality_note": quality_note,
+        "speaker_map": speaker_map,
+        "speaker_name_inference": speaker_name_inference,
+        "source_context_path": str(workspace.get("context_path") or ""),
         "intro_removed": intro_removed,
         "intro_range": intro_range,
         "preprocess": {
@@ -163,11 +173,15 @@ def resolve_speaker_workspace(
         )
         manifest = json.loads(payload["manifest_path"].read_text(encoding="utf-8"))
         result = manifest["results"][0]
+        item_dir = _resolve_run_path(run_dir, result.get("output_dir"), fallback=run_dir)
+        audio_path = _resolve_run_path(item_dir, result.get("audio_path"), fallback=item_dir / "转录音频.wav")
+        transcript_path = _resolve_run_path(item_dir, result.get("json_path"), fallback=item_dir / "transcript.json")
         return {
             "run_dir": run_dir,
-            "audio_path": Path(result["audio_path"]),
-            "transcript_json_path": Path(result["json_path"]),
+            "audio_path": audio_path,
+            "transcript_json_path": transcript_path,
             "source_audio_path": path,
+            "context_path": item_dir / "source.context.json",
         }
 
     if not path.is_dir():
@@ -180,15 +194,20 @@ def resolve_speaker_workspace(
         if len(results) != 1:
             raise ValueError("speaker-transcript currently supports single-source run directories.")
         result = results[0]
+        item_dir = _resolve_run_path(path, result.get("output_dir"), fallback=path)
+        audio_path = _resolve_run_path(item_dir, result.get("audio_path"), fallback=item_dir / "转录音频.wav")
+        transcript_path = _resolve_run_path(item_dir, result.get("json_path"), fallback=item_dir / "transcript.json")
         return {
             "run_dir": path,
-            "audio_path": Path(result["audio_path"]),
-            "transcript_json_path": Path(result["json_path"]),
-            "source_audio_path": Path(result.get("media_path") or result["audio_path"]),
+            "audio_path": audio_path,
+            "transcript_json_path": transcript_path,
+            "source_audio_path": _resolve_run_path(item_dir, result.get("media_path"), fallback=audio_path),
+            "context_path": item_dir / "source.context.json",
         }
 
     transcript_candidates = sorted(path.glob("transcript*.json"))
-    audio_candidates = sorted(path.glob("audio*.wav"))
+    audio_candidates = [path / "转录音频.wav", *sorted(path.glob("audio*.wav"))]
+    audio_candidates = [candidate for candidate in audio_candidates if candidate.exists()]
     if not transcript_candidates or not audio_candidates:
         raise ValueError("Could not locate transcript JSON and audio WAV in the provided directory.")
     return {
@@ -196,7 +215,20 @@ def resolve_speaker_workspace(
         "audio_path": audio_candidates[0],
         "transcript_json_path": transcript_candidates[0],
         "source_audio_path": audio_candidates[0],
+        "context_path": path / "source.context.json",
     }
+
+
+def _resolve_run_path(base_dir: Path, value: Any, *, fallback: Path) -> Path:
+    if not value:
+        return fallback
+    candidate = Path(str(value)).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    # Manifest paths are normally absolute, while older fixtures used paths
+    # relative to the run directory or the current working directory.
+    run_candidate = base_dir / candidate
+    return run_candidate if run_candidate.exists() else candidate.resolve()
 
 
 def enhance_voice_audio(source_audio: Path, output_audio: Path) -> Path:
@@ -276,6 +308,26 @@ def run_diarization(
                 )
             else:
                 raise
+    if selected_backend == "resemblyzer":
+        try:
+            turns = run_resemblyzer_diarization(
+                audio_path,
+                transcript_segments=transcript_segments,
+                intro_end=intro_end,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers,
+            )
+            return "resemblyzer", turns
+        except Exception as exc:
+            if backend_status.get("fallback_backend_available"):
+                _emit_progress(
+                    progress_callback,
+                    stage="diarization",
+                    message=f"speaker embedding 不可用，回退到本地聚类分离（{exc.__class__.__name__}）",
+                    progress=48,
+                )
+            else:
+                raise
     turns = run_segment_clustering_diarization(
         audio_path,
         transcript_segments=transcript_segments,
@@ -284,6 +336,65 @@ def run_diarization(
         max_speakers=max_speakers,
     )
     return "segment-clustering", turns
+
+
+def run_resemblyzer_diarization(
+    audio_path: Path,
+    *,
+    transcript_segments: list[TranscriptSegment],
+    intro_end: float,
+    min_speakers: int,
+    max_speakers: int,
+) -> list[DiarizationTurn]:
+    """Cluster local speaker embeddings when the optional CPU backend is installed."""
+    import numpy as np
+    import warnings
+
+    warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API")
+    from resemblyzer import VoiceEncoder
+    from sklearn.cluster import AgglomerativeClustering
+    from sklearn.metrics import silhouette_score
+    from sklearn.preprocessing import StandardScaler
+
+    sample_rate, samples = load_wave_samples(audio_path)
+    windows = build_audio_windows(transcript_segments, intro_end=intro_end, window_seconds=3.2, step_seconds=1.6)
+    encoder = VoiceEncoder("cpu")
+    embeddings: list[Any] = []
+    kept_windows: list[AudioWindow] = []
+    for window in windows:
+        start = max(0, int(window.start * sample_rate))
+        end = min(len(samples), int(window.end * sample_rate))
+        chunk = samples[start:end]
+        if len(chunk) < sample_rate:
+            continue
+        embedding = encoder.embed_utterance(chunk, return_partials=False)
+        if embedding is not None and len(embedding):
+            embeddings.append(embedding)
+            kept_windows.append(window)
+    if not kept_windows:
+        return []
+    if len(kept_windows) == 1:
+        return [DiarizationTurn("Speaker 1", kept_windows[0].start, kept_windows[0].end)]
+
+    matrix = StandardScaler().fit_transform(np.vstack(embeddings))
+    min_clusters = min(max(min_speakers, 2), len(kept_windows))
+    max_clusters = min(max(max_speakers, min_clusters), len(kept_windows) - 1 if len(kept_windows) > 2 else len(kept_windows))
+    best_labels: list[int] | None = None
+    best_score = float("-inf")
+    for speaker_count in range(min_clusters, max_clusters + 1):
+        labels = AgglomerativeClustering(n_clusters=speaker_count, linkage="ward").fit_predict(matrix).tolist()
+        current_score = -1.0 if len(set(labels)) < 2 or len(kept_windows) <= speaker_count else float(silhouette_score(matrix, labels))
+        if current_score > best_score or best_labels is None:
+            best_score = current_score
+            best_labels = labels
+    labels = smooth_window_labels(best_labels or [0] * len(kept_windows), kept_windows)
+    speaker_map: dict[int, str] = {}
+    turns: list[DiarizationTurn] = []
+    for label, window in zip(labels, kept_windows):
+        if label not in speaker_map:
+            speaker_map[label] = f"Speaker {len(speaker_map) + 1}"
+        turns.append(DiarizationTurn(speaker_map[label], window.start, window.end))
+    return merge_adjacent_diarization_turns(turns)
 
 
 def run_pyannote_diarization(
@@ -515,6 +626,79 @@ def build_preview_text(turns: list[SpeakerTextTurn], limit: int) -> str:
     return "".join(turn.text for turn in turns)[:limit]
 
 
+def load_speaker_context(context_path: Path | None) -> dict[str, Any]:
+    if not context_path or not context_path.exists():
+        return {}
+    try:
+        payload = json.loads(context_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def apply_context_speaker_names(
+    turns: list[SpeakerTextTurn],
+    *,
+    context: dict[str, Any],
+) -> tuple[list[SpeakerTextTurn], dict[str, str], dict[str, Any]]:
+    """Use page-provided names as hints without pretending diarization knows identity."""
+    labels = list(dict.fromkeys(turn.speaker for turn in turns))
+    candidates = [
+        item for item in (context.get("speaker_candidates") or [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    ]
+    if not labels or not candidates:
+        return turns, {label: "" for label in labels}, {"status": "no_context"}
+
+    scores: dict[tuple[str, str], int] = {}
+    for label in labels:
+        text = "".join(turn.text for turn in turns if turn.speaker == label)
+        for candidate in candidates:
+            name = str(candidate["name"]).strip()
+            score = 0
+            if re.search(rf"(?:我|在下|本人)\s*(?:是|叫)\s*{re.escape(name)}", text):
+                score += 8
+            if re.search(rf"(?:大家好[，, ]*)?(?:我)?\s*是\s*{re.escape(name)}", text):
+                score += 8
+            score += min(3, text.count(name))
+            scores[(label, name)] = score
+
+    mapping: dict[str, str] = {label: "" for label in labels}
+    used: set[str] = set()
+    for label, name in sorted(scores, key=lambda key: scores[key], reverse=True):
+        if scores[(label, name)] <= 0 or mapping[label] or name in used:
+            continue
+        mapping[label] = name
+        used.add(name)
+    # When the page gives exactly as many candidates as diarization labels and
+    # one name was identified explicitly, the remaining label is still a safe
+    # deterministic hint for the operator to verify.
+    if len(labels) == len(candidates) and len(used) == len(labels) - 1:
+        remaining_name = next((str(item["name"]).strip() for item in candidates if str(item["name"]).strip() not in used), "")
+        remaining_label = next((label for label in labels if not mapping[label]), "")
+        if remaining_name and remaining_label:
+            mapping[remaining_label] = remaining_name
+            used.add(remaining_name)
+
+    renamed: list[SpeakerTextTurn] = []
+    for turn in turns:
+        renamed.append(
+            SpeakerTextTurn(
+                speaker=mapping.get(turn.speaker) or turn.speaker,
+                start=turn.start,
+                end=turn.end,
+                text=turn.text,
+            )
+        )
+    return renamed, mapping, {
+        "status": "hinted" if any(mapping.values()) else "unresolved",
+        "matched": sum(1 for value in mapping.values() if value),
+        "label_count": len(labels),
+        "candidate_count": len(candidates),
+        "note": "姓名来自节目资料与自我介绍线索，仍需人工核对声纹对应关系。",
+    }
+
+
 def build_audio_windows(
     transcript_segments: list[TranscriptSegment],
     *,
@@ -554,7 +738,7 @@ def write_speaker_outputs(run_dir: Path, payload: dict[str, Any]) -> None:
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     txt_path.write_text(render_speaker_text(payload["speaker_turns"], with_timestamps=False), encoding="utf-8")
     md_path.write_text(render_speaker_text(payload["speaker_turns"], with_timestamps=True), encoding="utf-8")
-    speaker_map = {turn["speaker"]: "" for turn in payload["speaker_turns"]}
+    speaker_map = payload.get("speaker_map") or {turn["speaker"]: "" for turn in payload["speaker_turns"]}
     map_path.write_text(json.dumps(speaker_map, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -608,15 +792,19 @@ def package_available(module_name: str) -> bool:
 
 def detect_speaker_backend_status() -> dict[str, Any]:
     pyannote_installed = package_available("pyannote.audio")
+    resemblyzer_installed = package_available("resemblyzer")
     hf_token = find_hf_token()
     fallback_backend_available = package_available("numpy") and package_available("sklearn")
     selected_backend = ""
     if pyannote_installed and hf_token:
         selected_backend = "pyannote"
+    elif resemblyzer_installed:
+        selected_backend = "resemblyzer"
     elif fallback_backend_available:
         selected_backend = "segment-clustering"
     return {
         "pyannote_installed": pyannote_installed,
+        "resemblyzer_installed": resemblyzer_installed,
         "hf_token_env": next((name for name in HF_TOKEN_ENV_VARS if os.environ.get(name)), ""),
         "fallback_backend_available": fallback_backend_available,
         "selected_backend": selected_backend,
@@ -631,12 +819,12 @@ def ensure_speaker_dependencies() -> dict[str, Any]:
 
     if not status["pyannote_installed"]:
         raise RuntimeError(
-            "speaker transcript 依赖未安装：请先执行 `pip install -r requirements-speakers-lite.txt`，"
+            "speaker transcript 依赖未安装：请先执行 `pip install -r requirements-speakers-lite.txt` 或 `requirements-speakers-embedding.txt`，"
             "若你要启用 pyannote 主方案，再安装 `requirements-speakers.txt`。"
         )
 
     raise RuntimeError(
-        "未检测到可用的说话人分离后端。请设置 HF_TOKEN 以启用 pyannote，或确保 numpy 和 scikit-learn 已安装以启用本地 fallback。"
+        "未检测到可用的说话人分离后端。请设置 HF_TOKEN 以启用 pyannote，或安装 speaker embedding 依赖并确保 numpy 和 scikit-learn 可用。"
     )
 
 

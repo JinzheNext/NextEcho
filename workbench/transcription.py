@@ -15,6 +15,7 @@ from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
 
 from .asr import TranscriptResult, choose_asr_engine, qwen_model_for_quality, transcribe_qwen_mlx
+from .episode_context import crawl_episode_context
 from .enhancement import enhance_transcript_artifacts
 from .sources import SourceDescriptor, build_ytdlp_command, detect_platform, resolve_sources
 from .binaries import find_binary
@@ -286,12 +287,31 @@ def transcribe_single_source(
     source_label = descriptor.source_label or _infer_source_label(descriptor.input, index)
     item_dir = items_dir / source_label
     item_dir.mkdir(parents=True, exist_ok=True)
+    source_context: dict[str, Any] = {}
     transcript_path = item_dir / "transcript.txt"
     if transcript_path.exists():
+        # A previous run may predate episode-context collection.  Refresh only
+        # the lightweight page metadata on cache hits; never rerun media/ASR.
+        if descriptor.platform == "xiaoyuzhou" and descriptor.canonical_url:
+            context_path = item_dir / "source.context.json"
+            if context_path.exists():
+                try:
+                    cached_context = json.loads(context_path.read_text(encoding="utf-8"))
+                    if isinstance(cached_context, dict):
+                        source_context = cached_context
+                except (OSError, json.JSONDecodeError):
+                    pass
+            else:
+                try:
+                    source_context = crawl_episode_context(descriptor.canonical_url, item_dir)
+                except Exception:
+                    source_context = {}
         cached_metadata = _read_cached_metadata(item_dir)
         if cached_metadata:
             cached_metadata["status"] = "cached"
             cached_metadata["updated_at"] = now_iso()
+            if source_context:
+                cached_metadata["source_context"] = source_context
             _write_json(item_dir / "metadata.json", cached_metadata)
             _emit_progress(progress_callback, stage="cached", message=f"{source_label} 命中缓存", progress=_item_progress(base_progress, 1.0, item_count))
             return cached_metadata
@@ -304,6 +324,7 @@ def transcribe_single_source(
             media_path=_find_persisted_media(item_dir),
             audio_path=_find_persisted_audio(item_dir),
             created_at=now_iso(),
+            source_context=source_context,
         )
     if descriptor.error and descriptor.source_type != "local_file" and not descriptor.resolved_media_url:
         metadata = _build_metadata(
@@ -322,6 +343,22 @@ def transcribe_single_source(
         return metadata
 
     try:
+        if descriptor.platform == "xiaoyuzhou" and descriptor.canonical_url:
+            _emit_progress(progress_callback, stage="source_context", message=f"{source_label} 采集节目资料", progress=_item_progress(base_progress, 0.03, item_count))
+            try:
+                source_context = crawl_episode_context(descriptor.canonical_url, item_dir)
+            except Exception as exc:
+                # Crawling enriches the run but must never make an otherwise
+                # transcribable episode fail.
+                source_context = {
+                    "schema_version": 1,
+                    "status": "failed",
+                    "url": descriptor.canonical_url,
+                    "provider": "none",
+                    "error": str(exc),
+                    "speaker_candidates": [],
+                    "comments": [],
+                }
         with tempfile.TemporaryDirectory(prefix="临时下载-", dir=item_dir) as temp_dir:
             temp_path = Path(temp_dir)
             _emit_progress(progress_callback, stage="media", message=f"{source_label} 获取媒体", progress=_item_progress(base_progress, 0.1, item_count))
@@ -379,6 +416,7 @@ def transcribe_single_source(
             created_at=now_iso(),
             enhancement=enhancement,
             asr=asr_info,
+            source_context=source_context,
         )
         _emit_progress(progress_callback, stage="item_complete", message=f"{source_label} 已完成", progress=_item_progress(base_progress, 1.0, item_count))
     except Exception as exc:
@@ -394,6 +432,7 @@ def transcribe_single_source(
             error=str(exc),
             enhancement=_empty_enhancement_payload(),
             asr={"requested_engine": asr_engine, "actual_engine": "", "fallbacks": []},
+            source_context=source_context,
         )
         _emit_progress(progress_callback, stage="item_failed", message=f"{source_label} 失败：{exc}", progress=_item_progress(base_progress, 1.0, item_count))
     _write_json(item_dir / "metadata.json", metadata)
@@ -1328,6 +1367,7 @@ def _build_metadata(
     error: str = "",
     enhancement: dict[str, Any] | None = None,
     asr: dict[str, Any] | None = None,
+    source_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     enhancement = enhancement or _empty_enhancement_payload()
     payload = {
@@ -1351,6 +1391,7 @@ def _build_metadata(
         "knowledge_markdown_path": str(enhancement.get("knowledge_markdown_path") or ""),
         "enhancement": enhancement,
         "asr": asr or {},
+        "source_context": source_context or {},
         "output_dir": str(item_dir),
         "excerpt": transcript_text[:400],
         "error": error,

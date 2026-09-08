@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from .doctor import print_human_report, report_to_dict, run_doctor
@@ -76,11 +77,18 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
         asr_model=getattr(args, "asr_model", "") or "",
         postprocess_profile=getattr(args, "postprocess_profile", "off"),
     )
+    speaker_payload = maybe_build_speaker_transcript(
+        output_dir,
+        mode=getattr(args, "speaker_mode", "off"),
+        min_speakers=getattr(args, "min_speakers", 2),
+        max_speakers=getattr(args, "max_speakers", 6),
+    )
     result = {
         "output_dir": str(payload["output_dir"]),
         "manifest_path": str(payload["manifest_path"]),
         "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
         "results": payload["results"],
+        "speaker_transcript": speaker_payload,
     }
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -134,12 +142,19 @@ def cmd_transcribe_page(args: argparse.Namespace) -> int:
         asr_model=getattr(args, "asr_model", "") or "",
         postprocess_profile=getattr(args, "postprocess_profile", "off"),
     )
+    speaker_payload = maybe_build_speaker_transcript(
+        output_dir,
+        mode=getattr(args, "speaker_mode", "auto"),
+        min_speakers=getattr(args, "min_speakers", 2),
+        max_speakers=getattr(args, "max_speakers", 6),
+    )
     result = {
         "source": descriptor.to_dict(),
         "output_dir": str(payload["output_dir"]),
         "manifest_path": str(payload["manifest_path"]),
         "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
         "results": payload["results"],
+        "speaker_transcript": speaker_payload,
     }
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -173,12 +188,19 @@ def cmd_transcribe_feed(args: argparse.Namespace) -> int:
         asr_model=getattr(args, "asr_model", "") or "",
         postprocess_profile=getattr(args, "postprocess_profile", "off"),
     )
+    speaker_payload = maybe_build_speaker_transcript(
+        output_dir,
+        mode=getattr(args, "speaker_mode", "off"),
+        min_speakers=getattr(args, "min_speakers", 2),
+        max_speakers=getattr(args, "max_speakers", 6),
+    )
     result = {
         "feed_url": args.url,
         "output_dir": str(payload["output_dir"]),
         "manifest_path": str(payload["manifest_path"]),
         "errors_path": str(payload["errors_path"]) if payload.get("errors_path") else "",
         "results": payload["results"],
+        "speaker_transcript": speaker_payload,
     }
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -207,6 +229,28 @@ def cmd_speaker_transcript(args: argparse.Namespace) -> int:
         print(f"Generated {Path(payload['run_dir']) / 'transcript.speakers.md'}")
         print(payload["preview_text"])
     return 0
+
+
+def maybe_build_speaker_transcript(
+    run_dir: Path,
+    *,
+    mode: str,
+    min_speakers: int,
+    max_speakers: int,
+) -> dict[str, Any] | None:
+    if mode == "off":
+        return None
+    try:
+        return build_speaker_transcript(
+            run_dir,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+        )
+    except Exception as exc:
+        if mode == "required":
+            raise
+        print(f"提示：说话人区分未完成，保留原始转录：{exc}", file=sys.stderr)
+        return {"status": "failed", "error": str(exc), "run_dir": str(run_dir)}
 
 
 def cmd_list_models(args: argparse.Namespace) -> int:
@@ -313,6 +357,9 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--asr-engine", choices=["auto", "qwen3-asr", "whisper-cpp"], default="auto")
     transcribe_parser.add_argument("--asr-model", default="", help="Explicit Qwen3-ASR model ID")
     transcribe_parser.add_argument("--postprocess-profile", choices=["off", "balanced", "quality", "fast"], default="fast")
+    transcribe_parser.add_argument("--speaker-mode", choices=["off", "auto", "required"], default="off", help="Generate a speaker-attributed transcript after ASR")
+    transcribe_parser.add_argument("--min-speakers", type=int, default=2)
+    transcribe_parser.add_argument("--max-speakers", type=int, default=6)
     transcribe_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     transcribe_parser.set_defaults(func=cmd_transcribe)
 
@@ -335,6 +382,9 @@ def build_parser() -> argparse.ArgumentParser:
     page_parser.add_argument("--asr-engine", choices=["auto", "qwen3-asr", "whisper-cpp"], default="auto")
     page_parser.add_argument("--asr-model", default="", help="Explicit Qwen3-ASR model ID")
     page_parser.add_argument("--postprocess-profile", choices=["off", "balanced", "quality", "fast"], default="fast")
+    page_parser.add_argument("--speaker-mode", choices=["off", "auto", "required"], default="auto", help="Generate a speaker-attributed transcript after ASR")
+    page_parser.add_argument("--min-speakers", type=int, default=2)
+    page_parser.add_argument("--max-speakers", type=int, default=6)
     page_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     page_parser.set_defaults(func=cmd_transcribe_page)
 
@@ -353,6 +403,9 @@ def build_parser() -> argparse.ArgumentParser:
     feed_parser.add_argument("--asr-engine", choices=["auto", "qwen3-asr", "whisper-cpp"], default="auto")
     feed_parser.add_argument("--asr-model", default="", help="Explicit Qwen3-ASR model ID")
     feed_parser.add_argument("--postprocess-profile", choices=["off", "balanced", "quality", "fast"], default="fast")
+    feed_parser.add_argument("--speaker-mode", choices=["off", "auto", "required"], default="off", help="Generate a speaker-attributed transcript after ASR")
+    feed_parser.add_argument("--min-speakers", type=int, default=2)
+    feed_parser.add_argument("--max-speakers", type=int, default=6)
     feed_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     feed_parser.set_defaults(func=cmd_transcribe_feed)
 

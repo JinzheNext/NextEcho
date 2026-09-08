@@ -10,10 +10,12 @@ from workbench.speaker_transcript import (
     AudioWindow,
     DiarizationTurn,
     TranscriptSegment,
+    SpeakerTextTurn,
     align_segments_to_speakers,
     build_audio_windows,
     build_speaker_transcript,
     detect_intro_range,
+    apply_context_speaker_names,
 )
 
 
@@ -130,6 +132,22 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertGreater(len(windows), 3)
         self.assertIsInstance(windows[0], AudioWindow)
         self.assertLessEqual(windows[0].end - windows[0].start, 3.0)
+
+    def test_context_names_are_hints_and_preserve_unmatched_labels(self) -> None:
+        turns = [
+            # The self-introduction is intentionally enough to identify one
+            # side; the other candidate is assigned only as a reviewable hint.
+            SpeakerTextTurn("Speaker 1", 0.0, 2.0, "大家好，我是李继刚。"),
+            SpeakerTextTurn("Speaker 2", 2.0, 4.0, "我们开始聊聊。"),
+        ]
+        renamed, mapping, inference = apply_context_speaker_names(
+            turns,
+            context={"speaker_candidates": [{"name": "孟岩"}, {"name": "李继刚"}]},
+        )
+        self.assertEqual(mapping["Speaker 1"], "李继刚")
+        self.assertEqual(mapping["Speaker 2"], "孟岩")
+        self.assertEqual([turn.speaker for turn in renamed], ["李继刚", "孟岩"])
+        self.assertEqual(inference["status"], "hinted")
 
 
 if __name__ == "__main__":

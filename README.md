@@ -28,6 +28,8 @@ NextEcho 适合做这些事：
 - 支持本地文件和远程链接
 - 支持网页端和命令行
 - 默认保留可读命名的 `录音原声.*`、`转录音频.wav`、`transcript.txt/json/srt/vtt`；旧版 `source.*`/`audio.wav` 仍可读取
+- 小宇宙链接会同步保存完整 shownotes、原始页面和点赞排序的 Top 20 条评论，供说话人命名与后处理核对
+- 播客页面可自动生成带时间戳的说话人稿，并把节目页提供的主持人/嘉宾姓名作为可复核提示
 - 转录文本默认带项目署名，便于传播时保留来源
 
 ## 本地高精度转录与知识加工
@@ -283,6 +285,7 @@ python -m workbench.cli resolve-sources "https://podcasts.apple.com/us/podcast/t
 ```bash
 python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --speaker-mode auto --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
 ```
 
@@ -312,7 +315,14 @@ python -m workbench.cli download-model large-v3-turbo-q5_0
 python -m workbench.cli enhance outputs/transcriptions/run_20260906_120000_abcd1234 --profile fast --json
 ```
 
-`--asr-engine auto|qwen3-asr|whisper-cpp`、`--asr-model` 和 `--postprocess-profile off|balanced|quality|fast` 同样适用于 `transcribe-page` 与 `transcribe-feed`。
+`--asr-engine auto|qwen3-asr|whisper-cpp`、`--asr-model`、`--postprocess-profile off|balanced|quality|fast` 和 `--speaker-mode off|auto|required` 同样适用于 `transcribe-page` 与 `transcribe-feed`。单链接脚本也支持这些选项：
+
+```bash
+python scripts/transcribe_link.py "https://www.xiaoyuzhoufm.com/episode/69a64629de29766da93331ec" \
+  --profile fast --speaker-mode auto --json
+```
+
+小宇宙项目页会额外写入 `source.raw.html`、`source.shownotes.md`、`source.comments.top20.json` 和 `source.context.json`。默认使用本地 Next.js 数据解析；设置 `FIRECRAWL_API_KEY` 并将 `NEXTECHO_CRAWLER=firecrawl` 才会改用 Firecrawl。没有 pyannote/HF token 时会使用轻量本地聚类，结果必须人工复核姓名对应关系。
 
 ## 给 Agent 怎么用
 
@@ -431,6 +441,14 @@ PowerShell：
 $env:HF_TOKEN="your_token_here"
 ```
 
+如果不想使用 Hugging Face token，但希望比纯声学统计聚类更稳，可以安装本地 speaker embedding 中间档：
+
+```bash
+pip install -r requirements-speakers-embedding.txt
+```
+
+它会自动优先于轻量聚类使用，模型在本机 CPU 上运行；仍然建议用 `speaker_map.json` 人工核对姓名，尤其是节目本身已经混音成单声道时。
+
 ### 使用命令
 
 #### 1. 直接从音频生成访谈逐字稿
@@ -469,7 +487,11 @@ outputs/transcriptions/run_xxx/
         ├── transcript.txt
         ├── transcript.json
         ├── transcript.srt
-        └── transcript.vtt
+        ├── transcript.vtt
+        ├── source.raw.html              # 小宇宙页面原文
+        ├── source.shownotes.md          # 展开后的节目 shownotes
+        ├── source.comments.top20.json   # 按点赞数排序的评论
+        └── source.context.json           # 节目/嘉宾/资料索引
 ```
 
 如果生成了访谈逐字稿，通常还会在 run 根目录看到：

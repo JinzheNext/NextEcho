@@ -53,6 +53,14 @@
             </select>
           </label>
           <label>
+            <span>说话人区分</span>
+            <select name="speaker_mode">
+              <option value="auto" selected>自动区分（播客推荐）</option>
+              <option value="off">关闭</option>
+              <option value="required">必须成功，否则任务失败</option>
+            </select>
+          </label>
+          <label>
             <span>术语表（可选）</span>
             <textarea name="glossary" rows="5" placeholder="例如：&#10;波客 => 播客&#10;AGI => 通用人工智能&#10;protect: NextEcho"></textarea>
           </label>

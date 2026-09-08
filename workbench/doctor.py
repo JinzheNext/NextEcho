@@ -171,6 +171,7 @@ def run_doctor() -> DoctorReport:
         "llm_models": {"fast": FAST_MODEL, "quality": QUALITY_MODEL},
     }
     pyannote_installed = bool(speaker_backend["pyannote_installed"])
+    resemblyzer_installed = bool(speaker_backend.get("resemblyzer_installed"))
     hf_token_env = speaker_backend["hf_token_env"] or detect_hf_token_env()
     fallback_backend_available = bool(speaker_backend["fallback_backend_available"])
     notes: list[str] = []
@@ -181,11 +182,13 @@ def run_doctor() -> DoctorReport:
     missing_required = [binary.name for binary in binary_checks if binary.required and not binary.ok]
     if missing_required:
         notes.append(f"缺少必需依赖：{', '.join(missing_required)}。")
-    if not pyannote_installed:
-        notes.append("pyannote.audio 未安装：访谈逐字稿的说话人分离能力当前不可用。")
+    if not pyannote_installed and not resemblyzer_installed:
+        notes.append("pyannote.audio 和本地 speaker embedding 均未安装：当前只能使用轻量聚类分离。")
+    elif resemblyzer_installed and not pyannote_installed:
+        notes.append("已启用本地 speaker embedding；如需更高精度，可再配置 pyannote 和 HF_TOKEN。")
     if not hf_token_env:
         notes.append("未检测到 Hugging Face 访问令牌：无法启用 pyannote 高精度说话人分离。")
-    if fallback_backend_available and not hf_token_env:
+    if fallback_backend_available and not hf_token_env and not resemblyzer_installed:
         notes.append("当前会回退到本地 segment-clustering 方案；它可用，但多人访谈的准确率低于 pyannote。")
     if local_ai["apple_silicon"] and not local_ai["qwen_mlx_available"]:
         notes.append("Apple Silicon Qwen3-ASR 未安装：高精度转录会回退到 whisper.cpp。")
@@ -213,6 +216,7 @@ def run_doctor() -> DoctorReport:
         supported_models=list_supported_whisper_models(),
         speaker_transcript={
             "pyannote_installed": pyannote_installed,
+            "resemblyzer_installed": resemblyzer_installed,
             "hf_token_env": hf_token_env or "",
             "fallback_backend_available": fallback_backend_available,
             "selected_backend": speaker_backend["selected_backend"],
@@ -252,6 +256,7 @@ def print_human_report(report: DoctorReport) -> None:
         print(f"  - {model['name']}: {model['summary']} (suggested memory >= {model['min_memory_gb']}GB)")
     print("\nSpeaker transcript:")
     print(f"  pyannote.audio installed: {report.speaker_transcript['pyannote_installed']}")
+    print(f"  resemblyzer installed: {report.speaker_transcript.get('resemblyzer_installed', False)}")
     print(f"  HF token env: {report.speaker_transcript['hf_token_env'] or 'missing'}")
     print(f"  fallback backend available: {report.speaker_transcript['fallback_backend_available']}")
     print(f"  selected backend: {report.speaker_transcript['selected_backend'] or 'none'}")
