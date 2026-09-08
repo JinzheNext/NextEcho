@@ -571,9 +571,11 @@ def render_knowledge_markdown(summary: dict[str, Any], segments: list[Segment]) 
         rows += render_items(summary.get(source_key), label)
     if summary.get("keywords"):
         rows += ["## 关键词", "", ", ".join(str(item) for item in summary["keywords"]), ""]
-    rows += ["## 片段索引", ""]
-    for segment in segments:
-        rows.append(f"- {format_ms(segment.start_ms)}–{format_ms(segment.end_ms)}：{render_dialogue_line(segment)}")
+    rows += ["## 对话索引", ""]
+    for segment in merge_dialogue_segments(segments):
+        line = render_dialogue_line(segment)
+        if line:
+            rows.append(f"- {format_ms(segment.start_ms)}–{format_ms(segment.end_ms)}：{line}")
     return "\n".join(rows).strip() + "\n"
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from workbench.enhancement import default_glossary_rules, strip_filler_words
-from workbench.postprocess import Segment, context_keywords, merge_dialogue_segments, process_transcript_artifacts, render_dialogue_line, validate_polish_response
+from workbench.postprocess import Segment, context_keywords, merge_dialogue_segments, process_transcript_artifacts, render_dialogue_line, render_knowledge_markdown, validate_polish_response
 
 
 def final_summary() -> dict:
@@ -39,6 +39,19 @@ class PostprocessTests(unittest.TestCase):
             ]
         )
         self.assertEqual([(item.speaker, item.text) for item in merged], [("孟岩", "跟纪刚录博客。"), ("李继刚", "大家好。")])
+
+    def test_knowledge_index_uses_dialogue_blocks_without_internal_ids(self) -> None:
+        markdown = render_knowledge_markdown(
+            final_summary(),
+            [
+                Segment("seg_00000", "嗯", 0, 500, "孟岩"),
+                Segment("seg_00001", "大家好。", 500, 1500, "孟岩"),
+                Segment("seg_00002", "我是李继刚。", 1600, 2500, "李继刚"),
+            ],
+        )
+        self.assertIn("## 对话索引", markdown)
+        self.assertNotIn("seg_00001", markdown)
+        self.assertNotIn("：\n", markdown)
 
     def test_context_keywords_exclude_fillers(self) -> None:
         keywords = context_keywords(
