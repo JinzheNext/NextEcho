@@ -543,6 +543,8 @@ def write_enhanced_artifacts(item_dir: Path, raw_payload: dict[str, Any], segmen
 
 
 def render_knowledge_markdown(summary: dict[str, Any], segments: list[Segment]) -> str:
+    segment_index = {segment.id: segment for segment in segments}
+
     def render_items(items: Any, label: str) -> list[str]:
         if not isinstance(items, list) or not items:
             return []
@@ -550,7 +552,7 @@ def render_knowledge_markdown(summary: dict[str, Any], segments: list[Segment]) 
         for item in items:
             if isinstance(item, dict):
                 text = item.get("text") or item.get("name") or item.get("quote") or json.dumps(item, ensure_ascii=False)
-                refs = ", ".join(str(ref) for ref in item.get("segment_ids", []))
+                refs = render_reference_hint(item.get("segment_ids", []), segment_index)
                 rows.append(f"- {text}{f'（{refs}）' if refs else ''}")
             else:
                 rows.append(f"- {item}")
@@ -565,7 +567,7 @@ def render_knowledge_markdown(summary: dict[str, Any], segments: list[Segment]) 
         rows += ["## 关键词", "", ", ".join(str(item) for item in summary["keywords"]), ""]
     rows += ["## 片段索引", ""]
     for segment in segments:
-        rows.append(f"- `{segment.id}` {format_ms(segment.start_ms)}–{format_ms(segment.end_ms)}：{render_dialogue_line(segment)}")
+        rows.append(f"- {format_ms(segment.start_ms)}–{format_ms(segment.end_ms)}：{render_dialogue_line(segment)}")
     return "\n".join(rows).strip() + "\n"
 
 
@@ -574,6 +576,22 @@ def render_dialogue_line(segment: Segment) -> str:
     if segment.speaker and text:
         return f"{segment.speaker}：{text}"
     return text
+
+
+def render_reference_hint(refs: Any, segment_index: dict[str, Segment]) -> str:
+    if not isinstance(refs, list):
+        return ""
+    resolved = [segment_index[str(ref)] for ref in refs if str(ref) in segment_index]
+    if not resolved:
+        return ""
+    speakers = list(dict.fromkeys(segment.speaker for segment in resolved if segment.speaker))
+    speaker_hint = ""
+    if speakers:
+        speaker_hint = "，" + "、".join(speakers)
+    if len(resolved) <= 3:
+        times = "、".join(f"{format_ms(item.start_ms)}–{format_ms(item.end_ms)}" for item in resolved)
+        return f"{times}{speaker_hint}"
+    return f"{format_ms(resolved[0].start_ms)}–{format_ms(resolved[-1].end_ms)}，共 {len(resolved)} 个片段{speaker_hint}"
 
 
 def polish_schema() -> dict[str, Any]:

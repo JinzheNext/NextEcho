@@ -157,6 +157,21 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual([turn.speaker for turn in renamed], ["李继刚", "孟岩"])
         self.assertEqual(inference["status"], "hinted")
 
+    def test_text_self_introduction_corrects_early_voiceprint_switch(self) -> None:
+        segments = [
+            TranscriptSegment(0.0, 2.0, "跟嘉宾录播客非常有意思。"),
+            TranscriptSegment(2.0, 4.0, "我们先聊聊背景。"),
+            TranscriptSegment(4.0, 6.0, "大家好，我是李继刚。"),
+        ]
+        turns, unassigned = align_segments_to_speakers(
+            segments,
+            [DiarizationTurn("Speaker 2", 0.0, 6.0)],
+            0.0,
+            context={"speaker_candidates": [{"name": "孟岩"}, {"name": "李继刚"}]},
+        )
+        self.assertEqual(unassigned, [])
+        self.assertEqual([turn.speaker for turn in turns], ["孟岩", "李继刚"])
+
 
 if __name__ == "__main__":
     unittest.main()

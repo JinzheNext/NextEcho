@@ -81,6 +81,7 @@ def build_speaker_transcript(
     enhance_voice_audio(workspace["audio_path"], enhanced_audio)
 
     transcript_segments = load_transcript_segments(workspace["transcript_json_path"])
+    speaker_context = load_speaker_context(workspace.get("context_path"))
     intro_removed, intro_range = detect_intro_range(transcript_segments)
 
     _emit_progress(progress_callback, stage="diarization", message="正在区分说话人", progress=40)
@@ -99,13 +100,20 @@ def build_speaker_transcript(
         transcript_segments,
         diarization_turns,
         intro_range[1] if intro_removed else 0.0,
+        context=speaker_context,
     )
     speaker_turns, speaker_map, speaker_name_inference = apply_context_speaker_names(
         speaker_turns,
-        context=load_speaker_context(workspace.get("context_path")),
+        context=speaker_context,
     )
+    anchor_names = [
+        detect_speaker_self_introduction(segment.text, [str(item.get("name") or "") for item in speaker_context.get("speaker_candidates", []) if isinstance(item, dict)])
+        for segment in transcript_segments
+    ]
+    speaker_name_inference["text_anchor_count"] = sum(bool(name) for name in anchor_names)
+    speaker_name_inference["text_anchor_names"] = list(dict.fromkeys(name for name in anchor_names if name))
     preview_text = build_preview_text(speaker_turns, 200)
-    speaker_count_detected = len({turn.speaker for turn in diarization_turns})
+    speaker_count_detected = len({turn.speaker for turn in speaker_turns})
     fallback_used = backend_name != "pyannote"
     quality_note = {
         "pyannote": "高精度说话人分离（pyannote）",
@@ -584,10 +592,19 @@ def align_segments_to_speakers(
     transcript_segments: list[TranscriptSegment],
     diarization_turns: list[DiarizationTurn],
     intro_end: float,
+    context: dict[str, Any] | None = None,
 ) -> tuple[list[SpeakerTextTurn], list[TranscriptSegment]]:
     assigned: list[SpeakerTextTurn] = []
     unassigned: list[TranscriptSegment] = []
-    for segment in transcript_segments:
+    candidates = [
+        str(item.get("name") or "").strip()
+        for item in (context or {}).get("speaker_candidates", [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    ]
+    active_anchor = ""
+    anchor_by_index = [detect_speaker_self_introduction(segment.text, candidates) for segment in transcript_segments]
+    first_anchor = next((name for name in anchor_by_index if name), "")
+    for index, segment in enumerate(transcript_segments):
         if segment.end <= intro_end:
             continue
         overlaps = [
@@ -595,18 +612,39 @@ def align_segments_to_speakers(
             for turn in diarization_turns
         ]
         best_overlap, best_turn = max(overlaps, key=lambda item: item[0], default=(0.0, None))
+        anchor = anchor_by_index[index]
+        if anchor:
+            active_anchor = anchor
+            first_anchor = first_anchor or anchor
+        anchored_speaker = active_anchor
+        # When exactly two names are known, everything before the first
+        # self-introduction belongs to the other participant.  This corrects
+        # the common case where a room/microphone change fools global voice
+        # embedding clustering into switching speakers too early.
+        if not anchored_speaker and first_anchor and len(candidates) == 2:
+            anchored_speaker = next((name for name in candidates if name != first_anchor), "")
         if best_turn is None or best_overlap <= 0:
-            unassigned.append(segment)
+            if anchored_speaker:
+                assigned.append(SpeakerTextTurn(anchored_speaker, segment.start, segment.end, segment.text))
+            else:
+                unassigned.append(segment)
             continue
         assigned.append(
             SpeakerTextTurn(
-                speaker=best_turn.speaker,
+                speaker=anchored_speaker or best_turn.speaker,
                 start=segment.start,
                 end=segment.end,
                 text=segment.text,
             )
         )
     return merge_adjacent_turns(assigned), unassigned
+
+
+def detect_speaker_self_introduction(text: str, candidates: list[str]) -> str:
+    for name in candidates:
+        if re.search(rf"(?:大家好[，, ]*)?(?:我|本人)?\s*(?:是|叫)\s*{re.escape(name)}", text):
+            return name
+    return ""
 
 
 def merge_adjacent_turns(turns: list[SpeakerTextTurn]) -> list[SpeakerTextTurn]:
