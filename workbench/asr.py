@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import importlib.util
+import hashlib
 import json
 import os
 import platform
@@ -34,6 +35,7 @@ class TranscriptResult:
     model: str
     version: str = ""
     resources: dict[str, Any] = field(default_factory=dict)
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -158,6 +160,47 @@ def qwen_forced_aligner_model(config: NextEchoConfig | None = None) -> str:
 
 def qwen_model_cached(model: str) -> bool:
     return _hf_model_snapshot_cached(model)
+
+
+def qwen_model_provenance(model: str) -> dict[str, Any]:
+    """Return revision and content-addressed hashes for a cached MLX model."""
+
+    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface"))
+    snapshots = hf_home / "hub" / f"models--{model.replace('/', '--')}" / "snapshots"
+    candidates = (
+        sorted(
+            (path for path in snapshots.iterdir() if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if snapshots.exists()
+        else []
+    )
+    snapshot = candidates[0] if candidates else None
+    files: list[dict[str, Any]] = []
+    weight_digests: list[str] = []
+    total_size = 0
+    if snapshot is not None:
+        for path in sorted(item for item in snapshot.rglob("*") if item.is_file()):
+            resolved = path.resolve()
+            size = resolved.stat().st_size
+            total_size += size
+            digest = resolved.name if re.fullmatch(r"[0-9a-f]{64}", resolved.name) else ""
+            if path.suffix in {".safetensors", ".bin"} and digest:
+                weight_digests.append(digest)
+            files.append({"path": str(path.relative_to(snapshot)), "size_bytes": size, "blob_sha256": digest})
+    manifest_raw = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    quantization_match = re.search(r"(?:^|[-_/])(\d+(?:\.\d+)?bit|[A-Za-z]+\d+(?:_[A-Za-z0-9]+)*)", model, flags=re.IGNORECASE)
+    return {
+        "source_repo": model,
+        "revision": snapshot.name if snapshot is not None else "",
+        "quantization": quantization_match.group(1) if quantization_match else "",
+        "file_size_bytes": total_size,
+        "sha256": weight_digests[0] if len(weight_digests) == 1 else "",
+        "weight_sha256": weight_digests,
+        "cache_manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
+        "mlx_version": qwen_runtime_version(),
+    }
 
 
 def qwen_forced_aligner_cached(model: str | None = None, *, config: NextEchoConfig | None = None) -> bool:
@@ -546,6 +589,7 @@ def transcribe_qwen_mlx(
             backend="qwen3-asr",
             model=str(payload.get("model") or model),
             version=str(payload.get("version") or ""),
+            provenance=qwen_model_provenance(str(payload.get("model") or model)),
         )
         resource_after = memory_snapshot()
         result.resources = {

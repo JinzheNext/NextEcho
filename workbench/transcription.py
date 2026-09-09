@@ -755,6 +755,7 @@ def write_qwen_transcript_result(
                         "model": result.model,
                         "version": result.version,
                         **({"resources": result.resources} if result.resources else {}),
+                        **({"provenance": result.provenance} if result.provenance else {}),
                     },
                     "result": {"language": result.language},
                     "transcription": transcript,

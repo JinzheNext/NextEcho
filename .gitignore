@@ -6,4 +6,5 @@ logs/
 outputs/transcriptions/*
 !outputs/transcriptions/.gitkeep
 models/whisper.cpp/*.bin
+models/speaker-diarization/
 .DS_Store

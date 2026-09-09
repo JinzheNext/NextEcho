@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from workbench.asr import TranscriptResult
+from workbench.asr import TranscriptResult, qwen_model_provenance
 from workbench.transcription import _load_shifted_transcription_segments, write_qwen_transcript_result
 
 
@@ -43,14 +45,31 @@ class AsrTests(unittest.TestCase):
                 backend="qwen3-asr",
                 model="Qwen/Qwen3-ASR-1.7B",
                 version="0.3.5",
+                provenance={"revision": "abc123", "sha256": "deadbeef"},
             )
             write_qwen_transcript_result(result, output_dir=root, output_base="transcript", output_formats=["txt", "json", "srt", "vtt"])
             payload = json.loads((root / "transcript.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["schema_version"], 2)
             self.assertEqual(payload["engine"]["model"], "Qwen/Qwen3-ASR-1.7B")
+            self.assertEqual(payload["engine"]["provenance"]["revision"], "abc123")
             self.assertEqual(payload["transcription"][0]["timestamps"]["from"], "00:00:00,000")
             self.assertTrue((root / "transcript.srt").exists())
             self.assertTrue((root / "transcript.vtt").exists())
+
+    def test_qwen_provenance_uses_huggingface_snapshot_and_blob_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            hf_home = Path(temp_dir)
+            blob = hf_home / "hub" / "models--owner--model" / "blobs" / ("a" * 64)
+            snapshot = hf_home / "hub" / "models--owner--model" / "snapshots" / "revision123"
+            blob.parent.mkdir(parents=True)
+            snapshot.mkdir(parents=True)
+            blob.write_bytes(b"weights")
+            (snapshot / "model.safetensors").symlink_to(Path("../../blobs") / blob.name)
+            with patch.dict(os.environ, {"HF_HOME": str(hf_home)}):
+                payload = qwen_model_provenance("owner/model")
+            self.assertEqual(payload["revision"], "revision123")
+            self.assertEqual(payload["sha256"], "a" * 64)
+            self.assertEqual(payload["file_size_bytes"], 7)
 
 
 if __name__ == "__main__":
