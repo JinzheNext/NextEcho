@@ -61,6 +61,11 @@ class SourceResolverTests(unittest.TestCase):
                     "vtt_path": "",
                     "media_path": "",
                     "audio_path": "",
+                    "asr": {
+                        "actual_engine": "qwen3-asr",
+                        "actual_model": "owner/qwen-5bit",
+                        "provenance": {"revision": "abc123", "sha256": "deadbeef"},
+                    },
                     "output_dir": str(item_dir),
                     "excerpt": "hello",
                     "error": "",
@@ -75,10 +80,14 @@ class SourceResolverTests(unittest.TestCase):
             self.assertEqual(payload["elapsed_seconds"], 6)
             manifest = json.loads((transcript_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["elapsed_seconds"], 6)
+            self.assertEqual(manifest["schema_version"], 3)
+            self.assertEqual(manifest["asr"]["actual_engine"], "qwen3-asr")
+            self.assertEqual(manifest["asr"]["provenance"][0]["revision"], "abc123")
             self.assertTrue(manifest["completed_at"])
             run_config = json.loads((transcript_dir / "run_config.json").read_text(encoding="utf-8"))
             self.assertEqual(run_config["elapsed_seconds"], 6)
             self.assertTrue(run_config["completed_at"])
+            self.assertEqual(run_config["schema_version"], 3)
 
     def test_which_binary_uses_stable_local_lookup(self) -> None:
         with patch("workbench.binaries.shutil.which", return_value="/usr/bin/curl") as mock_which:

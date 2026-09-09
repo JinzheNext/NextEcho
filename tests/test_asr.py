@@ -8,10 +8,37 @@ from pathlib import Path
 from unittest.mock import patch
 
 from workbench.asr import TranscriptResult, qwen_model_provenance
-from workbench.transcription import _load_shifted_transcription_segments, write_qwen_transcript_result
+from workbench.transcription import _load_shifted_transcription_segments, transcribe_audio_with_fallback, write_qwen_transcript_result
 
 
 class AsrTests(unittest.TestCase):
+    def test_qwen_runtime_metadata_returns_exact_provenance_for_manifest(self) -> None:
+        result = TranscriptResult(
+            text="你好",
+            language="Chinese",
+            words=[],
+            backend="qwen3-asr",
+            model="owner/qwen-5bit",
+            version="0.3.5",
+            provenance={"revision": "abc123", "sha256": "deadbeef"},
+        )
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "workbench.transcription.transcribe_qwen_mlx", return_value=result
+        ), patch("workbench.transcription.write_qwen_transcript_result"):
+            metadata = transcribe_audio_with_fallback(
+                audio_path=Path(temp_dir) / "audio.wav",
+                output_dir=Path(temp_dir),
+                output_base="transcript",
+                whisper_bin=None,
+                whisper_model_path=None,
+                whisper_model_name="large-v3-turbo-q5_0",
+                language="zh",
+                output_formats=["json"],
+                engine="qwen3-asr",
+                model="owner/qwen-5bit",
+            )
+        self.assertEqual(metadata["provenance"], {"revision": "abc123", "sha256": "deadbeef"})
+
     def test_chunk_overlap_assigns_boundary_to_previous_chunk(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "chunk.json"

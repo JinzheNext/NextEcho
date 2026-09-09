@@ -128,7 +128,7 @@ def transcribe_media_sources(
         "model_path": reported_model_path,
         "whisper_model_name": model_name,
         "whisper_model_path": str(model_path or ""),
-        "schema_version": 2,
+        "schema_version": 3,
         "asr": {
             "requested_engine": asr_engine,
             "selected_engine": selected_asr_engine,
@@ -187,6 +187,22 @@ def transcribe_media_sources(
     elapsed_seconds = max(0, round(time.monotonic() - started_monotonic))
     run_config["completed_at"] = completed_at
     run_config["elapsed_seconds"] = elapsed_seconds
+    item_asr = [dict(item.get("asr") or {}) for item in results if isinstance(item.get("asr"), dict)]
+    actual_engines = list(dict.fromkeys(str(item.get("actual_engine") or "") for item in item_asr if item.get("actual_engine")))
+    actual_models = list(dict.fromkeys(str(item.get("actual_model") or "") for item in item_asr if item.get("actual_model")))
+    run_config["asr"].update(
+        {
+            "actual_engine": actual_engines[0] if len(actual_engines) == 1 else "mixed" if actual_engines else "",
+            "actual_model": actual_models[0] if len(actual_models) == 1 else "mixed" if actual_models else "",
+            "actual_engines": actual_engines,
+            "actual_models": actual_models,
+            "provenance": [
+                {"source_label": result.get("source_label", ""), **dict((result.get("asr") or {}).get("provenance") or {})}
+                for result in results
+                if (result.get("asr") or {}).get("provenance")
+            ],
+        }
+    )
     run_config_path.write_text(json.dumps(run_config, ensure_ascii=False, indent=2), encoding="utf-8")
 
     manifest = {
@@ -198,7 +214,7 @@ def transcribe_media_sources(
         "model_path": reported_model_path,
         "whisper_model_name": model_name,
         "whisper_model_path": str(model_path or ""),
-        "schema_version": 2,
+        "schema_version": 3,
         "asr": run_config["asr"],
         "language": language,
         "max_seconds": max_seconds,
@@ -419,6 +435,7 @@ def transcribe_single_source(
                     profile=postprocess_profile,
                     user_glossary_text=glossary_text,
                     style=ai_style,
+                    config=config,
                     progress_callback=progress_callback,
                 )
             else:
@@ -651,6 +668,7 @@ def transcribe_audio_with_fallback(
                     "actual_engine": "qwen3-asr",
                     "actual_model": result.model,
                     "version": result.version,
+                    "provenance": dict(result.provenance or {}),
                     "fallbacks": fallbacks,
                     "resources": result.resources,
                 }
