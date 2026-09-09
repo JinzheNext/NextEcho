@@ -11,6 +11,7 @@ method is called.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import importlib
 import json
 import wave
@@ -176,13 +177,15 @@ class _LegacyFunctionBackend:
         from . import speaker_transcript
 
         runner = getattr(speaker_transcript, self.runner_name)
-        turns = runner(
-            Path(audio_path),
-            transcript_segments=list(_option(options, "transcript_segments", []) or []),
-            intro_end=float(_option(options, "intro_end", 0.0) or 0.0),
-            min_speakers=int(_option(options, "min_speakers", 2) or 2),
-            max_speakers=int(_option(options, "max_speakers", 6) or 6),
-        )
+        kwargs = {
+            "transcript_segments": list(_option(options, "transcript_segments", []) or []),
+            "intro_end": float(_option(options, "intro_end", 0.0) or 0.0),
+            "min_speakers": int(_option(options, "min_speakers", 2) or 2),
+            "max_speakers": int(_option(options, "max_speakers", 6) or 6),
+        }
+        parameters = inspect.signature(runner).parameters
+        accepted = {key: value for key, value in kwargs.items() if key in parameters}
+        turns = runner(Path(audio_path), **accepted)
         return DiarizationResult(
             backend=self.name,
             model=self.model,

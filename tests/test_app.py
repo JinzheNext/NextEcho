@@ -12,6 +12,8 @@ from app import (
     SPEAKER_TRANSCRIPT_JOB,
     TRANSCRIPTION_JOB,
     _new_job,
+    _speaker_payload_v3,
+    _write_raw_diarization_artifacts,
     app,
     reconcile_job_state,
     run_enhancement_job,
@@ -29,6 +31,52 @@ class AppTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["ok"], True)
         self.assertEqual(payload["service"], "NextEcho")
+
+    def test_raw_diarization_recovery_never_uses_display_name_as_raw_label(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            audio = root / "voice.wav"
+            audio.write_bytes(b"voice")
+            payload = {
+                "backend": "test",
+                "preprocess": {"voice_reference_audio": str(audio)},
+                "speaker_turns": [
+                    {"raw_speaker": "SPEAKER_00", "speaker": "孟岩", "start": 0.0, "end": 1.0}
+                ],
+            }
+            _write_raw_diarization_artifacts(root, payload)
+            raw = json.loads((root / "diarization.raw.json").read_text(encoding="utf-8"))
+            self.assertEqual(raw["turns"][0]["raw_speaker_label"], "SPEAKER_00")
+            self.assertNotIn("孟岩", (root / "diarization.raw.rttm").read_text(encoding="utf-8"))
+
+    def test_raw_diarization_recovery_rejects_display_only_turns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with self.assertRaisesRegex(RuntimeError, "anonymous raw speaker label"):
+                _write_raw_diarization_artifacts(
+                    Path(tmp_dir),
+                    {"speaker_turns": [{"speaker": "孟岩", "start": 0.0, "end": 1.0}]},
+                )
+
+    def test_speaker_payload_v3_keeps_canonical_identity_fields(self) -> None:
+        result = _speaker_payload_v3(
+            {
+                "speaker_turns": [{"raw_speaker": "SPEAKER_00", "speaker": "孟岩", "start": 0.0, "end": 1.0}],
+                "speakers": [
+                    {
+                        "speaker_id": "spk_00",
+                        "raw_labels": ["SPEAKER_00"],
+                        "display_name": "孟岩",
+                        "confidence": 0.98,
+                        "identity_status": "resolved",
+                        "identity_evidence": [{"type": "self_introduction"}],
+                    }
+                ],
+            }
+        )
+        speaker = result["speakers"][0]
+        self.assertEqual(speaker["speaker_id"], "spk_00")
+        self.assertEqual(speaker["confidence"], 0.98)
+        self.assertEqual(speaker["identity_evidence"], [{"type": "self_introduction"}])
 
     def test_models_status_is_local_and_reports_profiles(self) -> None:
         with patch("app.ollama_status", return_value={"ready": True, "models": ["qwen3:4b"]}):

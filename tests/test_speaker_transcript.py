@@ -30,6 +30,8 @@ from workbench.speaker_transcript import (
 from workbench.diarization import (
     DiarizationBackendUnavailable,
     DiarizationResult,
+    DiarizationOptions,
+    PyannoteCommunityBackend,
     SegmentClusteringBackend,
     SherpaOnnxBackend,
     render_rttm,
@@ -39,6 +41,21 @@ from workbench.speaker_identity import DefaultSpeakerIdentityResolver
 
 
 class SpeakerTranscriptTests(unittest.TestCase):
+    def test_pyannote_legacy_adapter_only_passes_supported_arguments(self) -> None:
+        captured: dict[str, int] = {}
+
+        def fake_pyannote(audio_path: Path, *, min_speakers: int, max_speakers: int):
+            captured.update(min_speakers=min_speakers, max_speakers=max_speakers)
+            return [DiarizationTurn("SPEAKER_00", 0.0, 1.0)]
+
+        with patch("workbench.speaker_transcript.run_pyannote_diarization", new=fake_pyannote):
+            result = PyannoteCommunityBackend().diarize(
+                Path("audio.wav"),
+                DiarizationOptions(min_speakers=2, max_speakers=3, intro_end=4.0, transcript_segments=[]),
+            )
+        self.assertEqual(captured, {"min_speakers": 2, "max_speakers": 3})
+        self.assertEqual(result.turns[0].raw_label, "SPEAKER_00")
+
     def test_render_speaker_text_uses_dialogue_format_and_removes_fillers(self) -> None:
         rendered = render_speaker_text(
             [{"speaker": "孟岩", "start": 0.0, "end": 2.0, "text": "嗯大家好。"}],

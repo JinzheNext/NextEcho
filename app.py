@@ -863,10 +863,15 @@ def _write_raw_diarization_artifacts(item_dir: Path, payload: dict) -> None:
 
     raw_json_path = item_dir / "diarization.raw.json"
     raw_rttm_path = item_dir / "diarization.raw.rttm"
-    if raw_json_path.exists():
-        return
-    turns = payload.get("speaker_turns") or []
-    audio_path = Path(str(payload.get("source_audio") or ""))
+    if raw_json_path.exists() or raw_rttm_path.exists():
+        if raw_json_path.exists() and raw_rttm_path.exists():
+            return
+        raise RuntimeError("incomplete immutable diarization artifacts")
+    diarization = payload.get("diarization") if isinstance(payload.get("diarization"), dict) else {}
+    turns = diarization.get("turns") or payload.get("speaker_turns") or []
+    metadata = diarization.get("metadata") if isinstance(diarization.get("metadata"), dict) else {}
+    preprocess = payload.get("preprocess") if isinstance(payload.get("preprocess"), dict) else {}
+    audio_path = Path(str(metadata.get("audio_path") or preprocess.get("voice_reference_audio") or payload.get("source_audio") or ""))
     raw_turns = []
     rttm_lines: list[str] = []
     for index, turn in enumerate(turns):
@@ -874,7 +879,9 @@ def _write_raw_diarization_artifacts(item_dir: Path, payload: dict) -> None:
             continue
         start_ms = max(0, round(float(turn.get("start") or 0) * 1000))
         end_ms = max(start_ms, round(float(turn.get("end") or 0) * 1000))
-        raw_label = str(turn.get("raw_speaker_label") or turn.get("speaker") or f"SPEAKER_{index:02d}")
+        raw_label = str(turn.get("raw_speaker_label") or turn.get("raw_speaker") or "").strip()
+        if not raw_label:
+            raise RuntimeError("cannot reconstruct immutable diarization without an anonymous raw speaker label")
         row = {
             "turn_id": f"turn_{index:05d}",
             "raw_speaker_label": raw_label,
@@ -888,10 +895,10 @@ def _write_raw_diarization_artifacts(item_dir: Path, payload: dict) -> None:
         rttm_lines.append(f"SPEAKER {item_dir.name} 1 {start_ms / 1000:.3f} {duration:.3f} <NA> <NA> {raw_label} <NA> <NA>")
     raw_payload = {
         "schema_version": 1,
-        "backend": str(payload.get("backend") or "unknown"),
-        "model": str(payload.get("diarization_model") or payload.get("model") or ""),
-        "model_revision": str(payload.get("model_revision") or ""),
-        "model_digest": str(payload.get("model_digest") or ""),
+        "backend": str(diarization.get("backend") or payload.get("backend") or "unknown"),
+        "model": str(diarization.get("model") or payload.get("diarization_model") or payload.get("model") or ""),
+        "model_revision": str(diarization.get("model_revision") or payload.get("model_revision") or ""),
+        "model_digest": str(diarization.get("model_digest") or payload.get("model_digest") or ""),
         "audio_sha256": _sha256_file(audio_path),
         "turns": raw_turns,
         "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
@@ -930,10 +937,12 @@ def _speaker_payload_v3(payload: dict, *, source_label: str = "") -> dict:
     inferred = payload.get("speaker_name_inference") or {}
     speakers = []
     existing_speakers = [item for item in (payload.get("speakers") or []) if isinstance(item, dict)]
-    by_id = {
-        str(item.get("speaker_id") or (item.get("raw_labels") or [""])[0] or item.get("display_name") or ""): item
-        for item in existing_speakers
-    }
+    by_id: dict[str, dict] = {}
+    for item in existing_speakers:
+        keys = [str(item.get("speaker_id") or ""), *(str(label) for label in (item.get("raw_labels") or []))]
+        for key in keys:
+            if key:
+                by_id[key] = item
     for label in labels:
         existing = dict(by_id.get(label) or {})
         display_name = str(existing.get("display_name") or name_map.get(label) or "").strip()
@@ -1120,6 +1129,7 @@ def _run_speaker_for_items(
                 speaker_kwargs["min_speakers"] = min_speakers
             if max_speakers != 6:
                 speaker_kwargs["max_speakers"] = max_speakers
+            speaker_kwargs["config"] = load_config()
             payload = build_speaker_transcript(stage_dir, **speaker_kwargs)
             update_job(job_id, status="identifying_speakers", stage="identifying_speakers", message="正在识别说话人身份", progress=86)
             payload = _speaker_payload_v3(payload, source_label=source_label)
