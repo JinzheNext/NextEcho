@@ -7,7 +7,22 @@ from pathlib import Path
 from unittest.mock import patch
 
 from workbench.enhancement import default_glossary_rules, strip_filler_words
-from workbench.postprocess import Segment, context_keywords, merge_dialogue_segments, process_transcript_artifacts, render_dialogue_line, render_knowledge_markdown, validate_polish_response
+from workbench.postprocess import (
+    POLISH_MAX_CHARS,
+    POLISH_TARGET_CHARS,
+    Segment,
+    TranscriptCoverage,
+    chunk_segments,
+    context_keywords,
+    context_reference_inventory,
+    merge_dialogue_segments,
+    process_transcript_artifacts,
+    render_dialogue_line,
+    render_knowledge_markdown,
+    scope_source_context,
+    validate_polish_response,
+    validate_references,
+)
 
 
 def final_summary() -> dict:
@@ -62,6 +77,69 @@ class PostprocessTests(unittest.TestCase):
         )
         self.assertIn("人机", keywords)
         self.assertNotIn("嗯", keywords)
+
+    def test_partial_context_excludes_later_shownotes_and_marks_comments(self) -> None:
+        context = {
+            "episode": {"duration_seconds": 3600},
+            "shownotes": {"text": "00:00 前五分钟。\n05:00 后半段事实。\n20:00 更后段事实。"},
+            "comments": [{"id": "c1", "text": "评论里的事实说法"}],
+        }
+        scoped = scope_source_context(
+            context,
+            TranscriptCoverage(end_ms=299000, limit_end_ms=300000, max_seconds=300, episode_duration_seconds=3600, partial=True),
+        )
+        self.assertIn("前五分钟", scoped["shownotes"]["text"])
+        self.assertNotIn("后半段事实", scoped["shownotes"]["text"])
+        self.assertNotIn("更后段事实", scoped["shownotes"]["text"])
+        self.assertFalse(scoped["comments"][0]["evidence_eligible"])
+        self.assertTrue(scoped["comments"][0]["context_only"])
+        refs, types = context_reference_inventory(scoped)
+        with self.assertRaises(ValueError):
+            validate_references(
+                {"key_points": [{"text": "评论事实", "context_refs": ["comment:c1"]}]},
+                {"seg_00000"},
+                known_context_refs=refs,
+                context_ref_types=types,
+            )
+
+    def test_chinese_keyword_fallback_avoids_garbage_bigrams(self) -> None:
+        keywords = context_keywords(
+            {
+                "shownotes": {"text": "知有 入议 李继 经元 人机协作与生成式人工智能。"},
+                "comments": [],
+            }
+        )
+        self.assertIn("人机", keywords)
+        self.assertIn("生成式人工智能", keywords)
+        for garbage in ("知有", "入议", "李继", "经元"):
+            self.assertNotIn(garbage, keywords)
+
+    def test_polish_chunks_are_large_and_keep_speaker_boundaries(self) -> None:
+        segments = [
+            Segment("a0", "甲" * 700 + "。", 0, 1000, "A"),
+            Segment("a1", "乙" * 700 + "。", 1000, 2000, "A"),
+            Segment("b0", "丙" * 700 + "。", 2000, 3000, "B"),
+            Segment("b1", "丁" * 700 + "。", 3000, 4000, "B"),
+        ]
+        chunks = chunk_segments(segments, max_chars=POLISH_MAX_CHARS, target_chars=POLISH_TARGET_CHARS)
+        self.assertEqual([[item.id for item in chunk] for chunk in chunks], [["a0", "a1"], ["b0", "b1"]])
+        self.assertTrue(all(sum(len(item.text) for item in chunk) <= POLISH_MAX_CHARS for chunk in chunks))
+        self.assertEqual([item.id for chunk in chunks for item in chunk], [item.id for item in segments])
+
+    def test_polish_validator_rejects_immutable_speaker_and_time_changes(self) -> None:
+        source = [Segment("seg", "原始内容。", 100, 200, "spk_0")]
+        with self.assertRaises(ValueError):
+            validate_polish_response(
+                source,
+                {"segments": [{"id": "seg", "speaker": "spk_1", "start_ms": 100, "end_ms": 200, "polished_text": "原始内容。", "uncertain_terms": [], "change_notes": []}]},
+                default_glossary_rules(),
+            )
+        with self.assertRaises(ValueError):
+            validate_polish_response(
+                source,
+                {"segments": [{"id": "seg", "speaker": "spk_0", "start_ms": 101, "end_ms": 200, "polished_text": "原始内容。", "uncertain_terms": [], "change_notes": []}]},
+                default_glossary_rules(),
+            )
 
     def test_polish_validator_preserves_numbers_and_protected_terms(self) -> None:
         source = [Segment("seg_00000", "NextEcho 在 2026 年发布。", 0, 1000)]

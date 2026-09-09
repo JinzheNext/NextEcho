@@ -20,7 +20,7 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 
-CRAWL_SCHEMA_VERSION = 1
+CRAWL_SCHEMA_VERSION = 2
 DEFAULT_COMMENT_LIMIT = 20
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -51,6 +51,10 @@ def crawl_episode_context(
             "error": provider_error or "empty page response",
             "speaker_candidates": [],
             "comments": [],
+            "context_policy": {
+                "comments_are_evidence": False,
+                "shownotes_require_timestamp_for_partial": True,
+            },
         }
         context_path = output_dir / "source.context.json"
         context_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -87,8 +91,14 @@ def crawl_episode_context(
             "html": shownotes_html,
             "text": shownotes_text,
             "character_count": len(shownotes_text),
+            "sections": split_shownotes_sections(shownotes_text),
         },
         "comments": comments,
+        "context_policy": {
+            "comments_are_evidence": False,
+            "shownotes_require_timestamp_for_partial": True,
+            "reference_format": "shownotes:<index> / comment:<id-or-rank>",
+        },
         "comment_selection": {
             "requested": comment_limit,
             "returned": len(comments),
@@ -151,6 +161,73 @@ def html_to_text(value: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+", " ", "".join(parser.parts))).strip()
 
 
+_TIMESTAMP_RE = re.compile(
+    r"(?<![\d-])(?:\[\s*)?(?P<h>\d{1,3}):(?P<m>[0-5]\d)(?::(?P<s>[0-5]\d))?(?:[.,](?P<f>\d{1,3}))?(?:\s*\])?"
+)
+
+
+def parse_timestamp_ms(value: str) -> int | None:
+    """Parse a show-note timestamp (``MM:SS`` or ``HH:MM:SS``) to ms."""
+
+    match = _TIMESTAMP_RE.search(str(value))
+    if not match:
+        return None
+    hours_or_minutes = int(match.group("h"))
+    minute_or_seconds = int(match.group("m"))
+    fraction = str(match.group("f") or "")
+    if match.group("s") is None:
+        # The common short form is MM:SS (including 00:00).  Long episodes
+        # may exceed 59 minutes, so normalize that first field into hours.
+        hours, minutes = divmod(hours_or_minutes, 60)
+        seconds = minute_or_seconds
+    else:
+        hours = hours_or_minutes
+        minutes = minute_or_seconds
+        seconds = int(match.group("s"))
+    millis = int((fraction + "00")[:3]) if fraction else 0
+    return ((hours * 60 + minutes) * 60 + seconds) * 1000 + millis
+
+
+def split_shownotes_sections(text: str) -> list[dict[str, Any]]:
+    """Split shownotes into timestamp-addressable context sections.
+
+    A section starts at a timestamp and runs until the next timestamp.  Text
+    before the first timestamp is deliberately not emitted: it cannot be
+    safely associated with a partial audio window.  The returned refs are
+    deterministic and can be used in evidence records without copying source
+    text into a transcript segment.
+    """
+
+    source = str(text or "")
+    matches = list(_TIMESTAMP_RE.finditer(source))
+    if not matches:
+        return []
+    sections: list[dict[str, Any]] = []
+    for index, match in enumerate(matches):
+        start_ms = parse_timestamp_ms(match.group(0))
+        if start_ms is None:
+            continue
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+        end_ms = parse_timestamp_ms(matches[index + 1].group(0)) if index + 1 < len(matches) else None
+        section_text = source[match.start() : next_start].strip()
+        if not section_text:
+            continue
+        sections.append(
+            {
+                "context_ref": f"shownotes:{len(sections)}",
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "text": section_text,
+            }
+        )
+    return sections
+
+
+# Friendly alias for callers that describe these as timestamped show-note
+# entries rather than sections.
+extract_shownotes_sections = split_shownotes_sections
+
+
 def _extract_next_data(html: str) -> dict[str, Any] | None:
     match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, flags=re.DOTALL | re.IGNORECASE)
     if not match:
@@ -180,11 +257,15 @@ def _top_comments(value: Any, *, limit: int) -> list[dict[str, Any]]:
                 "pinned": bool(item.get("pinned")),
                 "reply_count": int(item.get("replyCount") or item.get("threadReplyCount") or 0),
                 "ip_location": str(item.get("ipLoc") or ""),
+                "context_ref": "",
+                "evidence_eligible": False,
+                "context_only": True,
             }
         )
     rows.sort(key=lambda row: (row["like_count"], row["pinned"]), reverse=True)
     for index, row in enumerate(rows[: max(0, limit)], start=1):
         row["rank"] = index
+        row["context_ref"] = f"comment:{row['id'] or index}"
     return rows[: max(0, limit)]
 
 

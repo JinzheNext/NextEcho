@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workbench.episode_context import crawl_episode_context, html_to_text
+from workbench.episode_context import crawl_episode_context, html_to_text, parse_timestamp_ms, split_shownotes_sections
 
 
 class EpisodeContextTests(unittest.TestCase):
@@ -48,6 +48,36 @@ class EpisodeContextTests(unittest.TestCase):
             self.assertTrue((output_dir / "source.shownotes.md").exists())
             self.assertTrue((output_dir / "source.comments.top20.json").exists())
             self.assertTrue((output_dir / "source.context.json").exists())
+
+    def test_timestamped_shownotes_have_stable_context_refs(self) -> None:
+        self.assertEqual(parse_timestamp_ms("01:23"), 83_000)
+        self.assertEqual(parse_timestamp_ms("01:02:03"), 3_723_000)
+        sections = split_shownotes_sections("前言\n00:00 开场\n05:00 后半段\n01:02:03 收尾")
+        self.assertEqual([item["context_ref"] for item in sections], ["shownotes:0", "shownotes:1", "shownotes:2"])
+        self.assertEqual(sections[0]["start_ms"], 0)
+        self.assertEqual(sections[0]["end_ms"], 300_000)
+        self.assertEqual(sections[1]["start_ms"], 300_000)
+
+    def test_crawled_comments_are_context_only(self) -> None:
+        comments = [{"id": "c1", "text": "评论内容", "likeCount": 2, "author": {"nickname": "用户"}}]
+        next_data = {
+            "props": {
+                "pageProps": {
+                    "episode": {"eid": "episode-2", "title": "E2", "shownotes": "<p>00:00 开场</p>", "commentCount": 1},
+                    "comments": comments,
+                }
+            }
+        }
+        html = f'<script id="__NEXT_DATA__">{json.dumps(next_data, ensure_ascii=False)}</script>'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from unittest.mock import patch
+
+            with patch("workbench.episode_context._fetch_page", return_value=(html, "fixture", "")):
+                payload = crawl_episode_context("https://example.test/episode/2", Path(temp_dir), crawler="native")
+        self.assertEqual(payload["shownotes"]["sections"][0]["context_ref"], "shownotes:0")
+        self.assertEqual(payload["comments"][0]["context_ref"], "comment:c1")
+        self.assertFalse(payload["comments"][0]["evidence_eligible"])
+        self.assertTrue(payload["comments"][0]["context_only"])
 
 
 if __name__ == "__main__":
