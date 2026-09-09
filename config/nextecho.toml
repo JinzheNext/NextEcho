@@ -39,6 +39,10 @@ worker_python = "3.12"
 enable_metadata_hints = true
 enable_self_introduction_hints = true
 enable_voice_enrollment = false
+embedding_backend = "resemblyzer"
+embedding_model = "resemblyzer/VoiceEncoder"
+profiles_path = ""
+profile_threshold = 0.78
 minimum_confidence = 0.90
 text_anchor_scope = "cluster_mapping_only"
 

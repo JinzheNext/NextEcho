@@ -377,12 +377,20 @@ def cmd_speaker_enroll(args: argparse.Namespace) -> int:
                 "sample_paths": [str(path.expanduser().resolve()) for path in args.samples],
                 "samples": [str(path.expanduser().resolve()) for path in args.samples],
                 "consent": bool(args.consent),
+                "backend": getattr(args, "backend", "auto"),
                 "config": config,
             },
         )
     except AttributeError as exc:
         message = f"speaker enrollment module has no supported entry point: {exc}"
         print(message, file=sys.stderr)
+        return 2
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        message = f"speaker enrollment failed: {exc}"
+        if args.json:
+            print(json.dumps({"status": "failed", "error": message}, ensure_ascii=False, indent=2))
+        else:
+            print(message, file=sys.stderr)
         return 2
     _print_optional_payload(payload, json_output=args.json)
     return 0
@@ -409,6 +417,13 @@ def cmd_speaker_profiles(args: argparse.Namespace) -> int:
     except AttributeError as exc:
         message = f"speaker profile module has no supported entry point: {exc}"
         print(message, file=sys.stderr)
+        return 2
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        message = f"speaker profile operation failed: {exc}"
+        if args.json:
+            print(json.dumps({"status": "failed", "error": message}, ensure_ascii=False, indent=2))
+        else:
+            print(message, file=sys.stderr)
         return 2
     _print_optional_payload(payload, json_output=args.json)
     return 0
@@ -657,6 +672,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_option(enroll_parser)
     enroll_parser.add_argument("display_name", help="Display name for the local speaker profile")
     enroll_parser.add_argument("samples", nargs="+", type=Path, help="One or more local WAV/audio enrollment samples")
+    enroll_parser.add_argument("--backend", default=_config_value(default_config, "speaker_identity", "embedding_backend", default="auto"), help="Embedding backend (auto or resemblyzer)")
     enroll_parser.add_argument("--consent", action="store_true", help="Record that the speaker consented to local enrollment")
     enroll_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     enroll_parser.set_defaults(func=cmd_speaker_enroll)
@@ -713,7 +729,8 @@ def _apply_config_defaults(args: argparse.Namespace, config: NextEchoConfig, raw
     if hasattr(args, "speaker_backend") and not provided("--speaker-backend"):
         args.speaker_backend = str(_config_value(config, "diarization", "backend", default=args.speaker_backend))
     if hasattr(args, "backend") and not provided("--backend"):
-        args.backend = str(_config_value(config, "diarization", "backend", default=args.backend))
+        backend_path = ("speaker_identity", "embedding_backend") if getattr(args, "command", "") == "speaker-enroll" else ("diarization", "backend")
+        args.backend = str(_config_value(config, *backend_path, default=args.backend))
     if hasattr(args, "min_speakers") and not provided("--min-speakers"):
         args.min_speakers = int(_config_value(config, "diarization", "min_speakers", default=args.min_speakers))
     if hasattr(args, "max_speakers") and not provided("--max-speakers"):
