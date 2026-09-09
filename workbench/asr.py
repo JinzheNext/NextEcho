@@ -190,7 +190,11 @@ def qwen_model_provenance(model: str) -> dict[str, Any]:
                 weight_digests.append(digest)
             files.append({"path": str(path.relative_to(snapshot)), "size_bytes": size, "blob_sha256": digest})
     manifest_raw = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    quantization_match = re.search(r"(?:^|[-_/])(\d+(?:\.\d+)?bit|[A-Za-z]+\d+(?:_[A-Za-z0-9]+)*)", model, flags=re.IGNORECASE)
+    quantization_match = re.search(
+        r"(?:^|[-_/])((?:\d+(?:\.\d+)?[- ]?bit)|(?:I?Q\d+(?:_[A-Za-z0-9]+)*))(?=$|[-_/])",
+        model,
+        flags=re.IGNORECASE,
+    )
     return {
         "source_repo": model,
         "revision": snapshot.name if snapshot is not None else "",

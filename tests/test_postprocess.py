@@ -19,6 +19,7 @@ from workbench.postprocess import (
     process_transcript_artifacts,
     render_dialogue_line,
     render_knowledge_markdown,
+    resolve_postprocess_models,
     scope_source_context,
     validate_polish_response,
     validate_references,
@@ -140,6 +141,50 @@ class PostprocessTests(unittest.TestCase):
                 {"segments": [{"id": "seg", "speaker": "spk_0", "start_ms": 101, "end_ms": 200, "polished_text": "原始内容。", "uncertain_terms": [], "change_notes": []}]},
                 default_glossary_rules(),
             )
+
+    def test_model_selection_falls_back_when_preferred_tag_is_missing(self) -> None:
+        config = {
+            "postprocess": {
+                "provider": "selection",
+                "preferred_model_id": "gemma-e4b-iq4xs",
+                "fallback_model": "qwen3:4b",
+                "quality_model": "qwen3.5:9b-q4_K_M",
+            }
+        }
+        tags = {"ready": True, "models": [{"name": "qwen3:4b", "digest": "sha256:qwen"}]}
+        fast = resolve_postprocess_models("fast", config=config, ollama_info=tags)
+        balanced = resolve_postprocess_models("balanced", config=config, ollama_info=tags)
+        quality = resolve_postprocess_models("quality", config=config, ollama_info=tags)
+        self.assertEqual(fast["selected_4b"], "qwen3:4b")
+        self.assertEqual(fast["summary_models"], ["qwen3:4b"])
+        self.assertEqual(balanced["summary_models"], ["qwen3:4b"])
+        self.assertEqual(quality["summary_models"], ["qwen3:4b"])
+
+    def test_model_selection_uses_configured_4b_and_quality_only_when_explicit(self) -> None:
+        config = {
+            "postprocess": {
+                "provider": "selection",
+                "preferred_model_id": "gemma-e4b-iq4xs",
+                "fallback_model": "qwen3:4b",
+                "quality_model": "qwen3.5:9b-q4_K_M",
+            }
+        }
+        tags = {
+            "ready": True,
+            "models": [
+                {"name": "gemma-e4b-iq4xs", "digest": "sha256:gemma"},
+                {"name": "qwen3.5:9b-q4_K_M", "digest": "sha256:9b"},
+            ],
+        }
+        fast = resolve_postprocess_models("fast", config=config, ollama_info=tags)
+        quality = resolve_postprocess_models("quality", config=config, ollama_info=tags)
+        self.assertEqual(fast["polish_models"], ["gemma-e4b-iq4xs"])
+        self.assertEqual(fast["summary_models"], ["gemma-e4b-iq4xs"])
+        self.assertEqual(quality["summary_models"], ["qwen3.5:9b-q4_K_M", "gemma-e4b-iq4xs"])
+
+    def test_llama_cpp_provider_is_explicitly_unsupported(self) -> None:
+        with self.assertRaises(NotImplementedError):
+            resolve_postprocess_models("fast", config={"postprocess": {"provider": "llama.cpp"}})
 
     def test_polish_validator_preserves_numbers_and_protected_terms(self) -> None:
         source = [Segment("seg_00000", "NextEcho 在 2026 年发布。", 0, 1000)]
