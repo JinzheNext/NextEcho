@@ -11,6 +11,9 @@ Important components referenced by this repository include:
 - yt-dlp
 - FFmpeg
 - pyannote.audio
+- sherpa-onnx (optional local diarization runtime)
+- Resemblyzer (optional local speaker embedding runtime)
+- 3D-Speaker ERes2Net ONNX model (optional local model artifact)
 - numpy
 - scikit-learn
 - Python runtime
@@ -22,7 +25,7 @@ Third-party license details and release notes are maintained in:
 
 Trademark notice:
 
-- YouTube, Bilibili, Xiaoyuzhou, Hugging Face, Python, FFmpeg, Whisper, Electron, Tauri, and PyInstaller are trademarks or product names of their respective owners.
+- YouTube, Bilibili, Xiaoyuzhou, Hugging Face, ModelScope, Python, FFmpeg, Whisper, Pyannote, sherpa-onnx, 3D-Speaker, Electron, Tauri, and PyInstaller are trademarks or product names of their respective owners.
 - Reference to those names in this repository is descriptive only and does not imply endorsement, partnership, or affiliation.
 
 Distribution notice:

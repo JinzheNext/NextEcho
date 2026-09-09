@@ -449,6 +449,23 @@ pip install -r requirements-speakers-embedding.txt
 
 它会自动优先于轻量聚类使用，模型在本机 CPU 上运行；仍然建议用 `speaker_map.json` 人工核对姓名，尤其是节目本身已经混音成单声道时。
 
+### 无 Token 的 sherpa-onnx / 3D-Speaker 实验后端
+
+Apple Silicon 和常见桌面平台可安装固定版本的 sherpa-onnx：
+
+```bash
+pip install -r requirements-speakers-sherpa.txt
+```
+
+它需要两份本地 ONNX 文件，默认位置为：
+
+```text
+models/speaker-diarization/segmentation.onnx
+models/speaker-diarization/embedding.onnx
+```
+
+前者使用 sherpa-onnx 发布的 Pyannote segmentation 3.0 转换模型，后者使用中文 3D-Speaker ERes2Net。模型不会提交到 Git，也不会自动打包进安装器。可用 `doctor` 核对实际后端和模型状态。这个后端仍是实验候选；在私有金标完成前，不能仅依据社区 benchmark 把它设为生产默认。
+
 ### 使用命令
 
 #### 1. 直接从音频生成访谈逐字稿
@@ -466,10 +483,14 @@ python -m workbench.cli speaker-transcript /path/to/run_xxx
 
 程序会输出：
 
+- `diarization.raw.json`
+- `diarization.raw.rttm`
 - `transcript.speakers.json`
 - `transcript.speakers.txt`
 - `transcript.speakers.md`
 - `speaker_map.json`
+
+`diarization.raw.*` 只保存匿名声学分段，文本自我介绍、shownotes 和人工更名不会改写它。姓名与置信度保存在 `transcript.speakers.json` 的身份映射层；证据不足时显示 `unknown`。
 
 ## 产物会输出到哪里
 

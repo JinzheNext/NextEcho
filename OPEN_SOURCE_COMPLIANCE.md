@@ -20,7 +20,7 @@ The project is a local-first transcription workbench that:
 - runs transcription locally with `whisper-cli`
 - uses `ffmpeg` for media normalization and extraction
 - optionally uses `yt-dlp` for page resolution and media download
-- optionally uses `pyannote.audio` or a local clustering fallback for speaker attribution
+- optionally uses `pyannote.audio`, sherpa-onnx, Resemblyzer, or a local clustering fallback for speaker attribution
 
 The current macOS app wrapper does not bundle a full standalone runtime. It launches the existing local project environment and system tools.
 
@@ -83,6 +83,7 @@ Project policy:
 
 - If model files are redistributed inside a release package, document their origin and applicable license in `THIRD_PARTY_LICENSES.md`.
 - If pyannote community models are used or bundled, preserve the model card attribution requirements.
+- Do not bundle the sherpa/Pyannote segmentation or 3D-Speaker ONNX weights until the exact model-card and redistribution terms have been recorded. Local user downloads and release redistribution are separate decisions.
 
 ### 6. Data and Regional Compliance Policy
 
