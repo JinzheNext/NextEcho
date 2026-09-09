@@ -435,6 +435,28 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertTrue(aligned[1].text.startswith("呃大家好我是李继刚"))
         self.assertEqual(aligned[1].speaker, "李继刚")
 
+    def test_two_person_host_is_resolved_only_after_guest_self_introduction(self) -> None:
+        segments = [
+            TranscriptSegment(0.0, 2.0, "欢迎来到节目。", "seg_host"),
+            TranscriptSegment(2.0, 4.0, "大家好，我是李继刚。", "seg_guest"),
+        ]
+        turns = [DiarizationTurn("SPEAKER_00", 0.0, 2.0), DiarizationTurn("SPEAKER_01", 2.0, 4.0)]
+        identities = DefaultSpeakerIdentityResolver().resolve(
+            turns,
+            segments,
+            context={
+                "speaker_candidates": [
+                    {"name": "孟岩", "role": "host", "source": "podcast.author"},
+                    {"name": "李继刚", "role": "guest", "source": "shownotes"},
+                ]
+            },
+        )
+        by_label = identities.by_raw_label()
+        self.assertEqual(by_label["SPEAKER_01"].display_name, "李继刚")
+        self.assertEqual(by_label["SPEAKER_00"].display_name, "孟岩")
+        self.assertEqual(by_label["SPEAKER_00"].identity_status, "resolved")
+        self.assertEqual(by_label["SPEAKER_00"].identity_evidence[0].type, "metadata_elimination")
+
     def test_raw_diarization_artifacts_are_immutable_and_rttm_is_anonymous(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

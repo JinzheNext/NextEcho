@@ -209,6 +209,37 @@ class DefaultSpeakerIdentityResolver:
             )
             # Keep the profile's name in a private detail for the reducer.
 
+        # In a two-person episode, an explicit guest self-introduction plus an
+        # explicit host role is stronger than metadata alone.  Resolve the one
+        # remaining cluster only when every side of that one-to-one relation is
+        # unique; ordinary shownotes name lists still remain hints.
+        records = _candidate_records(context or {})
+        host_records = [item for item in records if item["role"] == "host"]
+        confident_names_by_label: dict[str, str] = {}
+        for label, evidences in evidence_by_label.items():
+            name, confidence, status = _reduce_evidence(evidences, self.minimum_confidence)
+            if status == "resolved" and confidence >= self.minimum_confidence:
+                confident_names_by_label[label] = name
+        unresolved_labels = [label for label in labels if label not in confident_names_by_label]
+        resolved_names = set(confident_names_by_label.values())
+        remaining_hosts = [item for item in host_records if item["name"] not in resolved_names]
+        if len(labels) == 2 and len(records) == 2 and len(unresolved_labels) == 1 and len(remaining_hosts) == 1:
+            label = unresolved_labels[0]
+            host = remaining_hosts[0]
+            evidence_by_label[label].append(
+                IdentityEvidence(
+                    type="metadata_elimination",
+                    source=f"{host['source']}+resolved_guest_cluster",
+                    raw_speaker_label=label,
+                    confidence=0.95,
+                    details={
+                        "name": host["name"],
+                        "role": "host",
+                        "condition": "exactly_two_clusters_and_candidates_with_other_cluster_resolved",
+                    },
+                )
+            )
+
         identities: list[SpeakerIdentity] = []
         for index, label in enumerate(labels):
             evidences = evidence_by_label.get(label, [])
@@ -294,6 +325,27 @@ def _ordered_labels(turns: Sequence[DiarizationTurn]) -> list[str]:
 
 def _candidate_names(context: dict[str, Any]) -> list[str]:
     return [name for name, _ in _candidate_items(context)]
+
+
+def _candidate_records(context: dict[str, Any]) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    candidates = context.get("speaker_candidates") or []
+    if isinstance(candidates, dict):
+        candidates = list(candidates.values())
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        records.append(
+            {
+                "name": name,
+                "role": str(item.get("role") or "").strip().lower(),
+                "source": str(item.get("source") or item.get("role") or "context").strip(),
+            }
+        )
+    return records
 
 
 def _candidate_items(context: dict[str, Any]) -> list[tuple[str, str]]:
