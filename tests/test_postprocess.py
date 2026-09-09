@@ -25,6 +25,7 @@ from workbench.postprocess import (
     render_knowledge_markdown,
     resolve_postprocess_models,
     scope_source_context,
+    sanitize_summary_references,
     validate_polish_response,
     validate_references,
 )
@@ -135,6 +136,22 @@ class PostprocessTests(unittest.TestCase):
                 known_context_refs=refs,
                 context_ref_types=types,
             )
+
+    def test_invalid_summary_claim_is_dropped_without_losing_valid_claims(self) -> None:
+        cleaned, dropped = sanitize_summary_references(
+            {
+                "title": "测试",
+                "key_points": [
+                    {"text": "合法", "segment_ids": ["seg_0"]},
+                    {"text": "越界", "segment_ids": ["seg_999"]},
+                ],
+                "notable_quotes": [],
+            },
+            {"seg_0"},
+        )
+        self.assertEqual(dropped, 1)
+        self.assertEqual(cleaned["title"], "测试")
+        self.assertEqual(cleaned["key_points"], [{"text": "合法", "segment_ids": ["seg_0"]}])
 
     def test_chinese_keyword_fallback_avoids_garbage_bigrams(self) -> None:
         keywords = context_keywords(

@@ -910,6 +910,13 @@ def summarize_segments(
                 temperature=0.1,
                 keep_alive_seconds=keep_alive_seconds,
             )
+            response, dropped = sanitize_summary_references(
+                response,
+                {item.id for item in chunk},
+                known_context_refs=known_context_refs,
+                context_ref_types=context_ref_types,
+                top_level_segment_ids=[item.id for item in chunk],
+            )
             local = validate_references(
                 response,
                 {item.id for item in chunk},
@@ -917,6 +924,9 @@ def summarize_segments(
                 context_ref_types=context_ref_types,
                 segments=chunk,
             )
+            if dropped:
+                audit.setdefault("dropped_invalid_claims", 0)
+                audit["dropped_invalid_claims"] += dropped
             audit["actual_models"].append(model)
             used_model = model
             audit["fallbacks"].extend(fallbacks)
@@ -959,6 +969,12 @@ def summarize_segments(
             temperature=0.1,
             keep_alive_seconds=keep_alive_seconds,
         )
+        response, dropped = sanitize_summary_references(
+            response,
+            known_ids,
+            known_context_refs=known_context_refs,
+            context_ref_types=context_ref_types,
+        )
         result = validate_references(
             response,
             known_ids,
@@ -966,6 +982,9 @@ def summarize_segments(
             context_ref_types=context_ref_types,
             segments=segments,
         )
+        if dropped:
+            audit.setdefault("dropped_invalid_claims", 0)
+            audit["dropped_invalid_claims"] += dropped
         audit["actual_models"].append(model)
         audit["fallbacks"].extend(fallbacks)
     except Exception as exc:
@@ -1237,6 +1256,54 @@ def validate_references(
 
     validate_object(payload)
     return payload
+
+
+def sanitize_summary_references(
+    payload: dict[str, Any],
+    known_ids: set[str],
+    *,
+    known_context_refs: set[str] | None = None,
+    context_ref_types: dict[str, str] | None = None,
+    top_level_segment_ids: list[str] | None = None,
+) -> tuple[dict[str, Any], int]:
+    """Drop only claims with invalid evidence instead of losing a whole summary."""
+
+    if not isinstance(payload, dict):
+        return {}, 1
+    cleaned = json.loads(json.dumps(payload, ensure_ascii=False))
+    if top_level_segment_ids is not None:
+        cleaned["segment_ids"] = [item for item in top_level_segment_ids if item in known_ids]
+    elif isinstance(cleaned.get("segment_ids"), list):
+        valid_top = [str(item) for item in cleaned["segment_ids"] if str(item) in known_ids]
+        if valid_top:
+            cleaned["segment_ids"] = valid_top
+        else:
+            cleaned.pop("segment_ids", None)
+
+    dropped = 0
+    claim_keys = ("key_points", "chapters", "people_organizations_tools", "action_items", "open_questions", "notable_quotes")
+    for key in claim_keys:
+        rows = cleaned.get(key)
+        if not isinstance(rows, list):
+            continue
+        accepted: list[dict[str, Any]] = []
+        for item in rows:
+            if not isinstance(item, dict):
+                dropped += 1
+                continue
+            try:
+                validate_references(
+                    item,
+                    known_ids,
+                    known_context_refs=known_context_refs,
+                    context_ref_types=context_ref_types,
+                )
+            except ValueError:
+                dropped += 1
+                continue
+            accepted.append(item)
+        cleaned[key] = accepted
+    return cleaned, dropped
 
 
 def _validate_time_range(value: Any, segment_ids: Any, segment_index: dict[str, Segment]) -> None:
