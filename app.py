@@ -45,6 +45,7 @@ from werkzeug.utils import secure_filename
 
 from workbench.transcription import DEFAULT_MODEL_NAME, transcribe_media_sources
 from workbench.task_coordinator import HeavyTaskCoordinator, HeavyTaskLease
+from workbench.speaker_profiles import SpeakerProfileError, enroll_speaker, list_profiles, remove_profile
 
 ROOT = Path(__file__).resolve().parent
 RUNS_ROOT = ROOT / "outputs" / "transcriptions"
@@ -2011,8 +2012,7 @@ def _read_speaker_profiles() -> list[dict]:
 
 
 def _public_speaker_profile(profile: dict) -> dict:
-    # Embeddings are deliberately never persisted by this API and are also
-    # stripped if an older local file happens to contain one.
+    # Embeddings stay in the private local store and are never returned by the API.
     return {
         "person_id": str(profile.get("person_id") or ""),
         "display_name": str(profile.get("display_name") or ""),
@@ -2039,22 +2039,24 @@ def _write_speaker_profiles(profiles: list[dict]) -> None:
 
 @app.get("/api/speaker-profiles")
 def list_speaker_profiles():
-    with JOBS_LOCK:
-        rows = [_public_speaker_profile(item) for item in _read_speaker_profiles()]
+    try:
+        rows = [_public_speaker_profile(item) for item in list_profiles(load_config())]
+    except SpeakerProfileError as exc:
+        return jsonify({"error": str(exc)}), 500
     return jsonify({"profiles": rows, "storage": "local-only"})
 
 
 @app.post("/api/speaker-profiles")
 def create_speaker_profile():
-    payload = request.get_json(silent=True) if request.is_json else request.form
+    payload = request.get_json(silent=True) if request.is_json else request.form.to_dict(flat=True)
     payload = payload if isinstance(payload, dict) else {}
     display_name = str(payload.get("display_name") or payload.get("name") or "").strip()
     if not display_name or len(display_name) > 120:
         return jsonify({"error": "display_name is required and must be at most 120 characters"}), 400
-    raw_id = str(payload.get("person_id") or "").strip()
-    person_id = secure_filename(raw_id).replace("-", "_") if raw_id else ""
-    if not person_id:
-        person_id = "person_" + uuid4().hex[:12]
+    consent_value = payload.get("consent", False)
+    consent_granted = consent_value is True or str(consent_value).strip().lower() in {"1", "true", "yes"}
+    if not consent_granted:
+        return jsonify({"error": "explicit consent is required before storing a speaker embedding"}), 400
     sample_paths = payload.get("sample_paths") or payload.get("samples") or []
     if isinstance(sample_paths, str):
         sample_paths = [sample_paths]
@@ -2065,43 +2067,40 @@ def create_speaker_profile():
         path_value = str(raw_path or "").strip()
         if not path_value or path_value.startswith(("http://", "https://")):
             return jsonify({"error": "speaker samples must be local file paths"}), 400
-        normalized_paths.append(str(Path(path_value).expanduser().resolve()))
+        resolved = Path(path_value).expanduser().resolve()
+        if not resolved.is_file() or resolved.stat().st_size <= 0:
+            return jsonify({"error": f"speaker sample not found or empty: {resolved}"}), 400
+        normalized_paths.append(str(resolved))
     try:
         threshold = float(payload.get("threshold", 0.78))
     except (TypeError, ValueError):
         return jsonify({"error": "threshold must be a number between 0 and 1"}), 400
     if not 0 <= threshold <= 1:
         return jsonify({"error": "threshold must be a number between 0 and 1"}), 400
-    profile = {
-        "person_id": person_id,
-        "display_name": display_name,
-        "sample_paths": normalized_paths,
-        "embedding_model": str(payload.get("embedding_model") or ""),
-        "embedding_digest": str(payload.get("embedding_digest") or ""),
-        "threshold": threshold,
-        "consent": bool(payload.get("consent", False)),
-        "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-    }
-    with JOBS_LOCK:
-        profiles = _read_speaker_profiles()
-        if any(str(item.get("person_id") or "") == person_id for item in profiles):
-            return jsonify({"error": "person_id already exists"}), 409
-        profiles.append(profile)
-        _write_speaker_profiles(profiles)
+    try:
+        profile = enroll_speaker(
+            display_name,
+            normalized_paths,
+            consent=True,
+            backend=str(payload.get("backend") or "auto"),
+            config=load_config(),
+            threshold=threshold,
+        )
+    except (SpeakerProfileError, FileNotFoundError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
     return jsonify({"profile": _public_speaker_profile(profile), "storage": "local-only"}), 201
 
 
 @app.delete("/api/speaker-profiles/<person_id>")
 def delete_speaker_profile(person_id: str):
     target = secure_filename(str(person_id)).replace("-", "_")
-    with JOBS_LOCK:
-        profiles = _read_speaker_profiles()
-        kept = [item for item in profiles if str(item.get("person_id") or "") != target]
-        if len(kept) == len(profiles):
-            return jsonify({"error": "speaker profile not found"}), 404
-        _write_speaker_profiles(kept)
-    # Enrollment audio is user-owned and is intentionally not deleted by this
-    # metadata operation; callers can remove it explicitly if desired.
+    try:
+        remove_profile(target, config=load_config())
+    except FileNotFoundError:
+        return jsonify({"error": "speaker profile not found"}), 404
+    except SpeakerProfileError as exc:
+        return jsonify({"error": str(exc)}), 400
+    # User-owned enrollment audio is retained; the derived embedding is deleted.
     return jsonify({"deleted": target, "storage": "local-only"})
 
 

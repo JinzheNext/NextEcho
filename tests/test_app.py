@@ -90,6 +90,42 @@ class AppTests(unittest.TestCase):
         response = self.client.post("/api/models/download", json={"kind": "remote-model"})
         self.assertEqual(response.status_code, 400)
 
+    def test_speaker_enrollment_api_requires_consent_and_real_samples(self) -> None:
+        response = self.client.post(
+            "/api/speaker-profiles",
+            json={"display_name": "孟岩", "sample_paths": ["/tmp/missing.wav"], "consent": False},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("consent", response.get_json()["error"])
+
+        response = self.client.post(
+            "/api/speaker-profiles",
+            json={"display_name": "孟岩", "sample_paths": ["/tmp/missing.wav"], "consent": True},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not found", response.get_json()["error"])
+
+    def test_speaker_enrollment_api_uses_shared_private_profile_store(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sample = Path(tmp_dir) / "sample.wav"
+            sample.write_bytes(b"sample")
+            profile = {
+                "person_id": "person_test",
+                "display_name": "测试说话人",
+                "sample_paths": [str(sample)],
+                "embedding_model": "resemblyzer/VoiceEncoder",
+                "embedding_digest": "digest",
+                "threshold": 0.78,
+                "consent": True,
+            }
+            with patch("app.enroll_speaker", return_value=profile) as enroll:
+                response = self.client.post(
+                    "/api/speaker-profiles",
+                    json={"display_name": "测试说话人", "sample_paths": [str(sample)], "consent": True},
+                )
+            self.assertEqual(response.status_code, 201)
+            self.assertTrue(enroll.called)
+
     def test_reconcile_transcription_job_auto_completes_from_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
