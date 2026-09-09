@@ -18,6 +18,7 @@ from workbench.postprocess import (
     context_keywords,
     context_reference_inventory,
     merge_dialogue_segments,
+    polish_segments,
     process_transcript_artifacts,
     render_dialogue_line,
     render_knowledge_markdown,
@@ -47,6 +48,35 @@ class PostprocessTests(unittest.TestCase):
     def test_removes_fillers_and_keeps_dialogue_speaker(self) -> None:
         self.assertEqual(strip_filler_words("嗯嗯大家好呃，哈"), "大家好，")
         self.assertEqual(render_dialogue_line(Segment("seg", "嗯大家好。", 0, 1000, "孟岩")), "孟岩：大家好。")
+
+    def test_polish_does_not_send_empty_filler_segments_to_model(self) -> None:
+        response = {
+            "segments": [
+                {
+                    "id": "seg_text",
+                    "polished_text": "大家好。",
+                    "uncertain_terms": [],
+                    "change_notes": [],
+                }
+            ]
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "workbench.postprocess.call_json", return_value=(response, "qwen3:4b", [])
+        ) as call:
+            polished, audit = polish_segments(
+                [Segment("seg_filler", "嗯嗯嗯", 0, 1000, "unknown"), Segment("seg_text", "大家好。", 1000, 2000, "Speaker 1")],
+                rules=default_glossary_rules(""),
+                models=["qwen3:4b"],
+                profile="fast",
+                style="",
+                endpoint="http://127.0.0.1:11434",
+                checkpoint_dir=Path(temp_dir),
+            )
+        sent = json.loads(call.call_args.kwargs["user"].split("\n", 1)[1])
+        self.assertEqual([item["id"] for item in sent["segments"]], ["seg_text"])
+        self.assertEqual([item.id for item in polished], ["seg_filler", "seg_text"])
+        self.assertEqual(polished[0].text, "")
+        self.assertEqual(audit["status"], "ready")
 
     def test_merges_same_speaker_segments_for_readable_dialogue(self) -> None:
         merged = merge_dialogue_segments(

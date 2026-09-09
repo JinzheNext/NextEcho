@@ -447,7 +447,7 @@ def process_transcript_artifacts(
             "tags_digest": str(ollama_info.get("tags_digest") or _value_signature(ollama_info.get("model_metadata") or ollama_info.get("models") or [])),
             "models": ollama_info.get("models") or [],
         },
-        "status": "ready" if summary_audit["status"] == "ready" else "partial",
+        "status": "ready" if polish_audit["status"] == "ready" and summary_audit["status"] == "ready" else "partial",
         "polish": polish_audit,
         "summary": summary_audit,
         "coverage": coverage.to_dict(),
@@ -695,6 +695,24 @@ def polish_segments(
         after_start = _chunk_start_index(chunks, index) + len(chunk)
         after = normalized[after_start : after_start + 1]
         used_model = ""
+        model_chunk = [item for item in chunk if item.text]
+        if not model_chunk:
+            output.extend(chunk)
+            checkpoint.write_text(
+                json.dumps(
+                    {
+                        "model": "deterministic",
+                        "input_signature": chunk_signature,
+                        "context_signature": context_signature,
+                        "chunk_ids": [item.id for item in chunk],
+                        "segments": [segment_to_dict(item) for item in chunk],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            continue
         payload = {
             "segments": [
                 {
@@ -704,7 +722,7 @@ def polish_segments(
                     "end_ms": item.end_ms,
                     "text": item.text,
                 }
-                for item in chunk
+                for item in model_chunk
             ],
             "context_before": [
                 {**segment_to_dict(item), "read_only": True} for item in before
@@ -734,7 +752,9 @@ def polish_segments(
                         temperature=0,
                         keep_alive_seconds=keep_alive_seconds,
                     )
-                    polished = validate_polish_response(chunk, response, rules)
+                    model_polished = validate_polish_response(model_chunk, response, rules)
+                    polished_by_id = {item.id: item for item in model_polished}
+                    polished = [polished_by_id.get(item.id, item) for item in chunk]
                     audit["actual_models"].append(model)
                     used_model = model
                     audit["fallbacks"].extend(fallbacks)
@@ -1045,8 +1065,11 @@ def validate_polish_response(source: list[Segment], payload: dict[str, Any], rul
     if len(row_ids) != len(set(row_ids)):
         raise ValueError("LLM response contains duplicate segment IDs")
     by_id = {str(item.get("id")): item for item in rows}
-    if set(by_id) != {item.id for item in source}:
-        raise ValueError("LLM response segment IDs do not match input")
+    expected_ids = {item.id for item in source}
+    if set(by_id) != expected_ids:
+        missing = sorted(expected_ids - set(by_id))
+        unexpected = sorted(set(by_id) - expected_ids)
+        raise ValueError(f"LLM response segment IDs do not match input (missing={missing}, unexpected={unexpected})")
     output: list[Segment] = []
     for original in source:
         row = by_id[original.id]
