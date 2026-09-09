@@ -505,6 +505,7 @@ def cmd_download_model(args: argparse.Namespace) -> int:
 
 
 def cmd_enhance(args: argparse.Namespace) -> int:
+    config = config_for_args(args)
     run_dir = Path(args.run_dir).expanduser().resolve()
     item_dirs = [run_dir] if (run_dir / "transcript.json").exists() else sorted((run_dir / "items").glob("*"))
     processed_dirs: list[Path] = []
@@ -518,6 +519,7 @@ def cmd_enhance(args: argparse.Namespace) -> int:
                 profile=args.profile,
                 user_glossary_text=load_glossary_text(args.glossary) if args.glossary else "",
                 style=args.ai_style or "",
+                config=config,
             )
         )
         processed_dirs.append(item_dir)

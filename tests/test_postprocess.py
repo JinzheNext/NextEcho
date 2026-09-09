@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 
+from workbench.cli import cmd_enhance
 from workbench.enhancement import default_glossary_rules, strip_filler_words
 from workbench.postprocess import (
     POLISH_MAX_CHARS,
@@ -185,6 +187,27 @@ class PostprocessTests(unittest.TestCase):
     def test_llama_cpp_provider_is_explicitly_unsupported(self) -> None:
         with self.assertRaises(NotImplementedError):
             resolve_postprocess_models("fast", config={"postprocess": {"provider": "llama.cpp"}})
+
+    def test_cli_enhance_passes_config_to_postprocess(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "transcript.json").write_text("{}", encoding="utf-8")
+            config = object()
+            args = Namespace(
+                run_dir=root,
+                profile="fast",
+                glossary=None,
+                ai_style="",
+                json=True,
+                config_path="/tmp/nextecho-test.toml",
+            )
+            with patch("workbench.cli.config_for_args", return_value=config) as config_for_args, patch(
+                "workbench.cli.process_transcript_artifacts", return_value={"status": "ready", "paths": {}}
+            ) as process:
+                cmd_enhance(args)
+
+            config_for_args.assert_called_once_with(args)
+            self.assertIs(process.call_args.kwargs["config"], config)
 
     def test_polish_validator_preserves_numbers_and_protected_terms(self) -> None:
         source = [Segment("seg_00000", "NextEcho 在 2026 年发布。", 0, 1000)]
