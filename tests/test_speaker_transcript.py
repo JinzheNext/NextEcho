@@ -10,6 +10,7 @@ from workbench.speaker_transcript import (
     AudioWindow,
     DiarizationTurn,
     TranscriptSegment,
+    TranscriptWord,
     SpeakerTextTurn,
     align_segments_to_speakers,
     build_audio_windows,
@@ -18,6 +19,13 @@ from workbench.speaker_transcript import (
     apply_context_speaker_names,
     render_speaker_text,
 )
+from workbench.diarization import (
+    DiarizationResult,
+    SegmentClusteringBackend,
+    render_rttm,
+    write_raw_diarization_outputs,
+)
+from workbench.speaker_identity import DefaultSpeakerIdentityResolver
 
 
 class SpeakerTranscriptTests(unittest.TestCase):
@@ -171,6 +179,80 @@ class SpeakerTranscriptTests(unittest.TestCase):
         )
         self.assertEqual(unassigned, [])
         self.assertEqual([turn.speaker for turn in turns], ["孟岩", "李继刚"])
+
+    def test_complete_mengyan_lijigang_rounds_do_not_leak_text_anchor(self) -> None:
+        candidates = {"speaker_candidates": [{"name": "孟岩"}, {"name": "李继刚"}]}
+        segments = [
+            TranscriptSegment(0.0, 2.0, "大家好，我是李继刚。", "seg_00001"),
+            TranscriptSegment(2.0, 4.0, "孟岩先聊聊背景。", "seg_00002"),
+            TranscriptSegment(4.0, 6.0, "李继刚我补充一点。", "seg_00003"),
+            TranscriptSegment(6.0, 8.0, "孟岩再回应一下。", "seg_00004"),
+            TranscriptSegment(8.0, 10.0, "我是李继刚，最后总结。", "seg_00005"),
+        ]
+        diarization = [
+            DiarizationTurn("Speaker 1", 0.0, 2.0, confidence=0.9),
+            DiarizationTurn("Speaker 2", 2.0, 4.0, confidence=0.9),
+            DiarizationTurn("Speaker 1", 4.0, 6.0, confidence=0.9),
+            DiarizationTurn("Speaker 2", 6.0, 8.0, confidence=0.9),
+            DiarizationTurn("Speaker 1", 8.0, 10.0, confidence=0.9),
+        ]
+        aligned, unassigned = align_segments_to_speakers(segments, diarization, 0.0, context=candidates)
+        self.assertEqual(unassigned, [])
+        self.assertEqual([turn.raw_speaker for turn in aligned], ["Speaker 1", "Speaker 2", "Speaker 1", "Speaker 2", "Speaker 1"])
+        # The compatibility aligner only applies an anchor to its own text;
+        # later turns retain the acoustic cluster until identity resolution.
+        self.assertEqual(aligned[2].speaker, "Speaker 1")
+        self.assertEqual(aligned[3].speaker, "Speaker 2")
+
+        identities = DefaultSpeakerIdentityResolver().resolve(diarization, segments, context=candidates)
+        by_label = identities.by_raw_label()
+        self.assertEqual(by_label["Speaker 1"].display_name, "李继刚")
+        self.assertEqual(by_label["Speaker 1"].identity_status, "resolved")
+        self.assertEqual(by_label["Speaker 2"].display_name, "unknown")
+        self.assertEqual(by_label["Speaker 2"].identity_status, "unknown")
+
+    def test_word_alignment_splits_one_asr_segment_at_speaker_switch(self) -> None:
+        segment = TranscriptSegment(
+            0.0,
+            4.0,
+            "甲乙丙丁。",
+            "seg_switch",
+            words=[
+                TranscriptWord("甲乙", 0.0, 1.0),
+                TranscriptWord("丙丁", 2.1, 3.0),
+                TranscriptWord("。", 3.0, 3.2),
+            ],
+        )
+        aligned, unassigned = align_segments_to_speakers(
+            [segment],
+            [DiarizationTurn("SPEAKER_00", 0.0, 2.0), DiarizationTurn("SPEAKER_01", 2.0, 4.0)],
+            0.0,
+        )
+        self.assertEqual(unassigned, [])
+        self.assertEqual([(item.speaker, item.text) for item in aligned], [("SPEAKER_00", "甲乙"), ("SPEAKER_01", "丙丁。")])
+        self.assertLess(aligned[0].end, aligned[1].start)
+
+    def test_raw_diarization_artifacts_are_immutable_and_rttm_is_anonymous(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            result = DiarizationResult(
+                backend="resemblyzer",
+                model="resemblyzer/VoiceEncoder",
+                turns=[DiarizationTurn("孟岩", 1.0, 2.5, confidence=0.4)],
+            )
+            json_path, rttm_path = write_raw_diarization_outputs(root, result, file_id="episode")
+            first_json = json_path.read_text(encoding="utf-8")
+            self.assertEqual(json.loads(first_json)["turns"][0]["raw_speaker_label"], "孟岩")
+            self.assertIn("孟岩", rttm_path.read_text(encoding="utf-8"))
+            result.turns[0].end = 9.0
+            with self.assertRaises(FileExistsError):
+                write_raw_diarization_outputs(root, result, file_id="episode")
+            self.assertEqual(json_path.read_text(encoding="utf-8"), first_json)
+
+    def test_backend_contract_can_be_loaded_without_optional_runtime(self) -> None:
+        backend = SegmentClusteringBackend()
+        self.assertEqual(backend.name, "segment-clustering")
+        self.assertIn("SPEAKER", render_rttm(DiarizationResult("fallback", [DiarizationTurn("SPEAKER_00", 0, 1)])))
 
 
 if __name__ == "__main__":
