@@ -15,6 +15,7 @@ from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
 
 from .asr import TranscriptResult, choose_asr_engine, qwen_model_for_quality, transcribe_qwen_mlx
+from .config import NextEchoConfig, load_config
 from .episode_context import crawl_episode_context
 from .enhancement import enhance_transcript_artifacts
 from .sources import SourceDescriptor, build_ytdlp_command, detect_platform, resolve_sources
@@ -88,28 +89,36 @@ def transcribe_media_sources(
     asr_model: str = "",
     postprocess_profile: str = "off",
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    config: NextEchoConfig | None = None,
 ) -> dict[str, Any]:
     started_at = now_iso()
     started_monotonic = time.monotonic()
+    config_obj = config or load_config()
     descriptors = _coerce_descriptors(sources)
     output_dir.mkdir(parents=True, exist_ok=True)
     items_dir = output_dir / "items"
     items_dir.mkdir(parents=True, exist_ok=True)
-    auto_qwen_model = asr_model or qwen_model_for_quality("fast" if model_name == "base" else "accurate")
-    selected_asr_engine = choose_asr_engine(asr_engine, model=auto_qwen_model)
+    auto_qwen_model = asr_model or qwen_model_for_quality("fast" if model_name == "base" else "accurate", config_obj)
+    selected_asr_engine = choose_asr_engine(asr_engine, model=auto_qwen_model, config=config_obj)
     _emit_progress(progress_callback, stage="model", message="准备模型", progress=5)
-    model_path = resolve_whisper_model(model_name)
-    _emit_progress(progress_callback, stage="model_ready", message="模型已就绪", progress=15)
-    whisper_bin = _which_binary("whisper-cli")
+    # Whisper's model and executable are intentionally resolved only when the
+    # selected path needs them.  A successful Qwen run must not require a
+    # Whisper installation or trigger a model download.
+    model_path: Path | None = None
+    whisper_bin: str | None = None
+    if selected_asr_engine == "whisper-cpp":
+        model_path = resolve_whisper_model(model_name)
+        _emit_progress(progress_callback, stage="model_ready", message="模型已就绪", progress=15)
+        whisper_bin = _which_binary("whisper-cli")
     ffmpeg_bin = _which_binary("ffmpeg")
-    if not whisper_bin or not ffmpeg_bin:
-        missing = [name for name, value in [("whisper-cli", whisper_bin), ("ffmpeg", ffmpeg_bin)] if not value]
+    if not ffmpeg_bin or (selected_asr_engine == "whisper-cpp" and not whisper_bin):
+        missing = [name for name, value in [("ffmpeg", ffmpeg_bin), ("whisper-cli", whisper_bin)] if not value]
         raise FileNotFoundError(f"Missing local dependencies: {', '.join(missing)}")
 
     formats = dedupe_strings(output_formats or DEFAULT_OUTPUT_FORMATS)
     generated_at = now_iso()
     reported_model_name = (asr_model or auto_qwen_model) if selected_asr_engine == "qwen3-asr" else model_name
-    reported_model_path = "" if selected_asr_engine == "qwen3-asr" else str(model_path)
+    reported_model_path = "" if selected_asr_engine == "qwen3-asr" else str(model_path or "")
     run_config = {
         "started_at": started_at,
         "completed_at": "",
@@ -118,12 +127,18 @@ def transcribe_media_sources(
         "model_name": reported_model_name,
         "model_path": reported_model_path,
         "whisper_model_name": model_name,
-        "whisper_model_path": str(model_path),
+        "whisper_model_path": str(model_path or ""),
         "schema_version": 2,
         "asr": {
             "requested_engine": asr_engine,
             "selected_engine": selected_asr_engine,
             "requested_model": asr_model,
+            "candidate_model": auto_qwen_model,
+        },
+        "config": {
+            "source": config_obj.source,
+            "source_label": config_obj.source_label,
+            "source_paths": list(config_obj.source_paths),
         },
         "language": language,
         "max_seconds": max_seconds,
@@ -159,6 +174,8 @@ def transcribe_media_sources(
             asr_engine=selected_asr_engine,
             asr_model=asr_model,
             postprocess_profile=postprocess_profile,
+            config=config_obj,
+            whisper_model_name=model_name,
             index=index,
             progress_callback=progress_callback,
             base_progress=base_progress,
@@ -180,7 +197,7 @@ def transcribe_media_sources(
         "model_name": reported_model_name,
         "model_path": reported_model_path,
         "whisper_model_name": model_name,
-        "whisper_model_path": str(model_path),
+        "whisper_model_path": str(model_path or ""),
         "schema_version": 2,
         "asr": run_config["asr"],
         "language": language,
@@ -266,8 +283,8 @@ def transcribe_single_source(
     *,
     descriptor: SourceDescriptor,
     items_dir: Path,
-    model_path: Path,
-    whisper_bin: str,
+    model_path: Path | None,
+    whisper_bin: str | None,
     ffmpeg_bin: str,
     language: str,
     max_seconds: int,
@@ -283,6 +300,8 @@ def transcribe_single_source(
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     base_progress: int = 15,
     item_count: int = 1,
+    config: NextEchoConfig | None = None,
+    whisper_model_name: str = "",
 ) -> dict[str, Any]:
     source_label = descriptor.source_label or _infer_source_label(descriptor.input, index)
     item_dir = items_dir / source_label
@@ -379,11 +398,15 @@ def transcribe_single_source(
                 output_base="transcript",
                 whisper_bin=whisper_bin,
                 whisper_model_path=model_path,
-                whisper_model_name=model_path.name.removeprefix("ggml-").removesuffix(".bin"),
+                whisper_model_name=whisper_model_name or (model_path.name.removeprefix("ggml-").removesuffix(".bin") if model_path else DEFAULT_MODEL_NAME),
                 language=language,
                 output_formats=output_formats,
                 engine=asr_engine,
-                model=asr_model or qwen_model_for_quality("fast" if model_path.name == "ggml-base.bin" else "accurate"),
+                model=asr_model or qwen_model_for_quality(
+                    "fast" if (model_path and model_path.name == "ggml-base.bin") or whisper_model_name == "base" else "accurate",
+                    config,
+                ),
+                config=config,
             )
         transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
         enhancement = _empty_enhancement_payload()
@@ -595,20 +618,23 @@ def transcribe_audio_with_fallback(
     audio_path: Path,
     output_dir: Path,
     output_base: str,
-    whisper_bin: str,
-    whisper_model_path: Path,
+    whisper_bin: str | None,
+    whisper_model_path: Path | None,
     whisper_model_name: str,
     language: str,
     output_formats: list[str],
     engine: str,
     model: str,
+    config: NextEchoConfig | None = None,
 ) -> dict[str, Any]:
-    """Prefer Qwen on supported Macs, but always retain a usable Whisper path."""
+    """Prefer Qwen on supported Macs, lazily preparing Whisper on fallback."""
+    config_obj = config or load_config()
     fallbacks: list[dict[str, str]] = []
     if engine == "qwen3-asr":
         qwen_candidates = [model]
-        if model != "Qwen/Qwen3-ASR-0.6B":
-            qwen_candidates.append("Qwen/Qwen3-ASR-0.6B")
+        fast_model = qwen_model_for_quality("fast", config_obj)
+        if model != fast_model:
+            qwen_candidates.append(fast_model)
         for candidate in qwen_candidates:
             try:
                 result = transcribe_qwen_mlx(
@@ -616,6 +642,7 @@ def transcribe_audio_with_fallback(
                     item_dir=output_dir,
                     model=candidate,
                     language=language,
+                    config=config_obj,
                 )
                 write_qwen_transcript_result(result, output_dir=output_dir, output_base=output_base, output_formats=output_formats)
                 return {
@@ -625,9 +652,20 @@ def transcribe_audio_with_fallback(
                     "actual_model": result.model,
                     "version": result.version,
                     "fallbacks": fallbacks,
+                    "resources": result.resources,
                 }
             except Exception as exc:
                 fallbacks.append({"from": candidate, "to": "next", "reason": str(exc), "at": now_iso()})
+    # Do not resolve a Whisper model or executable before this point.  This is
+    # important for Qwen-only installations and prevents a hidden download or
+    # dependency failure from contaminating the successful Qwen path.
+    if not whisper_bin:
+        whisper_bin = _which_binary("whisper-cli")
+    if not whisper_bin:
+        raise FileNotFoundError("Missing local dependency: whisper-cli (required only for ASR fallback)")
+    if whisper_model_path is None:
+        whisper_name = whisper_model_name or str(config_obj.get_path("asr", "whisper_fallback", default=DEFAULT_MODEL_NAME))
+        whisper_model_path = resolve_whisper_model(whisper_name)
     try:
         transcribe_audio_file(
             audio_path=audio_path,
@@ -712,7 +750,12 @@ def write_qwen_transcript_result(
             json.dumps(
                 {
                     "schema_version": 2,
-                    "engine": {"backend": result.backend, "model": result.model, "version": result.version},
+                    "engine": {
+                        "backend": result.backend,
+                        "model": result.model,
+                        "version": result.version,
+                        **({"resources": result.resources} if result.resources else {}),
+                    },
                     "result": {"language": result.language},
                     "transcription": transcript,
                 },

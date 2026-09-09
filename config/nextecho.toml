@@ -1,0 +1,66 @@
+# NextEcho repository defaults.
+#
+# Keep user-specific paths and tokens out of this file.  A user override can be
+# placed at ~/Library/Application Support/NextEcho/config.toml (macOS),
+# $XDG_CONFIG_HOME/nextecho/config.toml (Linux), or %APPDATA%/NextEcho/config.toml
+# (Windows), or selected explicitly with NEXTECHO_CONFIG / --config.
+
+schema_version = 1
+
+[hardware]
+profile = "16gb-apple-silicon"
+profile_source = ""
+reserve_memory_gb = 3.0
+max_swap_delta_gb = 1.0
+memory_pressure_max = "warn"
+
+[asr]
+engine = "auto"
+language = "zh"
+# This is an experimental candidate until it passes the private gold set.
+accurate_model = "aufklarer/Qwen3-ASR-1.7B-MLX-5bit"
+fast_model = "Qwen/Qwen3-ASR-0.6B"
+forced_aligner = "Qwen/Qwen3-ForcedAligner-0.6B"
+whisper_fallback = "large-v3-turbo-q5_0"
+experimental_accurate_model = true
+
+[diarization]
+backend = "auto"
+default_mode = "auto"
+benchmark_candidates = ["pyannote-community-1", "sherpa-onnx", "resemblyzer"]
+fallback_order = ["pyannote-community-1", "sherpa-onnx", "resemblyzer"]
+min_speakers = 2
+max_speakers = 6
+allow_unknown = true
+use_exclusive_timeline = true
+worker_python = "3.12"
+
+[speaker_identity]
+enable_metadata_hints = true
+enable_self_introduction_hints = true
+enable_voice_enrollment = false
+minimum_confidence = 0.90
+text_anchor_scope = "cluster_mapping_only"
+
+[postprocess]
+profile = "fast"
+provider = "selection"
+selection_source = ""
+preferred_model_id = "gemma-e4b-iq4xs"
+fallback_model = "qwen3:4b"
+context_tokens = 16384
+polish_target_chars = 1800
+polish_max_chars = 4000
+keep_alive_seconds = 600
+
+[context]
+shownotes = true
+comments_top_n = 20
+enforce_transcript_coverage = true
+comments_are_evidence = false
+
+[runtime]
+heavy_task_concurrency = 1
+heartbeat_seconds = 15
+stage_checkpointing = true
+release_model_after_stage = true

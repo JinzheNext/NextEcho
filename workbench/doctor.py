@@ -6,7 +6,7 @@ import os
 import platform
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +17,14 @@ from .asr import (
     QWEN_FORCED_ALIGNER_MODEL,
     is_apple_silicon,
     qwen_forced_aligner_cached,
-    qwen_memory_safe,
+    qwen_memory_status,
     qwen_mlx_available,
     qwen_model_cached,
+    qwen_accurate_model,
+    qwen_fast_model,
+    qwen_forced_aligner_model,
 )
+from .config import NextEchoConfig, load_config
 from .postprocess import FAST_MODEL, QUALITY_MODEL, ollama_status
 from .binaries import find_binary
 from .transcription import (
@@ -34,8 +38,10 @@ from .transcription import (
 )
 
 FAST_MODEL_NAME = "base"
-REQUIRED_BINARIES = ["ffmpeg", "whisper-cli"]
-OPTIONAL_BINARIES = ["yt-dlp", "curl"]
+# ffmpeg is needed to normalize audio for either backend.  Whisper is a
+# fallback-only dependency and therefore must not make a Qwen-only setup fail.
+REQUIRED_BINARIES = ["ffmpeg"]
+OPTIONAL_BINARIES = ["whisper-cli", "yt-dlp", "curl"]
 
 
 @dataclass
@@ -70,6 +76,8 @@ class DoctorReport:
     speaker_transcript: dict[str, Any]
     local_ai: dict[str, Any]
     notes: list[str]
+    config_source: str = ""
+    config_sources: list[str] = field(default_factory=list)
 
 
 def command_path(name: str) -> str | None:
@@ -139,7 +147,44 @@ def detect_hf_token_env() -> str | None:
     return None
 
 
-def run_doctor() -> DoctorReport:
+def _speaker_candidate_rows(status: dict[str, Any], candidates: list[str]) -> list[dict[str, Any]]:
+    """Normalize legacy speaker status into the configured candidate list."""
+
+    pyannote_installed = bool(status.get("pyannote_installed"))
+    hf_token = bool(status.get("hf_token_env"))
+    resemblyzer_installed = bool(status.get("resemblyzer_installed"))
+    sherpa_installed = bool(status.get("sherpa_onnx_installed") or status.get("sherpa_installed"))
+    if not sherpa_installed:
+        sherpa_installed = package_available("sherpa_onnx")
+    rows: list[dict[str, Any]] = []
+    for candidate in candidates:
+        normalized = candidate.lower().replace("_", "-")
+        if normalized in {"pyannote", "pyannote-community-1", "pyannote-community1"}:
+            available = pyannote_installed and hf_token
+            reason = "ready" if available else "requires pyannote.audio and HF token"
+            backend = "pyannote-community-1"
+        elif normalized in {"sherpa", "sherpa-onnx", "sherpa-onnx-diarization"}:
+            available = sherpa_installed
+            reason = "ready" if available else "sherpa_onnx is not installed"
+            backend = "sherpa-onnx"
+        elif normalized in {"resemblyzer", "resemblyzer-fallback"}:
+            available = resemblyzer_installed
+            reason = "ready" if available else "resemblyzer is not installed"
+            backend = "resemblyzer"
+        else:
+            available = False
+            reason = "unknown backend"
+            backend = candidate
+        rows.append({"backend": backend, "configured_name": candidate, "available": available, "reason": reason})
+    return rows
+
+
+def run_doctor(
+    config: NextEchoConfig | None = None,
+    *,
+    config_path: str | Path | None = None,
+) -> DoctorReport:
+    config_obj = config or load_config(config_path)
     binary_checks = [
         BinaryCheck(name=name, path=command_path(name), required=True, ok=command_path(name) is not None)
         for name in REQUIRED_BINARIES
@@ -154,24 +199,69 @@ def run_doctor() -> DoctorReport:
     recommended_quality, reason = recommend_quality(memory_gb, accurate_model, fast_model)
     recommended_model, recommended_model_reason = recommend_whisper_model(memory_gb)
     speaker_backend = detect_speaker_backend_status()
+    accurate_qwen_model = qwen_accurate_model(config_obj)
+    fast_qwen_model = qwen_fast_model(config_obj)
+    forced_aligner_model = qwen_forced_aligner_model(config_obj)
+    qwen_gate = qwen_memory_status(config_obj)
+    whisper_binary = command_path("whisper-cli")
+    whisper_candidate_model = str(config_obj.get_path("asr", "whisper_fallback", default=DEFAULT_MODEL_NAME))
+    whisper_candidate_check = check_model(whisper_candidate_model)
+    qwen_candidate = {
+        "engine": "qwen3-asr",
+        "model": accurate_qwen_model,
+        "runtime_available": qwen_mlx_available(),
+        "model_cached": qwen_model_cached(accurate_qwen_model),
+        "forced_aligner": forced_aligner_model,
+        "forced_aligner_cached": qwen_forced_aligner_cached(config=config_obj),
+        "memory_gate": qwen_gate,
+    }
+    qwen_candidate["eligible"] = bool(
+        qwen_candidate["runtime_available"]
+        and qwen_candidate["model_cached"]
+        and qwen_candidate["forced_aligner_cached"]
+        and qwen_gate["safe"]
+    )
+    whisper_candidate = {
+        "engine": "whisper-cpp",
+        "model": whisper_candidate_model,
+        "binary": whisper_binary or "",
+        "binary_available": bool(whisper_binary),
+        "model_path": whisper_candidate_check.path or "",
+        "model_cached": whisper_candidate_check.ok,
+    }
+    whisper_candidate["eligible"] = bool(whisper_binary and whisper_candidate_check.ok)
+    configured_speaker_candidates = config_obj.get_path(
+        "diarization", "benchmark_candidates", default=["pyannote-community-1", "sherpa-onnx", "resemblyzer"]
+    )
+    if not isinstance(configured_speaker_candidates, list):
+        configured_speaker_candidates = []
+    speaker_candidates = _speaker_candidate_rows(speaker_backend, [str(item) for item in configured_speaker_candidates])
     local_ai = {
         "apple_silicon": is_apple_silicon(),
         "qwen_mlx_available": qwen_mlx_available(),
-        "qwen_memory_safe": qwen_memory_safe(),
-        "qwen_asr_models": {"accurate": QWEN_ACCURATE_MODEL, "fast": QWEN_FAST_MODEL},
+        "qwen_memory_safe": bool(qwen_gate["safe"]),
+        "qwen_memory": qwen_gate,
+        "qwen_asr_models": {"accurate": accurate_qwen_model, "fast": fast_qwen_model},
         "qwen_asr_model_cache": {
-            "accurate": qwen_model_cached(QWEN_ACCURATE_MODEL),
-            "fast": qwen_model_cached(QWEN_FAST_MODEL),
+            "accurate": qwen_model_cached(accurate_qwen_model),
+            "fast": qwen_model_cached(fast_qwen_model),
         },
         "qwen_forced_aligner": {
-            "model": QWEN_FORCED_ALIGNER_MODEL,
-            "cached": qwen_forced_aligner_cached(),
+            "model": forced_aligner_model,
+            "cached": qwen_forced_aligner_cached(config=config_obj),
         },
+        "asr_candidates": [qwen_candidate, whisper_candidate],
         "ollama": ollama_status(),
-        "llm_models": {"fast": FAST_MODEL, "quality": QUALITY_MODEL},
+        "llm_models": {
+            "fast": str(config_obj.get_path("postprocess", "fallback_model", default=FAST_MODEL)),
+            "quality": str(config_obj.get_path("postprocess", "preferred_model_id", default=QUALITY_MODEL)),
+        },
+        "llm_provider": str(config_obj.get_path("postprocess", "provider", default="selection")),
+        "postprocess_profile": str(config_obj.get_path("postprocess", "profile", default="fast")),
     }
     pyannote_installed = bool(speaker_backend["pyannote_installed"])
     resemblyzer_installed = bool(speaker_backend.get("resemblyzer_installed"))
+    sherpa_installed = bool(speaker_backend.get("sherpa_onnx_installed") or speaker_backend.get("sherpa_installed") or package_available("sherpa_onnx"))
     hf_token_env = speaker_backend["hf_token_env"] or detect_hf_token_env()
     fallback_backend_available = bool(speaker_backend["fallback_backend_available"])
     notes: list[str] = []
@@ -182,13 +272,15 @@ def run_doctor() -> DoctorReport:
     missing_required = [binary.name for binary in binary_checks if binary.required and not binary.ok]
     if missing_required:
         notes.append(f"缺少必需依赖：{', '.join(missing_required)}。")
-    if not pyannote_installed and not resemblyzer_installed:
+    if not whisper_candidate["eligible"]:
+        notes.append("Whisper fallback 当前不可用；只有在 Qwen 候选可用时才不会影响转录。")
+    if not pyannote_installed and not resemblyzer_installed and not sherpa_installed:
         notes.append("pyannote.audio 和本地 speaker embedding 均未安装：当前只能使用轻量聚类分离。")
-    elif resemblyzer_installed and not pyannote_installed:
+    elif (resemblyzer_installed or sherpa_installed) and not pyannote_installed:
         notes.append("已启用本地 speaker embedding；如需更高精度，可再配置 pyannote 和 HF_TOKEN。")
     if not hf_token_env:
         notes.append("未检测到 Hugging Face 访问令牌：无法启用 pyannote 高精度说话人分离。")
-    if fallback_backend_available and not hf_token_env and not resemblyzer_installed:
+    if fallback_backend_available and not hf_token_env and not resemblyzer_installed and not sherpa_installed:
         notes.append("当前会回退到本地 segment-clustering 方案；它可用，但多人访谈的准确率低于 pyannote。")
     if local_ai["apple_silicon"] and not local_ai["qwen_mlx_available"]:
         notes.append("Apple Silicon Qwen3-ASR 未安装：高精度转录会回退到 whisper.cpp。")
@@ -197,7 +289,8 @@ def run_doctor() -> DoctorReport:
     elif local_ai["apple_silicon"] and not local_ai["qwen_forced_aligner"]["cached"]:
         notes.append("Qwen3-ASR 主模型已缓存，但 ForcedAligner 未完成；需要补齐它才能生成可靠时间戳。")
     if local_ai["qwen_mlx_available"] and not local_ai["qwen_memory_safe"]:
-        notes.append("当前 Swap 超过 MLX 安全门禁；auto 暂不加载 Qwen，释放内存或重启后再试。")
+        reasons = ", ".join(qwen_gate.get("reasons") or []) or "资源不足"
+        notes.append(f"Qwen 当前未通过可用内存/压力门禁（{reasons}）；auto 暂不加载 Qwen。")
     if not local_ai["ollama"].get("ready"):
         notes.append("本机 Ollama 未就绪：知识整理与摘要不可用。")
     ok = not missing_required
@@ -217,13 +310,18 @@ def run_doctor() -> DoctorReport:
         speaker_transcript={
             "pyannote_installed": pyannote_installed,
             "resemblyzer_installed": resemblyzer_installed,
+            "sherpa_onnx_installed": sherpa_installed,
             "hf_token_env": hf_token_env or "",
             "fallback_backend_available": fallback_backend_available,
             "selected_backend": speaker_backend["selected_backend"],
             "ready": bool(speaker_backend["ready"]) and ok,
+            "candidates": speaker_candidates,
+            "configured_candidates": [str(item) for item in configured_speaker_candidates],
         },
         local_ai=local_ai,
         notes=notes,
+        config_source=config_obj.source,
+        config_sources=list(config_obj.source_paths),
     )
 
 
@@ -238,6 +336,7 @@ def print_human_report(report: DoctorReport) -> None:
     print(f"OS: {report.os} / {report.machine}")
     print(f"Python: {report.python}")
     print(f"Memory: {report.memory_gb if report.memory_gb is not None else 'unknown'} GB")
+    print(f"Config: {report.config_source or 'built-in defaults'}")
     print("\nBinaries:")
     for binary in report.binaries:
         mark = "✓" if binary.ok else "✗"
@@ -261,9 +360,22 @@ def print_human_report(report: DoctorReport) -> None:
     print(f"  fallback backend available: {report.speaker_transcript['fallback_backend_available']}")
     print(f"  selected backend: {report.speaker_transcript['selected_backend'] or 'none'}")
     print(f"  ready: {report.speaker_transcript['ready']}")
+    print("  configured candidates:")
+    for candidate in report.speaker_transcript.get("candidates", []):
+        mark = "✓" if candidate.get("available") else "✗"
+        print(f"    {mark} {candidate.get('backend')}: {candidate.get('reason')}")
     print("\nLocal AI:")
     print(f"  Apple Silicon: {report.local_ai['apple_silicon']}")
     print(f"  Qwen3-ASR MLX available: {report.local_ai['qwen_mlx_available']}")
+    for candidate in report.local_ai.get("asr_candidates", []):
+        mark = "✓" if candidate.get("eligible") else "✗"
+        print(f"  {mark} ASR candidate: {candidate.get('engine')} / {candidate.get('model')}")
+    memory = report.local_ai.get("qwen_memory") or {}
+    if memory:
+        print(
+            f"  Qwen memory gate: {memory.get('safe')} ({memory.get('available_gb', 'unknown')} GB available, "
+            f"pressure={memory.get('pressure')}, swap delta={memory.get('swap_delta_gb', 'unknown')} GB)"
+        )
     print(f"  Ollama ready: {report.local_ai['ollama'].get('ready')}")
     if report.notes:
         print("\nNotes:")
