@@ -156,6 +156,27 @@ def _config_section(config: Any | None, name: str) -> dict[str, Any]:
     return dict(section) if isinstance(section, dict) else {}
 
 
+def _config_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _config_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on", "enabled"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "disabled"}:
+            return False
+    return bool(value)
+
+
 def _normalize_backend_name(value: str) -> str:
     normalized = (value or "").strip().lower().replace("_", "-")
     return {
@@ -254,10 +275,22 @@ def build_speaker_transcript(
         intro_range[1] if intro_removed else 0.0,
         context=speaker_context,
     )
-    identity_map = DefaultSpeakerIdentityResolver().resolve(
+    voice_enrollment_evidence, voice_enrollment_status = collect_voice_enrollment_evidence(
+        voice_audio,
+        diarization_turns,
+        config=config,
+        backend_name=backend_name,
+    )
+    identity_config = _config_section(config, "speaker_identity")
+    minimum_identity_confidence = _config_float(
+        identity_config.get("minimum_confidence"),
+        0.90,
+    )
+    identity_map = DefaultSpeakerIdentityResolver(minimum_confidence=minimum_identity_confidence).resolve(
         diarization_result,
         transcript_segments,
         context=speaker_context,
+        profiles=voice_enrollment_evidence,
     )
     speaker_turns, _resolved_speaker_map = apply_identity_map_to_turns(speaker_turns, identity_map)
     speaker_map = {
@@ -266,6 +299,7 @@ def build_speaker_transcript(
         for raw_label in identity.raw_labels
     }
     speaker_name_inference = identity_inference_payload(identity_map, speaker_context)
+    speaker_name_inference["voice_enrollment"] = voice_enrollment_status
     preview_text = build_preview_text(speaker_turns, 200)
     speaker_count_detected = len(identity_map.speakers)
     fallback_used = backend_name not in {"pyannote", "pyannote-community-1"}
@@ -288,6 +322,7 @@ def build_speaker_transcript(
         "quality_note": quality_note,
         "speaker_map": speaker_map,
         "speaker_name_inference": speaker_name_inference,
+        "voice_enrollment": voice_enrollment_status,
         "speakers": [item.to_dict() for item in identity_map.speakers],
         "diarization": diarization_result.to_dict(),
         "diarization_raw": {
@@ -331,8 +366,9 @@ def resolve_speaker_workspace(
     model_name: str | None = None,
 ) -> dict[str, Path]:
     path = Path(input_path).expanduser().resolve()
+    requested_output_dir = Path(output_dir).expanduser().resolve() if output_dir is not None else None
     if path.is_file():
-        run_dir = output_dir or (Path(__file__).resolve().parent.parent / "outputs" / "transcriptions" / f"run_{now_slug()}_{uuid4().hex[:8]}")
+        run_dir = requested_output_dir or (Path(__file__).resolve().parent.parent / "outputs" / "transcriptions" / f"run_{now_slug()}_{uuid4().hex[:8]}")
         chosen_model = model_name or QUALITY_TO_MODEL.get(quality, DEFAULT_MODEL_NAME)
         payload = transcribe_media_sources(
             [str(path)],
@@ -368,20 +404,27 @@ def resolve_speaker_workspace(
         audio_path = _resolve_run_path(item_dir, result.get("audio_path"), fallback=item_dir / "转录音频.wav")
         transcript_path = _resolve_run_path(item_dir, result.get("json_path"), fallback=item_dir / "transcript.json")
         return {
-            "run_dir": path,
+            # A run directory is an input artifact when supplied here.  Keep
+            # all newly derived speaker outputs in the requested destination;
+            # the source audio/transcript/context below remain read-only.
+            "run_dir": requested_output_dir or path,
             "audio_path": audio_path,
             "transcript_json_path": transcript_path,
             "source_audio_path": _resolve_run_path(item_dir, result.get("media_path"), fallback=audio_path),
             "context_path": item_dir / "source.context.json",
         }
 
-    transcript_candidates = sorted(path.glob("transcript*.json"))
+    transcript_candidates = [
+        candidate
+        for candidate in sorted(path.glob("transcript*.json"))
+        if not candidate.name.startswith("transcript.speakers.")
+    ]
     audio_candidates = [path / "转录音频.wav", *sorted(path.glob("audio*.wav"))]
     audio_candidates = [candidate for candidate in audio_candidates if candidate.exists()]
     if not transcript_candidates or not audio_candidates:
         raise ValueError("Could not locate transcript JSON and audio WAV in the provided directory.")
     return {
-        "run_dir": path,
+        "run_dir": requested_output_dir or path,
         "audio_path": audio_candidates[0],
         "transcript_json_path": transcript_candidates[0],
         "source_audio_path": audio_candidates[0],
@@ -435,6 +478,228 @@ def enhance_voice_audio(source_audio: Path, output_audio: Path) -> Path:
 # Explicit name for new callers; ``enhance_voice_audio`` remains the public
 # compatibility entry point used by older scripts and tests.
 normalize_voice_reference_audio = enhance_voice_audio
+
+
+def collect_voice_enrollment_evidence(
+    audio_path: Path,
+    diarization_turns: list[DiarizationTurn],
+    *,
+    config: Any | None = None,
+    backend_name: str = "",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Match each anonymous cluster against explicitly enrolled profiles.
+
+    Enrollment is opt-in because it reads local biometric artifacts.  A
+    profile match is passed to the identity resolver as evidence, while raw
+    diarization labels remain unchanged.  Profiles below their own threshold
+    are deliberately omitted, leaving the cluster ``unknown``.
+    """
+
+    identity_config = _config_section(config, "speaker_identity")
+    enabled = _config_bool(identity_config.get("enable_voice_enrollment"), False)
+    status: dict[str, Any] = {
+        "enabled": enabled,
+        "backend": "resemblyzer",
+        "profile_count": 0,
+        "cluster_count": len({turn.raw_label for turn in diarization_turns if turn.raw_label}),
+        "embedded_cluster_count": 0,
+        "match_count": 0,
+        "matches": [],
+        "errors": [],
+    }
+    if not enabled:
+        status["reason"] = "disabled"
+        return [], status
+    # Enrollment matching is an identity pass over the raw clusters, not a
+    # replacement for diarization.  It therefore remains useful when the raw
+    # clusters came from pyannote or sherpa rather than Resemblyzer.
+    status["diarization_backend"] = backend_name or ""
+
+    try:
+        from .speaker_profiles import load_profile_embedding, load_profiles
+    except ImportError as exc:
+        raise RuntimeError("voice enrollment is enabled but local speaker profile support is unavailable") from exc
+
+    profiles_path = identity_config.get("profiles_path")
+    profile_kwargs: dict[str, Any] = {}
+    if profiles_path:
+        profile_kwargs["profiles_path"] = str(profiles_path)
+    elif hasattr(config, "get_path"):
+        profile_kwargs["config"] = config
+    try:
+        profiles = load_profiles(**profile_kwargs)
+    except Exception as exc:
+        raise RuntimeError(f"voice enrollment profile store could not be read: {exc}") from exc
+    eligible_profiles: list[dict[str, Any]] = []
+    for profile in profiles:
+        if not isinstance(profile, dict) or profile.get("consent") is False:
+            continue
+        profile_backend = str(profile.get("embedding_backend") or "resemblyzer").strip().lower().replace("_", "-")
+        if profile_backend not in {"resemblyzer", "speaker-embedding"}:
+            continue
+        if not str(profile.get("display_name") or "").strip() or not profile.get("embedding_path"):
+            status["errors"].append("profile missing display_name or embedding_path")
+            continue
+        eligible_profiles.append(profile)
+    status["profile_count"] = len(eligible_profiles)
+    if not eligible_profiles:
+        status["reason"] = "no_eligible_profiles"
+        return [], status
+
+    try:
+        import numpy as np
+        from resemblyzer import VoiceEncoder
+    except ImportError as exc:
+        raise RuntimeError(
+            "voice enrollment is enabled but Resemblyzer/numpy is not installed; "
+            "install requirements-speakers-embedding.txt"
+        ) from exc
+
+    try:
+        sample_rate, samples = load_wave_samples(audio_path)
+        try:
+            encoder = VoiceEncoder("cpu")
+        except TypeError:
+            encoder = VoiceEncoder()
+        cluster_vectors = extract_cluster_speaker_embeddings(
+            samples,
+            sample_rate,
+            diarization_turns,
+            encoder,
+            np_module=np,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"voice enrollment could not extract cluster embeddings: {exc}") from exc
+    status["embedded_cluster_count"] = len(cluster_vectors)
+
+    loaded_profiles: list[tuple[dict[str, Any], Any, float]] = []
+    for profile in eligible_profiles:
+        try:
+            load_kwargs: dict[str, Any] = {}
+            if profiles_path:
+                load_kwargs["profiles_path"] = str(profiles_path)
+            elif hasattr(config, "get_path"):
+                load_kwargs["config"] = config
+            vector = np.asarray(load_profile_embedding(profile, **load_kwargs), dtype=np.float32).reshape(-1)
+            norm = float(np.linalg.norm(vector))
+            if vector.size == 0 or norm <= 1e-12 or not np.isfinite(vector).all():
+                raise ValueError("profile embedding is empty or invalid")
+            vector = vector / norm
+            threshold = _config_float(profile.get("threshold"), _config_float(identity_config.get("profile_threshold"), 0.78))
+            loaded_profiles.append((profile, vector, max(0.0, min(1.0, threshold))))
+        except Exception as exc:
+            status["errors"].append(f"{profile.get('person_id') or profile.get('display_name')}: {exc}")
+
+    candidates: list[tuple[float, str, dict[str, Any], float]] = []
+    for label, vector in cluster_vectors.items():
+        for profile, profile_vector, threshold in loaded_profiles:
+            if vector.shape != profile_vector.shape:
+                continue
+            score = float(np.dot(vector, profile_vector))
+            if score >= threshold:
+                candidates.append((score, label, profile, threshold))
+    # A profile represents one enrolled person.  Resolve duplicate cluster
+    # claims by confidence so one person cannot be assigned to two voices.
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    used_labels: set[str] = set()
+    used_profiles: set[str] = set()
+    evidence: list[dict[str, Any]] = []
+    for score, label, profile, threshold in candidates:
+        person_id = str(profile.get("person_id") or profile.get("display_name") or "")
+        if label in used_labels or person_id in used_profiles:
+            continue
+        used_labels.add(label)
+        used_profiles.add(person_id)
+        evidence.append(
+            {
+                "raw_speaker_label": label,
+                "display_name": str(profile.get("display_name") or "").strip(),
+                "person_id": person_id,
+                "source": "voice_enrollment",
+                "evidence_type": "voice_enrollment",
+                "confidence": round(max(0.0, min(1.0, score)), 4),
+                "threshold": round(threshold, 4),
+            }
+        )
+    status["match_count"] = len(evidence)
+    status["matches"] = [
+        {
+            "raw_speaker_label": item["raw_speaker_label"],
+            "display_name": item["display_name"],
+            "confidence": item["confidence"],
+            "threshold": item["threshold"],
+        }
+        for item in evidence
+    ]
+    status["reason"] = "matched" if evidence else "no_profile_above_threshold"
+    return evidence, status
+
+
+def extract_cluster_speaker_embeddings(
+    samples: Any,
+    sample_rate: int,
+    diarization_turns: list[DiarizationTurn],
+    encoder: Any,
+    *,
+    np_module: Any | None = None,
+) -> dict[str, Any]:
+    """Extract one normalized embedding per raw diarization cluster."""
+
+    np = np_module
+    if np is None:
+        import numpy as np  # type: ignore[no-redef]
+    by_label: dict[str, list[tuple[float, float]]] = {}
+    for turn in coerce_turns(diarization_turns):
+        label = turn.raw_label.strip()
+        if label and turn.end > turn.start:
+            by_label.setdefault(label, []).append((turn.start, turn.end))
+    output: dict[str, Any] = {}
+    for label, spans in by_label.items():
+        vectors: list[Any] = []
+        for start, end in _embedding_spans(spans):
+            start_index = max(0, int(start * sample_rate))
+            end_index = min(len(samples), int(end * sample_rate))
+            chunk = samples[start_index:end_index]
+            if len(chunk) < sample_rate:
+                continue
+            try:
+                vector = encoder.embed_utterance(chunk, return_partials=False)
+            except TypeError:
+                vector = encoder.embed_utterance(chunk)
+            values = np.asarray(vector, dtype=np.float32).reshape(-1)
+            norm = float(np.linalg.norm(values)) if values.size else 0.0
+            if norm > 1e-12 and np.isfinite(values).all():
+                vectors.append(values / norm)
+        if not vectors:
+            continue
+        average = np.mean(np.vstack(vectors), axis=0)
+        norm = float(np.linalg.norm(average))
+        if norm > 1e-12 and np.isfinite(average).all():
+            output[label] = (average / norm).astype(np.float32)
+    return output
+
+
+def _embedding_spans(spans: list[tuple[float, float]], *, max_chunks: int = 8, chunk_seconds: float = 3.2) -> list[tuple[float, float]]:
+    output: list[tuple[float, float]] = []
+    for start, end in spans:
+        duration = end - start
+        if duration <= 0:
+            continue
+        if duration <= chunk_seconds:
+            output.append((start, end))
+            continue
+        step = max(1.6, (duration - chunk_seconds) / max(1, max_chunks - 1))
+        cursor = start
+        count = 0
+        while cursor < end and count < max_chunks:
+            chunk_end = min(end, cursor + chunk_seconds)
+            if chunk_end - cursor >= 1.0:
+                output.append((cursor, chunk_end))
+                count += 1
+            if chunk_end >= end:
+                break
+            cursor += step
+    return output
 
 
 def load_transcript_segments(transcript_json_path: Path) -> list[TranscriptSegment]:
@@ -500,8 +765,9 @@ def parse_transcript_words(
     """Parse common Whisper/Qwen word timestamp shapes.
 
     ASR engines and historical fixtures use ``start/end``, ``from/to`` or
-    millisecond offsets.  Invalid words are ignored so coarse segment
-    alignment remains available as a deterministic fallback.
+    millisecond offsets.  Qwen may emit valid characters whose start and end
+    timestamps are identical.  Preserve those tokens with a tiny interval so
+    speaker alignment never deletes transcript text.
     """
 
     if not isinstance(value, (list, tuple)):
@@ -519,13 +785,15 @@ def parse_transcript_words(
             continue
         start = _read_time_value(item.get(start_key), assume_milliseconds=start_key in {"from", "start_ms"})
         end = _read_time_value(item.get(end_key), assume_milliseconds=end_key in {"to", "end_ms"})
-        if end <= start:
-            continue
         if segment_end > segment_start:
             start = max(segment_start, start)
             end = min(segment_end, end)
         if end <= start:
-            continue
+            point = min(max(start, segment_start), segment_end) if segment_end > segment_start else start
+            start = max(segment_start, point - 0.001) if segment_end > segment_start and point >= segment_end else point
+            end = min(segment_end, start + 0.001) if segment_end > segment_start else start + 0.001
+        if end <= start:
+            end = start + 0.001
         words.append(TranscriptWord(text=text, start=start, end=end, word_id=str(item.get("id") or f"word_{index:05d}")))
     return words
 
@@ -653,10 +921,19 @@ def run_resemblyzer_diarization(
     from resemblyzer import VoiceEncoder
     from sklearn.cluster import AgglomerativeClustering
     from sklearn.metrics import silhouette_score
-    from sklearn.preprocessing import StandardScaler
 
     sample_rate, samples = load_wave_samples(audio_path)
-    windows = build_audio_windows(transcript_segments, intro_end=intro_end, window_seconds=3.2, step_seconds=1.6)
+    # Filler/music-only ASR segments are not useful speaker evidence.  In
+    # particular, an intro full of repeated "嗯/啊" can form a spurious
+    # cluster before the actual dialogue starts.  The source transcript stays
+    # untouched; this filter only controls the embedding windows.
+    windows = build_audio_windows(
+        transcript_segments,
+        intro_end=intro_end,
+        window_seconds=3.2,
+        step_seconds=1.6,
+        lexical_only=True,
+    )
     encoder = VoiceEncoder("cpu")
     embeddings: list[Any] = []
     kept_windows: list[AudioWindow] = []
@@ -675,14 +952,34 @@ def run_resemblyzer_diarization(
     if len(kept_windows) == 1:
         return [DiarizationTurn("Speaker 1", kept_windows[0].start, kept_windows[0].end, confidence=0.45)]
 
-    matrix = StandardScaler().fit_transform(np.vstack(embeddings))
+    # VoiceEncoder returns L2-like speaker vectors.  StandardScaler + Ward
+    # changes that geometry and can collapse distinct voices; retain cosine
+    # geometry with L2-normalized vectors and average linkage instead.
+    matrix = normalize_speaker_embeddings(np.vstack(embeddings), np_module=np)
     min_clusters = min(max(min_speakers, 2), len(kept_windows))
     max_clusters = min(max(max_speakers, min_clusters), len(kept_windows) - 1 if len(kept_windows) > 2 else len(kept_windows))
+    # The local podcast path is intentionally two-speaker by default.  This
+    # avoids silhouette-selected extra clusters being driven by short pauses
+    # or residual music; callers asking for at least three speakers retain the
+    # old bounded model-selection behavior.
+    cluster_counts = [min_clusters] if min_clusters <= 2 else list(range(min_clusters, max_clusters + 1))
     best_labels: list[int] | None = None
     best_score = float("-inf")
-    for speaker_count in range(min_clusters, max_clusters + 1):
-        labels = AgglomerativeClustering(n_clusters=speaker_count, linkage="ward").fit_predict(matrix).tolist()
-        current_score = -1.0 if len(set(labels)) < 2 or len(kept_windows) <= speaker_count else float(silhouette_score(matrix, labels))
+    for speaker_count in cluster_counts:
+        labels = cluster_speaker_embeddings(
+            matrix,
+            speaker_count,
+            AgglomerativeClustering,
+            np_module=np,
+        ).tolist()
+        if len(set(labels)) < 2 or len(kept_windows) <= speaker_count:
+            current_score = -1.0
+        else:
+            try:
+                current_score = float(silhouette_score(matrix, labels, metric="cosine"))
+            except TypeError:
+                # Older sklearn releases may not expose the metric keyword.
+                current_score = float(silhouette_score(matrix, labels))
         if current_score > best_score or best_labels is None:
             best_score = current_score
             best_labels = labels
@@ -693,7 +990,7 @@ def run_resemblyzer_diarization(
         if label not in speaker_map:
             speaker_map[label] = f"Speaker {len(speaker_map) + 1}"
         turns.append(DiarizationTurn(speaker_map[label], window.start, window.end, confidence=0.45))
-    return merge_adjacent_diarization_turns(turns)
+    return exclusive_diarization_turns(turns)
 
 
 def run_pyannote_diarization(
@@ -800,7 +1097,7 @@ def run_segment_clustering_diarization(
                 confidence=0.35,
             )
         )
-    return merge_adjacent_diarization_turns(turns)
+    return exclusive_diarization_turns(turns)
 
 
 def run_timeline_fallback_diarization(
@@ -900,6 +1197,184 @@ def smooth_window_labels(labels: list[int], windows: list[AudioWindow]) -> list[
     return smoothed
 
 
+_NONLEXICAL_MARKERS = (
+    "backgroundmusic",
+    "instrumentalmusic",
+    "music",
+    "soundeffect",
+    "soundeffects",
+    "applause",
+    "laughter",
+    "laugh",
+    "silence",
+    "静音",
+    "背景音乐",
+    "片头音乐",
+    "音乐",
+    "音效",
+    "掌声",
+    "笑声",
+    "笑",
+)
+
+
+def has_lexical_content(text: str) -> bool:
+    """Return whether an ASR label contains speech lexical evidence.
+
+    Diarization windows are driven by ASR timing, so a segment can be long
+    enough to embed while containing only hesitation runs or an editorial
+    ``[音乐]`` marker.  Keep this intentionally conservative: real words,
+    names, numbers and non-Chinese scripts are retained, while punctuation,
+    filler-only runs and common music/noise markers are rejected.
+    """
+
+    cleaned = strip_filler_words(str(text or ""))
+    if not cleaned:
+        return False
+    # Remove bracketed/parenthesized annotations before comparing markers.
+    cleaned = re.sub(r"[\[\](){}<>【】（）「」『』]", "", cleaned)
+    compact = re.sub(r"[\s\W_]+", "", cleaned, flags=re.UNICODE).lower()
+    if not compact:
+        return False
+    if compact in _NONLEXICAL_MARKERS:
+        return False
+    # Some ASR engines repeat a marker with separators, e.g. "音乐音乐".
+    marker_residue = compact
+    for marker in sorted(_NONLEXICAL_MARKERS, key=len, reverse=True):
+        marker_residue = marker_residue.replace(marker, "")
+    if not marker_residue:
+        return False
+    # One-character remnants such as the trailing "跟" in a long ASR
+    # hallucination ("啊啊……跟") are too weak to anchor a voice cluster.
+    # Genuine short backchannels are likewise unsuitable enrollment evidence.
+    if len(marker_residue) < 2:
+        return False
+    # ``compact`` may consist solely of symbols that survived Unicode word
+    # normalization; require an actual letter/number/CJK code point.
+    return bool(re.search(r"[0-9A-Za-z\u00c0-\u024f\u3400-\u9fff]", marker_residue))
+
+
+def is_filler_only_text(text: str) -> bool:
+    """Compatibility/readability alias for callers filtering ASR segments."""
+
+    return not has_lexical_content(text)
+
+
+def normalize_speaker_embeddings(matrix: Any, *, np_module: Any | None = None) -> Any:
+    """L2-normalize one embedding per row without changing its direction."""
+
+    np = np_module
+    if np is None:
+        import numpy as np  # type: ignore[no-redef]
+
+    values = np.asarray(matrix, dtype=np.float32)
+    if values.ndim != 2:
+        raise ValueError("speaker embeddings must be a 2-D matrix")
+    norms = np.linalg.norm(values, axis=1, keepdims=True)
+    norms = np.where(norms > 1e-12, norms, 1.0)
+    return values / norms
+
+
+def cluster_speaker_embeddings(
+    matrix: Any,
+    n_clusters: int,
+    clustering_cls: Any,
+    *,
+    np_module: Any | None = None,
+) -> Any:
+    """Cluster normalized speaker vectors with cosine-average linkage.
+
+    sklearn renamed ``affinity`` to ``metric``.  Probe the modern API first
+    so current installations use the intended cosine geometry, then retain a
+    narrow compatibility fallback for older installations.
+    """
+
+    normalized = normalize_speaker_embeddings(matrix, np_module=np_module)
+    try:
+        estimator = clustering_cls(
+            n_clusters=int(n_clusters),
+            metric="cosine",
+            linkage="average",
+        )
+    except TypeError:
+        estimator = clustering_cls(
+            n_clusters=int(n_clusters),
+            affinity="cosine",
+            linkage="average",
+        )
+    return estimator.fit_predict(normalized)
+
+
+def exclusive_diarization_turns(turns: list[DiarizationTurn]) -> list[DiarizationTurn]:
+    """Convert overlapping acoustic windows to an exclusive timeline.
+
+    For each pair of overlapping windows, add the midpoint of their overlap
+    as a candidate boundary.  Intervals with no active window are omitted,
+    preserving genuine pauses/gaps instead of filling the whole transcript.
+    Within an overlap, the active window whose center is nearest owns the
+    interval; this makes a two-window overlap split at its temporal midpoint.
+    """
+
+    normalized = [
+        turn
+        for turn in coerce_turns(turns)
+        if turn.end > turn.start
+    ]
+    if not normalized:
+        return []
+    normalized.sort(key=lambda item: (item.start, item.end, item.raw_label))
+    points = {float(turn.start) for turn in normalized} | {float(turn.end) for turn in normalized}
+    for index, left in enumerate(normalized):
+        for right in normalized[index + 1 :]:
+            overlap_start = max(left.start, right.start)
+            overlap_end = min(left.end, right.end)
+            if overlap_end > overlap_start:
+                points.add((overlap_start + overlap_end) / 2.0)
+    ordered_points = sorted(points)
+    pieces: list[DiarizationTurn] = []
+    epsilon = 1e-7
+    for start, end in zip(ordered_points, ordered_points[1:]):
+        if end - start <= epsilon:
+            continue
+        midpoint = (start + end) / 2.0
+        active = [turn for turn in normalized if turn.start < midpoint < turn.end]
+        if not active:
+            continue
+        chosen = min(
+            enumerate(active),
+            key=lambda item: (
+                abs(((item[1].start + item[1].end) / 2.0) - midpoint),
+                item[0],
+            ),
+        )[1]
+        pieces.append(
+            DiarizationTurn(
+                speaker=chosen.raw_label,
+                raw_speaker_label=chosen.raw_label,
+                start=start,
+                end=end,
+                confidence=chosen.confidence,
+                overlap=False,
+                turn_id=chosen.turn_id,
+            )
+        )
+    if not pieces:
+        return []
+
+    merged: list[DiarizationTurn] = [pieces[0]]
+    for piece in pieces[1:]:
+        current = merged[-1]
+        if piece.raw_label == current.raw_label and abs(piece.start - current.end) <= epsilon:
+            current.end = piece.end
+            if current.confidence is None:
+                current.confidence = piece.confidence
+            elif piece.confidence is not None:
+                current.confidence = min(current.confidence, piece.confidence)
+            continue
+        merged.append(piece)
+    return merged
+
+
 def merge_adjacent_diarization_turns(turns: list[DiarizationTurn]) -> list[DiarizationTurn]:
     normalized = coerce_turns(turns)
     if not normalized:
@@ -929,9 +1404,9 @@ def align_segments_to_speakers(
 ) -> tuple[list[SpeakerTextTurn], list[TranscriptSegment]]:
     """Align transcript text to anonymous diarization turns.
 
-    Word timings are preferred.  If an engine did not emit words, a segment is
-    split at every diarization boundary and text is distributed proportionally
-    across the resulting intervals.  Self-introduction text is intentionally a
+    Word timings are preferred.  If an engine did not emit words, the complete
+    segment is assigned to its strongest overlapping speaker; text is never
+    sliced proportionally through a word or sentence.  Self-introduction text is intentionally a
     *segment-local* compatibility hint here.  The production build resolves it
     again in :mod:`speaker_identity`, keyed by the raw cluster, so no mutable
     ``active_anchor`` can leak into later turns.
@@ -999,13 +1474,29 @@ def _align_words_for_segment(
     for word in sorted(words, key=lambda item: (item.start, item.end)):
         if not word.text:
             continue
-        speaker, raw_speaker, confidence = speaker_for_interval(word.start, word.end, diarization_turns)
+        word_start = max(segment.start, word.start)
+        word_end = min(segment.end, word.end)
+        if word_end <= word_start:
+            word_start = max(segment.start, word_start - 0.001) if word_start >= segment.end else word_start
+            word_end = min(segment.end, word_start + 0.001)
+        if word_end <= word_start:
+            word_end = word_start + 0.001
+        speaker, raw_speaker, confidence = speaker_for_interval(word_start, word_end, diarization_turns)
         if not raw_speaker and not speaker:
-            continue
+            speaker, raw_speaker, confidence = nearest_speaker_for_interval(
+                word_start,
+                word_end,
+                diarization_turns,
+                max_distance=2.0,
+            )
+        if not raw_speaker and not speaker:
+            # Text preservation is more important than inventing an identity.
+            # Keep the token reviewable instead of silently deleting it.
+            speaker = "unknown"
         piece = SpeakerTextTurn(
             speaker=speaker or "unknown",
-            start=max(segment.start, word.start),
-            end=min(segment.end, word.end),
+            start=word_start,
+            end=word_end,
             text=word.text,
             raw_speaker=raw_speaker,
             confidence=confidence,
@@ -1040,8 +1531,9 @@ def _coerce_transcript_words(value: list[Any]) -> list[TranscriptWord]:
         end_key = "end" if "end" in item else ("to" if "to" in item else "end_ms")
         start = _read_time_value(item.get(start_key), assume_milliseconds=start_key in {"from", "start_ms"})
         end = _read_time_value(item.get(end_key), assume_milliseconds=end_key in {"to", "end_ms"})
-        if end > start:
-            output.append(TranscriptWord(text, start, end, str(item.get("id") or f"word_{index:05d}")))
+        if end <= start:
+            end = start + 0.001
+        output.append(TranscriptWord(text, start, end, str(item.get("id") or f"word_{index:05d}")))
     return output
 
 
@@ -1051,54 +1543,27 @@ def _split_segment_at_diarization_boundaries(
 ) -> list[SpeakerTextTurn]:
     if segment.end <= segment.start:
         return []
-    intersections: list[tuple[float, float, str, str, float | None]] = []
-    boundaries = {segment.start, segment.end}
     relevant = [turn for turn in diarization_turns if calculate_overlap(segment.start, segment.end, turn.start, turn.end) > 0]
-    for turn in relevant:
-        boundaries.add(max(segment.start, turn.start))
-        boundaries.add(min(segment.end, turn.end))
-    ordered = sorted(value for value in boundaries if segment.start <= value <= segment.end)
-    for start, end in zip(ordered, ordered[1:]):
-        if end - start <= 1e-6:
-            continue
-        speaker, raw_speaker, confidence = speaker_for_interval(start, end, diarization_turns)
-        if not raw_speaker and not speaker:
-            continue
-        intersections.append((start, end, speaker or "unknown", raw_speaker, confidence))
-    if not intersections:
+    if not relevant:
         return []
-
-    # Assign text by interval duration.  This is only a fallback for ASR
-    # engines without word timestamps; boundaries still guarantee that a
-    # speaker switch cannot be swallowed by one 15-second segment.
-    text = segment.text
-    total_duration = max(segment.end - segment.start, 1e-6)
-    pieces: list[SpeakerTextTurn] = []
-    cursor = 0
-    for index, (start, end, speaker, raw_speaker, confidence) in enumerate(intersections):
-        if index == len(intersections) - 1:
-            end_cursor = len(text)
-        else:
-            target = round(len(text) * (end - segment.start) / total_duration)
-            end_cursor = max(cursor, min(len(text), target))
-        part = text[cursor:end_cursor]
-        cursor = end_cursor
-        if not part:
-            continue
-        pieces.append(
-            SpeakerTextTurn(
-                speaker=speaker,
-                start=start,
-                end=end,
-                text=part,
-                raw_speaker=raw_speaker,
-                confidence=confidence,
-                segment_ids=[segment.segment_id] if segment.segment_id else [],
-            )
+    selected = max(
+        relevant,
+        key=lambda turn: (
+            calculate_overlap(segment.start, segment.end, turn.start, turn.end),
+            turn.confidence or 0.0,
+        ),
+    )
+    return [
+        SpeakerTextTurn(
+            speaker=selected.raw_label,
+            start=segment.start,
+            end=segment.end,
+            text=segment.text,
+            raw_speaker=selected.raw_label,
+            confidence=selected.confidence,
+            segment_ids=[segment.segment_id] if segment.segment_id else [],
         )
-    if cursor < len(text) and pieces:
-        pieces[-1].text += text[cursor:]
-    return pieces
+    ]
 
 
 def speaker_for_interval(
@@ -1108,9 +1573,10 @@ def speaker_for_interval(
 ) -> tuple[str, str, float | None]:
     """Return display-compatible and raw labels for one time interval.
 
-    A word overlapping multiple active raw turns is marked ``unknown`` rather
-    than silently choosing one voice.  For non-overlap intervals the acoustic
-    label remains anonymous until identity mapping runs.
+    A word crossing an ordinary exclusive turn boundary is assigned atomically
+    to the turn covering its midpoint (or greatest duration).  Only genuine
+    overlapping-speech regions remain ``unknown``.  This prevents one Chinese
+    character from becoming a standalone unknown turn at every boundary.
     """
 
     overlaps: list[tuple[float, DiarizationTurn]] = []
@@ -1123,8 +1589,44 @@ def speaker_for_interval(
     overlaps.sort(key=lambda item: (item[0], item[1].confidence or 0.0), reverse=True)
     labels = {turn.raw_label for _, turn in overlaps}
     if len(labels) > 1:
-        return "unknown", "", min((turn.confidence for _, turn in overlaps if turn.confidence is not None), default=0.0)
+        if any(turn.overlap for _, turn in overlaps):
+            return "unknown", "", min((turn.confidence for _, turn in overlaps if turn.confidence is not None), default=0.0)
+        midpoint = (start + end) / 2.0
+        amount, selected = max(
+            overlaps,
+            key=lambda item: (
+                item[0],
+                int(item[1].start <= midpoint < item[1].end),
+                item[1].confidence or 0.0,
+            ),
+        )
+        return selected.raw_label, selected.raw_label, selected.confidence
     amount, selected = overlaps[0]
+    return selected.raw_label, selected.raw_label, selected.confidence
+
+
+def nearest_speaker_for_interval(
+    start: float,
+    end: float,
+    diarization_turns: list[DiarizationTurn],
+    *,
+    max_distance: float,
+) -> tuple[str, str, float | None]:
+    """Bridge short diarization gaps without dropping an ASR token."""
+
+    if not diarization_turns:
+        return "", "", None
+    midpoint = (start + end) / 2.0
+    selected = min(
+        diarization_turns,
+        key=lambda turn: (
+            0.0 if turn.start <= midpoint <= turn.end else min(abs(midpoint - turn.start), abs(midpoint - turn.end)),
+            -(turn.confidence or 0.0),
+        ),
+    )
+    distance = 0.0 if selected.start <= midpoint <= selected.end else min(abs(midpoint - selected.start), abs(midpoint - selected.end))
+    if distance > max_distance:
+        return "", "", None
     return selected.raw_label, selected.raw_label, selected.confidence
 
 
@@ -1382,10 +1884,13 @@ def build_audio_windows(
     intro_end: float,
     window_seconds: float = 3.2,
     step_seconds: float = 1.6,
+    lexical_only: bool = False,
 ) -> list[AudioWindow]:
     windows: list[AudioWindow] = []
     for segment in transcript_segments:
         if segment.end <= intro_end:
+            continue
+        if lexical_only and not has_lexical_content(segment.text):
             continue
         start = max(segment.start, intro_end)
         end = segment.end
@@ -1553,12 +2058,20 @@ def detect_speaker_backend_status(config: Any | None = None) -> dict[str, Any]:
     sherpa_config = configured.get("sherpa") if isinstance(configured.get("sherpa"), dict) else configured
     sherpa_model_paths = _configured_sherpa_model_paths(sherpa_config)
     sherpa_models_ready = bool(sherpa_onnx_installed and sherpa_model_paths and all(path.is_file() for path in sherpa_model_paths))
-    selected_backend = ""
-    if pyannote_installed and hf_token:
+    availability = {
+        "pyannote": pyannote_installed and bool(hf_token),
+        "sherpa-onnx": sherpa_models_ready,
+        "resemblyzer": resemblyzer_installed,
+        "segment-clustering": True,
+    }
+    configured_backend = _normalize_backend_name(str(configured.get("backend") or "auto"))
+    if configured_backend not in {"", "auto"}:
+        selected_backend = configured_backend
+    elif availability["pyannote"]:
         selected_backend = "pyannote"
-    elif sherpa_models_ready:
+    elif availability["sherpa-onnx"]:
         selected_backend = "sherpa-onnx"
-    elif resemblyzer_installed:
+    elif availability["resemblyzer"]:
         selected_backend = "resemblyzer"
     else:
         selected_backend = "segment-clustering"
@@ -1579,7 +2092,7 @@ def detect_speaker_backend_status(config: Any | None = None) -> dict[str, Any]:
             "segment-clustering": True,
         },
         "selected_backend": selected_backend,
-        "ready": bool(selected_backend),
+        "ready": bool(availability.get(selected_backend, False)),
     }
 
 

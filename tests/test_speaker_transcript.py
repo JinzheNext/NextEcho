@@ -16,9 +16,14 @@ from workbench.speaker_transcript import (
     align_segments_to_speakers,
     build_audio_windows,
     build_speaker_transcript,
+    cluster_speaker_embeddings,
+    collect_voice_enrollment_evidence,
     detect_intro_range,
+    exclusive_diarization_turns,
+    has_lexical_content,
     apply_context_speaker_names,
     resolve_speaker_backend,
+    resolve_speaker_workspace,
     render_speaker_text,
     run_diarization,
 )
@@ -154,6 +159,133 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertIsInstance(windows[0], AudioWindow)
         self.assertLessEqual(windows[0].end - windows[0].start, 3.0)
 
+    def test_embedding_windows_exclude_filler_and_music_only_segments(self) -> None:
+        segments = [
+            TranscriptSegment(0.0, 3.0, "嗯嗯嗯"),
+            TranscriptSegment(3.0, 6.0, "（音乐）"),
+            TranscriptSegment(6.0, 9.0, "我们开始讨论背景。"),
+        ]
+        self.assertFalse(has_lexical_content("嗯，啊啊"))
+        self.assertFalse(has_lexical_content("啊啊啊啊啊啊跟"))
+        self.assertFalse(has_lexical_content("[background music]"))
+        self.assertTrue(has_lexical_content("我们开始讨论背景。"))
+        windows = build_audio_windows(segments, intro_end=0.0, lexical_only=True)
+        self.assertEqual([(item.start, item.end) for item in windows], [(6.0, 9.0)])
+
+    def test_overlapping_embedding_windows_become_exclusive_and_keep_gaps(self) -> None:
+        turns = exclusive_diarization_turns(
+            [
+                DiarizationTurn("Speaker 1", 0.0, 3.2),
+                DiarizationTurn("Speaker 2", 1.6, 4.8),
+                DiarizationTurn("Speaker 1", 8.0, 10.0),
+            ]
+        )
+        self.assertEqual(
+            [(item.raw_label, round(item.start, 3), round(item.end, 3)) for item in turns],
+            [("Speaker 1", 0.0, 2.4), ("Speaker 2", 2.4, 4.8), ("Speaker 1", 8.0, 10.0)],
+        )
+        for previous, current in zip(turns, turns[1:]):
+            self.assertLessEqual(previous.end, current.start)
+        self.assertEqual(turns[1].overlap, False)
+
+    def test_speaker_embedding_clustering_uses_cosine_average(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy is an optional speaker embedding dependency")
+
+        calls = []
+
+        class FakeClustering:
+            def __init__(self, **kwargs):
+                calls.append(kwargs)
+
+            def fit_predict(self, matrix):
+                self.matrix = matrix
+                return np.asarray([0, 1], dtype=np.int64)
+
+        labels = cluster_speaker_embeddings([[3.0, 0.0], [0.0, 4.0]], 2, FakeClustering, np_module=np)
+        self.assertEqual(labels.tolist(), [0, 1])
+        self.assertEqual(calls, [{"n_clusters": 2, "metric": "cosine", "linkage": "average"}])
+
+    def test_directory_input_writes_new_speaker_artifacts_to_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "source-run"
+            output = root / "speaker-run"
+            source.mkdir()
+            audio = source / "转录音频.wav"
+            audio.write_bytes(b"source audio")
+            transcript = source / "transcript.json"
+            original = json.dumps(
+                {"transcription": [{"timestamps": {"from": "00:00:00,000", "to": "00:00:03,000"}, "text": "开始讨论。"}]},
+                ensure_ascii=False,
+            )
+            transcript.write_text(original, encoding="utf-8")
+            context = source / "source.context.json"
+            context.write_text(json.dumps({"speaker_candidates": [{"name": "孟岩"}]}), encoding="utf-8")
+            workspace = resolve_speaker_workspace(source, quality="fast", output_dir=output)
+            self.assertEqual(workspace["run_dir"], output.resolve())
+            self.assertEqual(workspace["transcript_json_path"], transcript.resolve())
+            self.assertEqual(workspace["audio_path"], audio.resolve())
+
+            with patch(
+                "workbench.speaker_transcript.ensure_speaker_dependencies",
+                return_value={"selected_backend": "pyannote", "fallback_backend_available": True, "ready": True},
+            ), patch("workbench.speaker_transcript.enhance_voice_audio", return_value=output / "derived" / "audio.voice_reference.wav"), patch(
+                "workbench.speaker_transcript.run_diarization",
+                return_value=("pyannote", [DiarizationTurn("Speaker 1", 0.0, 3.0)]),
+            ):
+                payload = build_speaker_transcript(source, output_dir=output)
+
+            self.assertEqual(Path(payload["run_dir"]), output.resolve())
+            self.assertTrue((output / "transcript.speakers.json").exists())
+            self.assertTrue((output / "diarization.raw.json").exists())
+            self.assertFalse((source / "transcript.speakers.json").exists())
+            self.assertEqual(transcript.read_text(encoding="utf-8"), original)
+
+    def test_voice_enrollment_evidence_is_passed_to_identity_resolver(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio = root / "转录音频.wav"
+            audio.write_bytes(b"source audio")
+            transcript = root / "transcript.json"
+            transcript.write_text(
+                json.dumps(
+                    {"transcription": [{"timestamps": {"from": "00:00:00,000", "to": "00:00:03,000"}, "text": "开始讨论。"}]},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            evidence = [
+                {
+                    "raw_speaker_label": "Speaker 1",
+                    "display_name": "孟岩",
+                    "person_id": "person_mengyan",
+                    "evidence_type": "voice_enrollment",
+                    "source": "voice_enrollment",
+                    "confidence": 0.96,
+                    "threshold": 0.78,
+                }
+            ]
+            config = {"speaker_identity": {"enable_voice_enrollment": True, "minimum_confidence": 0.90}}
+            with patch(
+                "workbench.speaker_transcript.ensure_speaker_dependencies",
+                return_value={"selected_backend": "pyannote", "fallback_backend_available": True, "ready": True},
+            ), patch("workbench.speaker_transcript.enhance_voice_audio", return_value=root / "derived" / "audio.voice_reference.wav"), patch(
+                "workbench.speaker_transcript.run_diarization",
+                return_value=("pyannote", [DiarizationTurn("Speaker 1", 0.0, 3.0)]),
+            ), patch(
+                "workbench.speaker_transcript.collect_voice_enrollment_evidence",
+                return_value=(evidence, {"enabled": True, "match_count": 1, "reason": "matched"}),
+            ):
+                payload = build_speaker_transcript(root, config=config)
+
+            self.assertEqual(payload["speakers"][0]["display_name"], "孟岩")
+            self.assertEqual(payload["speakers"][0]["identity_status"], "resolved")
+            self.assertEqual(payload["speakers"][0]["identity_evidence"][0]["type"], "voice_enrollment")
+            self.assertEqual(payload["voice_enrollment"]["match_count"], 1)
+
     def test_context_names_are_hints_and_preserve_unmatched_labels(self) -> None:
         turns = [
             # The self-introduction is intentionally enough to identify one
@@ -237,6 +369,54 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual([(item.speaker, item.text) for item in aligned], [("SPEAKER_00", "甲乙"), ("SPEAKER_01", "丙丁。")])
         self.assertLess(aligned[0].end, aligned[1].start)
 
+    def test_word_alignment_preserves_zero_duration_tokens_and_short_gaps(self) -> None:
+        segment = TranscriptSegment(
+            0.0,
+            4.0,
+            "甲乙丙丁",
+            "seg_zero",
+            words=[
+                TranscriptWord("甲", 0.5, 0.5),
+                TranscriptWord("乙", 1.0, 1.4),
+                TranscriptWord("丙", 2.0, 2.0),
+                TranscriptWord("丁", 2.6, 3.0),
+            ],
+        )
+        aligned, unassigned = align_segments_to_speakers(
+            [segment],
+            [DiarizationTurn("SPEAKER_00", 0.0, 1.8), DiarizationTurn("SPEAKER_01", 2.2, 4.0)],
+            0.0,
+        )
+        self.assertEqual(unassigned, [])
+        self.assertEqual("".join(item.text for item in aligned), segment.text)
+        self.assertEqual([item.speaker for item in aligned], ["SPEAKER_00", "SPEAKER_01"])
+
+    def test_segment_without_word_timestamps_is_not_cut_mid_sentence(self) -> None:
+        segment = TranscriptSegment(0.0, 4.0, "这是一句完整的话。", "seg_coarse")
+        aligned, unassigned = align_segments_to_speakers(
+            [segment],
+            [DiarizationTurn("SPEAKER_00", 0.0, 3.0), DiarizationTurn("SPEAKER_01", 3.0, 4.0)],
+            0.0,
+        )
+        self.assertEqual(unassigned, [])
+        self.assertEqual([(item.speaker, item.text) for item in aligned], [("SPEAKER_00", segment.text)])
+
+    def test_word_crossing_exclusive_boundary_is_not_a_micro_unknown_turn(self) -> None:
+        segment = TranscriptSegment(
+            0.0,
+            2.0,
+            "投资",
+            "seg_boundary",
+            words=[TranscriptWord("投", 0.9, 1.1), TranscriptWord("资", 1.1, 1.4)],
+        )
+        aligned, _ = align_segments_to_speakers(
+            [segment],
+            [DiarizationTurn("SPEAKER_00", 0.0, 1.0), DiarizationTurn("SPEAKER_01", 1.0, 2.0)],
+            0.0,
+        )
+        self.assertNotIn("unknown", [item.speaker for item in aligned])
+        self.assertEqual("".join(item.text for item in aligned), "投资")
+
     def test_raw_diarization_artifacts_are_immutable_and_rttm_is_anonymous(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -312,6 +492,96 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertEqual(result.backend, "sherpa-onnx")
         self.assertEqual(result.turns[0].raw_label, "SPEAKER_00")
         self.assertEqual(result.turns[0].confidence, 0.77)
+
+    def test_sherpa_1137_adapter_builds_official_nested_config_and_sorts_result(self) -> None:
+        class FakePyannoteConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeSegmentationConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeEmbeddingConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeClusteringConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class FakeDiarizationConfig:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            def validate(self):
+                return True
+
+        class FakeSegment:
+            def __init__(self, start, end, speaker):
+                self.start = start
+                self.end = end
+                self.speaker = speaker
+
+        class FakeResult:
+            def __init__(self):
+                self.sorted = False
+
+            def sort_by_start_time(self):
+                self.sorted = True
+                return [FakeSegment(0.0, 0.5, 1), FakeSegment(0.5, 1.0, 0)]
+
+        captured = {}
+
+        class FakeDiarizer:
+            sample_rate = 16000
+
+            def __init__(self, config):
+                captured["config"] = config
+
+            def process(self, samples):
+                captured["samples"] = samples
+                return FakeResult()
+
+        class FakeSherpa:
+            OfflineSpeakerDiarization = FakeDiarizer
+            OfflineSpeakerDiarizationConfig = FakeDiarizationConfig
+            OfflineSpeakerSegmentationModelConfig = FakeSegmentationConfig
+            OfflineSpeakerSegmentationPyannoteModelConfig = FakePyannoteConfig
+            SpeakerEmbeddingExtractorConfig = FakeEmbeddingConfig
+            FastClusteringConfig = FakeClusteringConfig
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio = root / "audio.wav"
+            with wave.open(str(audio), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(16000)
+                handle.writeframes(b"\x00\x00" * 16000)
+            segmentation = root / "segmentation.onnx"
+            embedding = root / "embedding.onnx"
+            segmentation.write_bytes(b"model")
+            embedding.write_bytes(b"model")
+            with patch("workbench.diarization.importlib.import_module", return_value=FakeSherpa()):
+                result = SherpaOnnxBackend().diarize(
+                    audio,
+                    options={
+                        "min_speakers": 2,
+                        "backend_config": {"model_paths": [str(segmentation), str(embedding)]},
+                    },
+                )
+
+        config = captured["config"].kwargs
+        self.assertEqual(config["segmentation"].kwargs["pyannote"].kwargs["model"], str(segmentation))
+        self.assertEqual(config["embedding"].kwargs["model"], str(embedding))
+        self.assertEqual(config["clustering"].kwargs, {"num_clusters": 2, "threshold": 0.5})
+        self.assertEqual(config["min_duration_on"], 0.3)
+        self.assertEqual(config["min_duration_off"], 0.5)
+        samples = captured["samples"]
+        self.assertEqual(len(samples), 16000)
+        self.assertEqual(result.turns[0].raw_label, "SPEAKER_01")
+        self.assertEqual(result.turns[1].raw_label, "SPEAKER_00")
 
     def test_strict_run_diarization_does_not_call_fallback_after_backend_error(self) -> None:
         class FailingBackend:

@@ -193,11 +193,18 @@ class DefaultSpeakerIdentityResolver:
                 continue
             evidence_by_label[label].append(
                 IdentityEvidence(
-                    type="voice_profile",
+                    type=str(profile.get("evidence_type") or profile.get("type") or "voice_profile"),
                     source=str(profile.get("person_id") or profile.get("source") or "local"),
                     raw_speaker_label=label,
                     confidence=confidence,
-                    details={"name": name},
+                    details={
+                        "name": name,
+                        **(
+                            {"threshold": _float(profile.get("threshold"), 0.0)}
+                            if profile.get("threshold") is not None
+                            else {}
+                        ),
+                    },
                 )
             )
             # Keep the profile's name in a private detail for the reducer.

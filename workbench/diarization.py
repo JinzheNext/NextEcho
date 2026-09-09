@@ -285,16 +285,34 @@ def _sherpa_model_paths(config: dict[str, Any]) -> list[Path]:
     configured = nested.get("model_paths") if isinstance(nested, dict) else None
     values: list[Any] = []
     if isinstance(configured, dict):
-        values.extend(configured.values())
+        # Keep the constructor's segmentation/embedding order deterministic;
+        # JSON/TOML object order is not a model-role contract.
+        for key in ("segmentation", "segmentation_model", "embedding", "embedding_model"):
+            if configured.get(key):
+                values.append(configured[key])
+        if not values:
+            values.extend(configured.values())
     elif isinstance(configured, (list, tuple)):
         values.extend(configured)
     elif configured:
         values.append(configured)
     if not values and isinstance(nested, dict):
-        for key in ("segmentation_model", "segmentation", "embedding_model", "embedding", "model_path", "model"):
-            value = nested.get(key)
-            if value:
-                values.append(value)
+        segmentation = nested.get("segmentation_model") or nested.get("segmentation")
+        embedding = nested.get("embedding_model") or nested.get("embedding")
+        if isinstance(segmentation, dict):
+            pyannote = segmentation.get("pyannote")
+            segmentation = (pyannote or {}).get("model") if isinstance(pyannote, dict) else segmentation.get("model")
+        if isinstance(embedding, dict):
+            embedding = embedding.get("model")
+        if segmentation:
+            values.append(segmentation)
+        if embedding:
+            values.append(embedding)
+        if not values:
+            for key in ("model_path", "model"):
+                value = nested.get(key)
+                if value:
+                    values.append(value)
     if not values:
         values = [
             DEFAULT_SHERPA_MODEL_DIR / "segmentation.onnx",
@@ -336,8 +354,43 @@ def _build_sherpa_diarizer(
                 f"sherpa-onnx OfflineSpeakerDiarization rejected constructor_kwargs: {exc}"
             ) from exc
 
-    # Different sherpa-onnx releases expose either a direct kwargs constructor
-    # or a Config object.  Probe both known forms without hiding an API error.
+    # sherpa-onnx 1.13.x requires the official nested config graph.  Passing
+    # flat ``segmentation_model=...`` kwargs happens to work with a few old
+    # test doubles but is rejected by the real binding, so prefer the nested
+    # constructors whenever they are available.
+    config_cls = getattr(module, "OfflineSpeakerDiarizationConfig", None)
+    segmentation_cls = getattr(module, "OfflineSpeakerSegmentationModelConfig", None)
+    pyannote_cls = getattr(module, "OfflineSpeakerSegmentationPyannoteModelConfig", None)
+    embedding_cls = getattr(module, "SpeakerEmbeddingExtractorConfig", None)
+    clustering_cls = getattr(module, "FastClusteringConfig", None)
+    if all(item is not None for item in (config_cls, segmentation_cls, pyannote_cls, embedding_cls, clustering_cls)):
+        segmentation_model = str(model_paths[0])
+        embedding_model = str(model_paths[1] if len(model_paths) > 1 else model_paths[0])
+        num_clusters = max(2, _sherpa_int(config.get("num_clusters"), _sherpa_int(min_speakers, 2)))
+        threshold = _sherpa_float(config.get("cluster_threshold"), 0.5)
+        try:
+            segmentation = segmentation_cls(pyannote=pyannote_cls(model=segmentation_model))
+            embedding = embedding_cls(model=embedding_model)
+            clustering = clustering_cls(num_clusters=num_clusters, threshold=threshold)
+            cfg = config_cls(
+                segmentation=segmentation,
+                embedding=embedding,
+                clustering=clustering,
+                min_duration_on=_sherpa_float(config.get("min_duration_on"), 0.3),
+                min_duration_off=_sherpa_float(config.get("min_duration_off"), 0.5),
+            )
+            validate = getattr(cfg, "validate", None)
+            if callable(validate) and not validate():
+                raise ValueError("OfflineSpeakerDiarizationConfig.validate() returned false")
+            return diarizer_cls(cfg)
+        except (TypeError, ValueError, RuntimeError) as exc:
+            raise DiarizationBackendUnavailable(
+                f"sherpa-onnx nested model/API configuration failed: {exc}"
+            ) from exc
+
+    # Older package builds may expose only the direct constructor.  Keep this
+    # compatibility branch explicit; never silently fall back to another
+    # diarization backend when the user selected sherpa.
     kwargs = {
         "segmentation_model": str(model_paths[0]),
         "embedding_model": str(model_paths[1] if len(model_paths) > 1 else model_paths[0]),
@@ -346,19 +399,41 @@ def _build_sherpa_diarizer(
     }
     try:
         return diarizer_cls(**kwargs)
-    except TypeError:
-        config_cls = getattr(module, "OfflineSpeakerDiarizationConfig", None)
-        if config_cls is None:
-            raise DiarizationBackendUnavailable(
-                "sherpa-onnx OfflineSpeakerDiarization exists but no supported config constructor was found."
-            )
-        try:
-            cfg = config_cls(**kwargs)
-            return diarizer_cls(cfg)
-        except (TypeError, ValueError) as exc:
-            raise DiarizationBackendUnavailable(
-                f"sherpa-onnx model/API configuration failed: {exc}"
-            ) from exc
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise DiarizationBackendUnavailable(
+            f"sherpa-onnx OfflineSpeakerDiarization has no supported constructor: {exc}"
+        ) from exc
+
+
+def _sherpa_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _sherpa_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _resample_sherpa_samples(samples: Sequence[float], source_rate: int, target_rate: int) -> list[float]:
+    if not samples or source_rate <= 0 or target_rate <= 0 or source_rate == target_rate:
+        return list(samples)
+    target_size = max(1, int(round(len(samples) * target_rate / source_rate)))
+    if len(samples) == 1:
+        return [float(samples[0])] * target_size
+    output: list[float] = []
+    scale = (len(samples) - 1) / max(1, target_size - 1)
+    for index in range(target_size):
+        source_index = index * scale
+        left = min(len(samples) - 1, int(source_index))
+        right = min(len(samples) - 1, left + 1)
+        fraction = source_index - left
+        output.append(float(samples[left]) * (1.0 - fraction) + float(samples[right]) * fraction)
+    return output
 
 
 def _run_sherpa_diarizer(diarizer: Any, audio_path: Path) -> list[DiarizationTurn]:
@@ -384,6 +459,18 @@ def _run_sherpa_diarizer(diarizer: Any, audio_path: Path) -> list[DiarizationTur
         samples = list(pcm)
     scale = 32768.0
     normalized = [float(sample) / scale for sample in samples]
+    target_sample_rate = _sherpa_int(getattr(diarizer, "sample_rate", sample_rate), sample_rate)
+    if target_sample_rate > 0 and sample_rate != target_sample_rate:
+        normalized = _resample_sherpa_samples(normalized, sample_rate, target_sample_rate)
+        sample_rate = target_sample_rate
+    try:
+        import numpy as np
+
+        process_samples: Any = np.asarray(normalized, dtype=np.float32)
+    except ImportError:
+        # The official wheel depends on numpy, but this keeps the adapter
+        # importable/testable with a light fake backend in a clean install.
+        process_samples = array("f", normalized)
 
     process = getattr(diarizer, "process", None) or getattr(diarizer, "diarize", None)
     if not callable(process):
@@ -391,16 +478,19 @@ def _run_sherpa_diarizer(diarizer: Any, audio_path: Path) -> list[DiarizationTur
             "sherpa-onnx diarizer has no process()/diarize() method."
         )
     try:
-        output = process(normalized)
+        output = process(process_samples)
     except TypeError:
         try:
-            output = process(normalized, sample_rate)
+            output = process(process_samples, sample_rate)
         except TypeError as exc:
             raise DiarizationBackendUnavailable(
                 f"sherpa-onnx process() signature is unsupported: {exc}"
             ) from exc
     if output is None:
         output = diarizer
+    sorter = getattr(output, "sort_by_start_time", None)
+    if callable(sorter):
+        output = sorter()
     return _extract_sherpa_turns(output, sample_rate)
 
 
@@ -411,10 +501,15 @@ def _extract_sherpa_turns(value: Any, sample_rate: int) -> list[DiarizationTurn]
         output: list[DiarizationTurn] = []
         for index, item in enumerate(value):
             if isinstance(item, (list, tuple)) and len(item) >= 3:
-                output.append(DiarizationTurn(str(item[2]), float(item[0]), float(item[1]), confidence=0.5))
+                output.append(DiarizationTurn(_sherpa_speaker_label(item[2]), float(item[0]), float(item[1]), confidence=0.5))
                 continue
             if isinstance(item, dict):
-                raw = str(item.get("speaker") or item.get("label") or item.get("raw_speaker_label") or "")
+                speaker_value = item.get("speaker")
+                if speaker_value is None or speaker_value == "":
+                    speaker_value = item.get("label")
+                if speaker_value is None or speaker_value == "":
+                    speaker_value = item.get("raw_speaker_label")
+                raw = _sherpa_speaker_label(speaker_value)
                 start = item.get("start", item.get("start_ms", 0))
                 end = item.get("end", item.get("end_ms", 0))
                 start = float(start) / 1000 if "start_ms" in item and "start" not in item else float(start)
@@ -422,7 +517,12 @@ def _extract_sherpa_turns(value: Any, sample_rate: int) -> list[DiarizationTurn]
                 if raw and end > start:
                     output.append(DiarizationTurn(raw, start, end, confidence=float(item.get("confidence") or 0.5)))
                 continue
-            raw = str(getattr(item, "speaker", "") or getattr(item, "label", "") or "")
+            speaker_value = getattr(item, "speaker", None)
+            if speaker_value is None or speaker_value == "":
+                speaker_value = getattr(item, "label", None)
+            if speaker_value is None or speaker_value == "":
+                speaker_value = f"SPEAKER_{index:02d}"
+            raw = _sherpa_speaker_label(speaker_value)
             start = getattr(item, "start", None)
             end = getattr(item, "end", None)
             if raw and start is not None and end is not None and float(end) > float(start):
@@ -446,15 +546,50 @@ def _extract_sherpa_turns(value: Any, sample_rate: int) -> list[DiarizationTurn]
         output = []
         for index in range(int(count)):
             item = getter(index)
-            raw = str(getattr(item, "speaker", "") or getattr(item, "label", "") or f"SPEAKER_{index:02d}")
+            speaker_value = getattr(item, "speaker", None)
+            if speaker_value is None or speaker_value == "":
+                speaker_value = getattr(item, "label", None)
+            if speaker_value is None or speaker_value == "":
+                speaker_value = f"SPEAKER_{index:02d}"
+            raw = _sherpa_speaker_label(speaker_value)
             start = float(getattr(item, "start", 0.0))
             end = float(getattr(item, "end", 0.0))
             if end > start:
                 output.append(DiarizationTurn(raw, start, end, confidence=0.5))
         return output
+    # OfflineSpeakerDiarizationResult in sherpa-onnx is iterable but is not a
+    # list/tuple and exposes each segment as ``start/end/speaker`` attributes.
+    try:
+        iterator = iter(value)
+    except TypeError:
+        iterator = None
+    if iterator is not None and not isinstance(value, (str, bytes, dict)):
+        output = []
+        for index, item in enumerate(iterator):
+            start = getattr(item, "start", None)
+            end = getattr(item, "end", None)
+            if start is None or end is None or float(end) <= float(start):
+                continue
+            speaker_value = getattr(item, "speaker", None)
+            if speaker_value is None or speaker_value == "":
+                speaker_value = getattr(item, "label", None)
+            if speaker_value is None or speaker_value == "":
+                speaker_value = f"SPEAKER_{index:02d}"
+            raw = _sherpa_speaker_label(speaker_value)
+            output.append(DiarizationTurn(raw, float(start), float(end), confidence=0.5))
+        if output:
+            return output
     raise DiarizationBackendUnavailable(
         "sherpa-onnx diarizer returned an unsupported segment result shape."
     )
+
+
+def _sherpa_speaker_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int) or (isinstance(value, float) and value.is_integer()):
+        return f"SPEAKER_{int(value):02d}"
+    return str(value or "")
 
 
 def create_diarization_backend(name: str) -> DiarizationBackend:
