@@ -8,10 +8,13 @@ from unittest.mock import patch
 
 from app import (
     JOBS,
+    ENHANCEMENT_JOB,
     SPEAKER_TRANSCRIPT_JOB,
     TRANSCRIPTION_JOB,
+    _new_job,
     app,
     reconcile_job_state,
+    run_enhancement_job,
 )
 
 
@@ -135,6 +138,68 @@ class AppTests(unittest.TestCase):
             payload = response.get_json()
             self.assertEqual(payload["runs"][0]["display_title"], "真实节目标题")
             self.assertEqual(payload["runs"][0]["quality"], "更快")
+
+    def test_historical_enhance_passes_effective_config_to_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            run_dir = root / "run_demo"
+            item_dir = run_dir / "items" / "episode"
+            item_dir.mkdir(parents=True)
+            (item_dir / "transcript.json").write_text("{}", encoding="utf-8")
+            (run_dir / "manifest.json").write_text(
+                json.dumps({"results": [{"source_label": "episode", "output_dir": str(item_dir)}]}),
+                encoding="utf-8",
+            )
+            job_id = "enhance-config"
+            JOBS[job_id] = _new_job(job_id, ENHANCEMENT_JOB, run_id=run_dir.name)
+            effective_config = {"postprocess": {"preferred_model_id": "configured:4b"}}
+            seen: dict[str, object] = {}
+
+            def fake_process(item_path: Path, **kwargs: object) -> dict:
+                seen["item_dir"] = item_path
+                seen["config"] = kwargs.get("config")
+                return {"status": "ready", "paths": {}, "actual_models": ["configured:4b"]}
+
+            with patch("app.RUNS_ROOT", root), patch("app.load_config", return_value=effective_config), patch(
+                "app.process_transcript_artifacts", side_effect=fake_process
+            ):
+                run_enhancement_job(job_id, run_dir, "fast", "", "")
+
+            self.assertIs(seen["config"], effective_config)
+            self.assertEqual(seen["item_dir"], item_dir)
+            self.assertEqual(JOBS[job_id]["status"], "ready")
+
+    def test_model_status_uses_effective_config_selection(self) -> None:
+        effective_config = {
+            "asr": {"engine": "qwen3-asr", "accurate_model": "configured/asr", "fast_model": "configured/fast", "forced_aligner": "configured/aligner"},
+            "diarization": {"backend": "sherpa-onnx", "fallback_order": ["sherpa-onnx", "resemblyzer"]},
+            "postprocess": {
+                "profile": "quality",
+                "provider": "ollama",
+                "preferred_model_id": "configured:4b",
+                "fallback_model": "configured:4b",
+                "quality_model": "configured:9b",
+            },
+        }
+        with patch("app.load_config", return_value=effective_config), patch("app.qwen_accurate_model", return_value="configured/asr"), patch(
+            "app.qwen_fast_model", return_value="configured/fast"
+        ), patch("app.qwen_forced_aligner_model", return_value="configured/aligner"), patch(
+            "app.qwen_mlx_available", return_value=True
+        ), patch("app.qwen_memory_safe", return_value=True), patch("app.qwen_model_cached", return_value=True), patch(
+            "app.qwen_forced_aligner_cached", return_value=True
+        ), patch("app.qwen_model_provenance", return_value={"revision": "test-revision"}), patch(
+            "app.detect_speaker_backend_status", return_value={"ready": True, "selected_backend": "sherpa-onnx"}
+        ), patch(
+            "app.ollama_status", return_value={"ready": True, "models": ["configured:4b", "configured:9b"]}
+        ):
+            response = self.client.get("/api/models/status")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["selected"]["asr"]["model"], "configured/asr")
+        self.assertEqual(payload["selected"]["llm"]["model"], "configured:4b")
+        self.assertEqual(payload["llm_models"]["quality"], "configured:9b")
+        self.assertEqual(payload["diarization"]["requested_backend"], "sherpa-onnx")
 
 
 if __name__ == "__main__":

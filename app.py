@@ -23,7 +23,8 @@ from workbench.speaker_transcript import (
     build_speaker_transcript,
     detect_speaker_backend_status,
 )
-from workbench.postprocess import FAST_MODEL, QUALITY_MODEL, ollama_status, process_transcript_artifacts
+from workbench.config import load_config
+from workbench.postprocess import FAST_MODEL, QUALITY_MODEL, ollama_status, process_transcript_artifacts, resolve_postprocess_models
 from workbench.asr import (
     QWEN_ACCURATE_MODEL,
     QWEN_FAST_MODEL,
@@ -133,14 +134,34 @@ def _resource_snapshot() -> dict[str, object]:
     return snapshot
 
 
-def _configured_model(getter, fallback: str) -> str:
+def _configured_model(getter, fallback: str, config=None) -> str:
     """Read central model selection while keeping the legacy API resilient."""
 
     try:
-        value = str(getter() or "").strip()
+        value = str((getter(config) if config is not None else getter()) or "").strip()
+    except TypeError:
+        # A test/integration may provide the old zero-argument getter.
+        try:
+            value = str(getter() or "").strip()
+        except Exception:
+            value = ""
     except Exception:
         value = ""
     return value or fallback
+
+
+def _effective_config_value(config, section: str, key: str, default=None):
+    """Read one config value from either ``NextEchoConfig`` or a plain mapping."""
+
+    try:
+        getter = getattr(config, "get_path", None)
+        if callable(getter):
+            return getter(section, key, default=default)
+        if isinstance(config, dict):
+            return (config.get(section) or {}).get(key, default)
+    except (AttributeError, TypeError, ValueError):
+        return default
+    return default
 
 
 def _model_provenance(model: str) -> dict:
@@ -1394,6 +1415,9 @@ def run_enhancement_job(job_id: str, run_dir: Path, profile: str, glossary_text:
     try:
         lease = _acquire_heavy_task(job_id, stage="polishing", message="本地模型已占用，开始智能整理")
         stop_heartbeat = _start_coordinated_heartbeat(job_id, lease, "本地模型正在持续整理，请稍候")
+        # Resolve once per historical job so every item uses the same
+        # validated central selection (and a config override is not lost).
+        effective_config = load_config()
         item_dirs = sorted((run_dir / "items").glob("*"))
         processed = 0
         partial = 0
@@ -1405,6 +1429,7 @@ def run_enhancement_job(job_id: str, run_dir: Path, profile: str, glossary_text:
                 profile=profile,
                 user_glossary_text=glossary_text,
                 style=style,
+                config=effective_config,
                 progress_callback=on_progress,
             )
             update_enhancement_metadata(run_dir, item_dir, audit)
@@ -1570,17 +1595,70 @@ def transcribe():
 
 @app.get("/api/models/status")
 def model_status():
-    configured_accurate = _configured_model(qwen_accurate_model, QWEN_ACCURATE_MODEL)
-    configured_fast = _configured_model(qwen_fast_model, QWEN_FAST_MODEL)
-    configured_aligner = _configured_model(qwen_forced_aligner_model, QWEN_FORCED_ALIGNER_MODEL)
+    config_error = ""
     try:
-        speaker_backend = detect_speaker_backend_status()
+        effective_config = load_config()
+    except Exception as exc:
+        # Keep the status endpoint useful even when an explicitly supplied
+        # local override is malformed; callers still see the fallback choice.
+        effective_config = None
+        config_error = str(exc)
+    configured_accurate = str(_effective_config_value(effective_config, "asr", "accurate_model", "") or "").strip() or _configured_model(qwen_accurate_model, QWEN_ACCURATE_MODEL, effective_config)
+    configured_fast = str(_effective_config_value(effective_config, "asr", "fast_model", "") or "").strip() or _configured_model(qwen_fast_model, QWEN_FAST_MODEL, effective_config)
+    configured_aligner = str(_effective_config_value(effective_config, "asr", "forced_aligner", "") or "").strip() or _configured_model(qwen_forced_aligner_model, QWEN_FORCED_ALIGNER_MODEL, effective_config)
+    try:
+        speaker_backend = detect_speaker_backend_status(effective_config)
+    except TypeError:
+        # Compatibility with injected status providers that predate config.
+        try:
+            speaker_backend = detect_speaker_backend_status()
+        except Exception as exc:
+            speaker_backend = {"ready": False, "selected_backend": "", "error": str(exc)}
     except Exception as exc:
         speaker_backend = {"ready": False, "selected_backend": "", "error": str(exc)}
     try:
         ollama = ollama_status()
     except Exception as exc:
         ollama = {"ready": False, "models": [], "error": str(exc)}
+    postprocess_profile = str(_effective_config_value(effective_config, "postprocess", "profile", "fast") or "fast").strip().lower()
+    if postprocess_profile not in {"fast", "balanced", "quality"}:
+        postprocess_profile = "fast"
+    try:
+        postprocess_plan = resolve_postprocess_models(
+            postprocess_profile,
+            config=effective_config,
+            ollama_info=ollama,
+        )
+    except Exception as exc:
+        postprocess_plan = {
+            "provider": str(_effective_config_value(effective_config, "postprocess", "provider", "selection") or "selection"),
+            "profile": postprocess_profile,
+            "selected_4b": str(_effective_config_value(effective_config, "postprocess", "fallback_model", FAST_MODEL) or FAST_MODEL),
+            "quality_model": str(_effective_config_value(effective_config, "postprocess", "quality_model", QUALITY_MODEL) or QUALITY_MODEL),
+            "error": str(exc),
+        }
+    configured_llm_fast = str(postprocess_plan.get("selected_4b") or FAST_MODEL)
+    configured_llm_quality = str(postprocess_plan.get("quality_model") or QUALITY_MODEL)
+    configured_asr_engine = str(_effective_config_value(effective_config, "asr", "engine", "auto") or "auto").strip().lower()
+    qwen_runtime_ready = qwen_mlx_available() and qwen_memory_safe()
+    if configured_asr_engine == "whisper-cpp" or (configured_asr_engine not in {"qwen3-asr", "auto"} and not qwen_runtime_ready):
+        selected_asr_engine = "whisper-cpp"
+        selected_asr_model = str(_effective_config_value(effective_config, "asr", "whisper_fallback", DEFAULT_MODEL_NAME) or DEFAULT_MODEL_NAME)
+    elif qwen_runtime_ready:
+        selected_asr_engine = "qwen3-asr"
+        selected_asr_model = configured_accurate
+    else:
+        selected_asr_engine = "whisper-cpp"
+        selected_asr_model = str(_effective_config_value(effective_config, "asr", "whisper_fallback", DEFAULT_MODEL_NAME) or DEFAULT_MODEL_NAME)
+    ollama_models = {
+        str(item.get("name") or item.get("model") or "")
+        for item in (ollama.get("models") or [])
+        if isinstance(item, dict)
+    }
+    ollama_models.update(str(item) for item in (ollama.get("models") or []) if not isinstance(item, dict) and str(item).strip())
+    if ollama_models:
+        ollama["fast_model_ready"] = configured_llm_fast in ollama_models
+        ollama["quality_model_ready"] = configured_llm_quality in ollama_models
     coordinator = HEAVY_TASK_COORDINATOR.snapshot().to_dict()
     return jsonify(
         {
@@ -1604,16 +1682,30 @@ def model_status():
                 "fast": _model_provenance(configured_fast),
             },
             "ollama": ollama,
-            "llm_models": {"fast": FAST_MODEL, "quality": QUALITY_MODEL},
+            "llm_models": {"fast": configured_llm_fast, "quality": configured_llm_quality},
+            "postprocess": {
+                "profile": postprocess_profile,
+                "provider": postprocess_plan.get("provider") or "selection",
+                "selected_4b": configured_llm_fast,
+                "quality_model": configured_llm_quality,
+                "config_source": postprocess_plan.get("config_source") or getattr(effective_config, "source_label", "fallback"),
+                "error": postprocess_plan.get("error") or config_error,
+            },
             "diarization": {
                 **speaker_backend,
+                "requested_backend": _effective_config_value(effective_config, "diarization", "backend", "auto"),
+                "fallback_order": _effective_config_value(effective_config, "diarization", "fallback_order", []),
                 "model": "pyannote/speaker-diarization-community-1" if speaker_backend.get("selected_backend") == "pyannote" else "",
                 "fallback": "resemblyzer" if speaker_backend.get("selected_backend") == "resemblyzer" else "segment-clustering" if speaker_backend.get("selected_backend") == "segment-clustering" else "",
             },
             "selected": {
-                "asr": {"engine": "qwen3-asr" if qwen_mlx_available() and qwen_memory_safe() else "whisper-cpp", "model": configured_accurate if qwen_mlx_available() and qwen_memory_safe() else DEFAULT_MODEL_NAME},
+                "asr": {"engine": selected_asr_engine, "model": selected_asr_model, "requested_engine": configured_asr_engine},
                 "diarization": {"backend": speaker_backend.get("selected_backend") or "unavailable"},
-                "llm": {"backend": "ollama", "model": FAST_MODEL},
+                "llm": {"backend": postprocess_plan.get("provider") or "ollama", "model": configured_llm_fast},
+            },
+            "config": {
+                "source": getattr(effective_config, "source", "fallback") if effective_config is not None else "fallback",
+                "source_label": getattr(effective_config, "source_label", "fallback") if effective_config is not None else "fallback",
             },
             "coordinator": coordinator,
             "heartbeat_seconds": HEARTBEAT_SECONDS,
