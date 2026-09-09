@@ -663,7 +663,15 @@ def polish_segments(
         normalized.append(Segment(segment.id, text, segment.start_ms, segment.end_ms, segment.speaker))
         replacements.extend(applied)
     chunks = chunk_segments(normalized, max_chars=POLISH_MAX_CHARS, target_chars=POLISH_TARGET_CHARS)
-    context_signature = _value_signature(compact_source_context(source_context or {}, shownotes_limit=0, comment_limit=20, include_highlights=False))
+    context_signature = _value_signature(
+        {
+            "context": compact_source_context(source_context or {}, shownotes_limit=0, comment_limit=20, include_highlights=False),
+            "profile": profile,
+            "style": style,
+            "models": models,
+            "prompt_version": PROMPT_VERSION,
+        }
+    )
     output: list[Segment] = []
     audit: dict[str, Any] = {
         "status": "ready",
@@ -681,7 +689,7 @@ def polish_segments(
         chunk_signature = _segments_signature(chunk)
         if checkpoint.exists():
             checkpoint_payload = _read_json_dict(checkpoint)
-            if checkpoint_payload.get("input_signature") == chunk_signature and checkpoint_payload.get("context_signature") == context_signature and _checkpoint_segments_match(checkpoint_payload, chunk):
+            if checkpoint_payload.get("input_signature") == chunk_signature and checkpoint_payload.get("context_signature") == context_signature and checkpoint_payload.get("model") and _checkpoint_segments_match(checkpoint_payload, chunk):
                 output.extend(segment_from_dict(item) for item in checkpoint_payload["segments"])
                 checkpoint_model = str(checkpoint_payload.get("model") or "")
                 if checkpoint_model:
@@ -834,7 +842,19 @@ def summarize_segments(
     chunks = chunk_segments(segments)
     resolved_coverage = _coerce_coverage(coverage, max_seconds=max_seconds)
     scoped_context = scope_source_context(source_context or {}, resolved_coverage)
-    context_signature = _value_signature(compact_source_context(scoped_context, shownotes_limit=3500, comment_limit=8, comment_text_limit=400, coverage=resolved_coverage))
+    context_signature = _value_signature(
+        {
+            "context": compact_source_context(
+                scoped_context,
+                shownotes_limit=3500,
+                comment_limit=8,
+                comment_text_limit=400,
+                coverage=resolved_coverage,
+            ),
+            "models": models,
+            "prompt_version": PROMPT_VERSION,
+        }
+    )
     known_context_refs, context_ref_types = context_reference_inventory(scoped_context)
     local_summaries: list[dict[str, Any]] = []
     audit: dict[str, Any] = {
