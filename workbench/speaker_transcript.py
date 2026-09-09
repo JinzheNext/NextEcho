@@ -13,8 +13,10 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from .diarization import (
+    DiarizationBackendUnavailable,
     DiarizationResult,
     DiarizationTurn,
+    DEFAULT_SHERPA_MODEL_DIR,
     coerce_result,
     coerce_turns,
     create_diarization_backend,
@@ -97,6 +99,76 @@ def now_slug() -> str:
     return datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
 
+def resolve_speaker_backend(
+    requested: str | None = "auto",
+    *,
+    config: Any | None = None,
+    backend_status: dict[str, Any] | None = None,
+) -> tuple[str, str, bool, dict[str, Any]]:
+    """Resolve one requested/configured backend and its strictness.
+
+    ``auto`` may use the detected best available backend and fall back when an
+    optional runtime fails.  Any explicit backend (including sherpa-onnx) is
+    strict: initialization errors are surfaced to the caller rather than being
+    hidden behind a different backend.
+    """
+
+    status = backend_status or detect_speaker_backend_status()
+    configured = _config_section(config, "diarization")
+    requested_name = str(requested or "auto").strip().lower() or "auto"
+    if requested_name == "auto":
+        configured_name = str(configured.get("backend") or "auto").strip().lower()
+        requested_name = configured_name or "auto"
+    strict_backend = requested_name not in {"", "auto"}
+    if requested_name == "auto":
+        selected = str(status.get("selected_backend") or "segment-clustering")
+    else:
+        selected = _normalize_backend_name(requested_name)
+        # Validate aliases up front so a typo does not get interpreted as the
+        # dependency-free fallback by a future backend selector.
+        create_diarization_backend(selected)
+    backend_config: dict[str, Any] = {}
+    configured_backend_options = configured.get(selected) or configured.get(requested_name) or {}
+    if isinstance(configured_backend_options, dict):
+        backend_config.update(configured_backend_options)
+    # The repository config may keep sherpa settings under a nested section;
+    # copy it into the adapter's private options without leaking unrelated
+    # diarization controls.
+    if selected == "sherpa-onnx" and isinstance(configured.get("sherpa"), dict):
+        backend_config = {**configured.get("sherpa", {}), **backend_config}
+    if selected == "sherpa-onnx":
+        for key in ("model_paths", "segmentation_model", "segmentation", "embedding_model", "embedding", "model_path", "model", "constructor_kwargs", "factory"):
+            if key in configured and key not in backend_config:
+                backend_config[key] = configured[key]
+    return requested_name, selected, strict_backend, backend_config
+
+
+def _config_section(config: Any | None, name: str) -> dict[str, Any]:
+    if config is None:
+        return {}
+    try:
+        section = config.get(name, {})
+    except AttributeError:
+        try:
+            section = config[name]
+        except (KeyError, TypeError):
+            section = {}
+    return dict(section) if isinstance(section, dict) else {}
+
+
+def _normalize_backend_name(value: str) -> str:
+    normalized = (value or "").strip().lower().replace("_", "-")
+    return {
+        "community-1": "pyannote",
+        "pyannote-community-1": "pyannote",
+        "speaker-embedding": "resemblyzer",
+        "embedding": "resemblyzer",
+        "fallback": "segment-clustering",
+        "local": "segment-clustering",
+        "simple": "segment-clustering",
+    }.get(normalized, normalized)
+
+
 def build_speaker_transcript(
     input_path: str | Path,
     *,
@@ -105,9 +177,21 @@ def build_speaker_transcript(
     output_dir: Path | None = None,
     min_speakers: int = 2,
     max_speakers: int = 6,
+    backend: str = "auto",
+    config: Any | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    backend_status = ensure_speaker_dependencies()
+    backend_status = ensure_speaker_dependencies(config=config) if config is not None else ensure_speaker_dependencies()
+    requested_backend, selected_backend, strict_backend, backend_config = resolve_speaker_backend(
+        backend,
+        config=config,
+        backend_status=backend_status,
+    )
+    backend_status = dict(backend_status)
+    backend_status["requested_backend"] = requested_backend
+    backend_status["selected_backend"] = selected_backend
+    backend_status["strict_backend"] = strict_backend
+    backend_status["backend_config"] = backend_config
     workspace = resolve_speaker_workspace(input_path, quality=quality, output_dir=output_dir, model_name=model_name)
     _emit_progress(progress_callback, stage="preprocess", message="准备访谈音频", progress=10)
     derived_dir = workspace["run_dir"] / "derived"
@@ -124,15 +208,24 @@ def build_speaker_transcript(
     intro_removed, intro_range = detect_intro_range(transcript_segments)
 
     _emit_progress(progress_callback, stage="diarization", message="正在区分说话人", progress=40)
-    diarization_output = run_diarization(
-        voice_audio,
-        transcript_segments=transcript_segments,
-        intro_end=intro_range[1] if intro_removed else 0.0,
-        min_speakers=min_speakers,
-        max_speakers=max_speakers,
-        backend_status=backend_status,
-        progress_callback=progress_callback,
-    )
+    diarization_kwargs: dict[str, Any] = {
+        "transcript_segments": transcript_segments,
+        "intro_end": intro_range[1] if intro_removed else 0.0,
+        "min_speakers": min_speakers,
+        "max_speakers": max_speakers,
+        "backend_status": backend_status,
+        "progress_callback": progress_callback,
+    }
+    # Avoid breaking test doubles/third-party callers that still implement the
+    # pre-config run_diarization signature when no new options are requested.
+    if backend_config or strict_backend:
+        diarization_kwargs.update(
+            {
+                "backend_config": backend_config,
+                "strict_backend": strict_backend,
+            }
+        )
+    diarization_output = run_diarization(voice_audio, **diarization_kwargs)
     backend_name, diarization_turns = _unpack_diarization_output(diarization_output)
     diarization_result = coerce_result(
         diarization_turns,
@@ -187,6 +280,9 @@ def build_speaker_transcript(
         "source_audio": str(workspace["source_audio_path"]),
         "run_dir": str(workspace["run_dir"]),
         "backend": backend_name,
+        "backend_requested": requested_backend,
+        "backend_selected": selected_backend,
+        "backend_configured": bool(backend_config),
         "speaker_count_detected": speaker_count_detected,
         "fallback_used": fallback_used,
         "quality_note": quality_note,
@@ -475,6 +571,8 @@ def run_diarization(
     max_speakers: int,
     backend_status: dict[str, Any],
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    backend_config: dict[str, Any] | None = None,
+    strict_backend: bool | None = None,
 ) -> tuple[str, list[DiarizationTurn]]:
     selected_backend = str(backend_status.get("selected_backend") or "").strip().lower()
     # Keep the old short names accepted by doctor/CLI while routing execution
@@ -492,13 +590,21 @@ def run_diarization(
         "intro_end": intro_end,
         "min_speakers": min_speakers,
         "max_speakers": max_speakers,
+        "backend_config": dict(backend_config or backend_status.get("backend_config") or {}),
+        "strict": bool(backend_status.get("strict_backend")) if strict_backend is None else bool(strict_backend),
     }
+    strict = bool(options["strict"])
     try:
         backend = create_diarization_backend(selected_backend)
         result = backend.diarize(audio_path, options=options, progress_callback=progress_callback)
         turns = coerce_turns(result.turns if isinstance(result, DiarizationResult) else result)
         return _legacy_backend_name(selected_backend), turns
     except Exception as exc:
+        if strict:
+            # Explicit backend selection is a user-visible contract.  Keep
+            # the original exception type/message so callers can distinguish a
+            # missing sherpa model/API from a normal auto fallback.
+            raise
         if selected_backend in {"pyannote", "resemblyzer"} and backend_status.get("fallback_backend_available", True):
             message = (
                 "pyannote 不可用，回退到本地聚类分离"
@@ -1406,9 +1512,36 @@ def package_available(module_name: str) -> bool:
         return False
 
 
-def detect_speaker_backend_status() -> dict[str, Any]:
+def _configured_sherpa_model_paths(configured: dict[str, Any] | None) -> list[Path]:
+    values: list[Any] = []
+    config = configured if isinstance(configured, dict) else {}
+    model_paths = config.get("model_paths")
+    if isinstance(model_paths, dict):
+        values.extend(model_paths.values())
+    elif isinstance(model_paths, (list, tuple)):
+        values.extend(model_paths)
+    elif model_paths:
+        values.append(model_paths)
+    if not values:
+        for key in ("segmentation_model", "segmentation", "embedding_model", "embedding", "model_path", "model"):
+            if config.get(key):
+                values.append(config[key])
+    if not values:
+        values = [DEFAULT_SHERPA_MODEL_DIR / "segmentation.onnx", DEFAULT_SHERPA_MODEL_DIR / "embedding.onnx"]
+    paths: list[Path] = []
+    for value in values:
+        path = Path(str(value)).expanduser()
+        if not path.is_absolute():
+            path = (Path(__file__).resolve().parent.parent / path).resolve()
+        if path not in paths:
+            paths.append(path)
+    return paths
+
+
+def detect_speaker_backend_status(config: Any | None = None) -> dict[str, Any]:
     pyannote_installed = package_available("pyannote.audio")
     resemblyzer_installed = package_available("resemblyzer")
+    sherpa_onnx_installed = package_available("sherpa_onnx")
     hf_token = find_hf_token()
     # The fallback has a dependency-free timeline mode; numpy/sklearn only
     # raise its acoustic feature quality.  Reporting it as available keeps the
@@ -1416,9 +1549,15 @@ def detect_speaker_backend_status() -> dict[str, Any]:
     numpy_available = package_available("numpy")
     sklearn_available = package_available("sklearn")
     fallback_backend_available = True
+    configured = _config_section(config, "diarization")
+    sherpa_config = configured.get("sherpa") if isinstance(configured.get("sherpa"), dict) else configured
+    sherpa_model_paths = _configured_sherpa_model_paths(sherpa_config)
+    sherpa_models_ready = bool(sherpa_onnx_installed and sherpa_model_paths and all(path.is_file() for path in sherpa_model_paths))
     selected_backend = ""
     if pyannote_installed and hf_token:
         selected_backend = "pyannote"
+    elif sherpa_models_ready:
+        selected_backend = "sherpa-onnx"
     elif resemblyzer_installed:
         selected_backend = "resemblyzer"
     else:
@@ -1426,12 +1565,16 @@ def detect_speaker_backend_status() -> dict[str, Any]:
     return {
         "pyannote_installed": pyannote_installed,
         "resemblyzer_installed": resemblyzer_installed,
+        "sherpa_onnx_installed": sherpa_onnx_installed,
+        "sherpa_model_paths": [str(path) for path in sherpa_model_paths],
+        "sherpa_models_ready": sherpa_models_ready,
         "numpy_installed": numpy_available,
         "sklearn_installed": sklearn_available,
         "hf_token_env": next((name for name in HF_TOKEN_ENV_VARS if os.environ.get(name)), ""),
         "fallback_backend_available": fallback_backend_available,
         "backends": {
             "pyannote-community-1": pyannote_installed and bool(hf_token),
+            "sherpa-onnx": sherpa_models_ready,
             "resemblyzer": resemblyzer_installed,
             "segment-clustering": True,
         },
@@ -1440,8 +1583,8 @@ def detect_speaker_backend_status() -> dict[str, Any]:
     }
 
 
-def ensure_speaker_dependencies() -> dict[str, Any]:
-    status = detect_speaker_backend_status()
+def ensure_speaker_dependencies(config: Any | None = None) -> dict[str, Any]:
+    status = detect_speaker_backend_status(config=config)
     if status["ready"]:
         return status
     # ``segment-clustering`` is normally always available through its

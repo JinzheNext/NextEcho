@@ -11,10 +11,20 @@ method is called.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
+import wave
+from array import array
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
+
+
+DEFAULT_SHERPA_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "speaker-diarization"
+
+
+class DiarizationBackendUnavailable(RuntimeError):
+    """Requested diarization backend cannot be initialized on this machine."""
 
 
 @dataclass
@@ -122,6 +132,8 @@ class DiarizationOptions:
     intro_end: float = 0.0
     transcript_segments: list[Any] = field(default_factory=list)
     use_exclusive_timeline: bool = True
+    backend_config: dict[str, Any] = field(default_factory=dict)
+    strict: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -130,6 +142,8 @@ class DiarizationOptions:
             "intro_end": self.intro_end,
             "transcript_segments": self.transcript_segments,
             "use_exclusive_timeline": self.use_exclusive_timeline,
+            "backend_config": self.backend_config,
+            "strict": self.strict,
         }
 
 
@@ -203,14 +217,244 @@ class SegmentClusteringBackend(SegmentClusteringFallbackBackend):
 
 
 class SherpaOnnxBackend(SegmentClusteringFallbackBackend):
-    """Optional sherpa-onnx slot with a safe local fallback implementation."""
+    """Optional sherpa-onnx speaker diarization adapter.
+
+    Unlike ``auto`` selection, an explicit sherpa request must never silently
+    switch to an acoustic or timeline fallback.  The adapter validates the
+    Python module, configured model paths, and the diarization API before
+    returning a result; any missing piece raises
+    :class:`DiarizationBackendUnavailable` with an actionable message.
+    """
 
     name = "sherpa-onnx"
     model = "sherpa-onnx"
 
+    def diarize(
+        self,
+        audio_path: Path,
+        options: Any | None = None,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> DiarizationResult:
+        config = dict(_option(options, "backend_config", {}) or {})
+        injected_runner = config.get("runner")
+        if callable(injected_runner):
+            result = injected_runner(Path(audio_path), options)
+            return DiarizationResult(self.name, turns=coerce_turns(result), model=self.model)
+
+        try:
+            module = importlib.import_module("sherpa_onnx")
+        except (ImportError, ModuleNotFoundError) as exc:
+            raise DiarizationBackendUnavailable(
+                "sherpa-onnx backend requested but the `sherpa_onnx` Python package is not installed. "
+                "Install the local sherpa-onnx runtime or choose backend=auto."
+            ) from exc
+
+        model_paths = _sherpa_model_paths(config)
+        missing = [str(path) for path in model_paths if not path.is_file()]
+        if not model_paths:
+            raise DiarizationBackendUnavailable(
+                "sherpa-onnx backend requested but no diarization models were configured. "
+                "Expected models/speaker-diarization/segmentation.onnx and embedding.onnx, "
+                "or set diarization.sherpa.model_paths in config."
+            )
+        if missing:
+            raise DiarizationBackendUnavailable(
+                "sherpa-onnx diarization model file(s) are missing: " + ", ".join(missing)
+            )
+
+        diarizer_factory = config.get("factory")
+        if callable(diarizer_factory):
+            diarizer = diarizer_factory(module=module, config=config)
+        else:
+            diarizer = _build_sherpa_diarizer(module, config, model_paths, _option(options, "min_speakers", 2), _option(options, "max_speakers", 6))
+        if diarizer is None:
+            raise DiarizationBackendUnavailable(
+                "sherpa-onnx is installed but its OfflineSpeakerDiarization API is unavailable or "
+                "not configured for the supplied models."
+            )
+        turns = _run_sherpa_diarizer(diarizer, Path(audio_path))
+        return DiarizationResult(self.name, turns=coerce_turns(turns), model=str(config.get("model") or self.model))
+
 
 class FallbackDiarizationBackend(SegmentClusteringFallbackBackend):
     """Compatibility alias for the dependency-free fallback backend."""
+
+
+def _sherpa_model_paths(config: dict[str, Any]) -> list[Path]:
+    nested = config.get("sherpa") if isinstance(config.get("sherpa"), dict) else config
+    configured = nested.get("model_paths") if isinstance(nested, dict) else None
+    values: list[Any] = []
+    if isinstance(configured, dict):
+        values.extend(configured.values())
+    elif isinstance(configured, (list, tuple)):
+        values.extend(configured)
+    elif configured:
+        values.append(configured)
+    if not values and isinstance(nested, dict):
+        for key in ("segmentation_model", "segmentation", "embedding_model", "embedding", "model_path", "model"):
+            value = nested.get(key)
+            if value:
+                values.append(value)
+    if not values:
+        values = [
+            DEFAULT_SHERPA_MODEL_DIR / "segmentation.onnx",
+            DEFAULT_SHERPA_MODEL_DIR / "embedding.onnx",
+        ]
+    paths: list[Path] = []
+    for value in values:
+        path = Path(str(value)).expanduser()
+        if not path.is_absolute():
+            path = (Path(__file__).resolve().parent.parent / path).resolve()
+        if path not in paths:
+            paths.append(path)
+    return paths
+
+
+def _build_sherpa_diarizer(
+    module: Any,
+    config: dict[str, Any],
+    model_paths: list[Path],
+    min_speakers: Any,
+    max_speakers: Any,
+) -> Any | None:
+    diarizer_cls = getattr(module, "OfflineSpeakerDiarization", None)
+    if diarizer_cls is None:
+        return None
+    supplied_config = config.get("config")
+    if supplied_config is not None:
+        try:
+            return diarizer_cls(supplied_config)
+        except TypeError:
+            return diarizer_cls(config=supplied_config)
+
+    constructor_kwargs = config.get("constructor_kwargs")
+    if isinstance(constructor_kwargs, dict):
+        try:
+            return diarizer_cls(**constructor_kwargs)
+        except TypeError as exc:
+            raise DiarizationBackendUnavailable(
+                f"sherpa-onnx OfflineSpeakerDiarization rejected constructor_kwargs: {exc}"
+            ) from exc
+
+    # Different sherpa-onnx releases expose either a direct kwargs constructor
+    # or a Config object.  Probe both known forms without hiding an API error.
+    kwargs = {
+        "segmentation_model": str(model_paths[0]),
+        "embedding_model": str(model_paths[1] if len(model_paths) > 1 else model_paths[0]),
+        "min_speakers": int(min_speakers or 1),
+        "max_speakers": int(max_speakers or 6),
+    }
+    try:
+        return diarizer_cls(**kwargs)
+    except TypeError:
+        config_cls = getattr(module, "OfflineSpeakerDiarizationConfig", None)
+        if config_cls is None:
+            raise DiarizationBackendUnavailable(
+                "sherpa-onnx OfflineSpeakerDiarization exists but no supported config constructor was found."
+            )
+        try:
+            cfg = config_cls(**kwargs)
+            return diarizer_cls(cfg)
+        except (TypeError, ValueError) as exc:
+            raise DiarizationBackendUnavailable(
+                f"sherpa-onnx model/API configuration failed: {exc}"
+            ) from exc
+
+
+def _run_sherpa_diarizer(diarizer: Any, audio_path: Path) -> list[DiarizationTurn]:
+    try:
+        with wave.open(str(audio_path), "rb") as handle:
+            sample_width = handle.getsampwidth()
+            channels = handle.getnchannels()
+            sample_rate = handle.getframerate()
+            frame_count = handle.getnframes()
+            raw = handle.readframes(frame_count)
+    except (OSError, EOFError, wave.Error) as exc:
+        raise DiarizationBackendUnavailable(f"Unable to read sherpa-onnx audio input: {audio_path}") from exc
+    if sample_width != 2:
+        raise DiarizationBackendUnavailable("sherpa-onnx adapter requires 16-bit PCM WAV audio.")
+    pcm = array("h")
+    pcm.frombytes(raw)
+    if channels > 1:
+        samples = [
+            sum(pcm[index : index + channels]) / channels
+            for index in range(0, len(pcm), channels)
+        ]
+    else:
+        samples = list(pcm)
+    scale = 32768.0
+    normalized = [float(sample) / scale for sample in samples]
+
+    process = getattr(diarizer, "process", None) or getattr(diarizer, "diarize", None)
+    if not callable(process):
+        raise DiarizationBackendUnavailable(
+            "sherpa-onnx diarizer has no process()/diarize() method."
+        )
+    try:
+        output = process(normalized)
+    except TypeError:
+        try:
+            output = process(normalized, sample_rate)
+        except TypeError as exc:
+            raise DiarizationBackendUnavailable(
+                f"sherpa-onnx process() signature is unsupported: {exc}"
+            ) from exc
+    if output is None:
+        output = diarizer
+    return _extract_sherpa_turns(output, sample_rate)
+
+
+def _extract_sherpa_turns(value: Any, sample_rate: int) -> list[DiarizationTurn]:
+    if isinstance(value, DiarizationResult):
+        return coerce_turns(value.turns)
+    if isinstance(value, (list, tuple)):
+        output: list[DiarizationTurn] = []
+        for index, item in enumerate(value):
+            if isinstance(item, (list, tuple)) and len(item) >= 3:
+                output.append(DiarizationTurn(str(item[2]), float(item[0]), float(item[1]), confidence=0.5))
+                continue
+            if isinstance(item, dict):
+                raw = str(item.get("speaker") or item.get("label") or item.get("raw_speaker_label") or "")
+                start = item.get("start", item.get("start_ms", 0))
+                end = item.get("end", item.get("end_ms", 0))
+                start = float(start) / 1000 if "start_ms" in item and "start" not in item else float(start)
+                end = float(end) / 1000 if "end_ms" in item and "end" not in item else float(end)
+                if raw and end > start:
+                    output.append(DiarizationTurn(raw, start, end, confidence=float(item.get("confidence") or 0.5)))
+                continue
+            raw = str(getattr(item, "speaker", "") or getattr(item, "label", "") or "")
+            start = getattr(item, "start", None)
+            end = getattr(item, "end", None)
+            if raw and start is not None and end is not None and float(end) > float(start):
+                output.append(DiarizationTurn(raw, float(start), float(end), confidence=0.5))
+        return output
+    itertracks = getattr(value, "itertracks", None)
+    if callable(itertracks):
+        output = []
+        try:
+            rows = itertracks(yield_label=True)
+        except TypeError:
+            rows = itertracks()
+        for row in rows:
+            if isinstance(row, tuple) and len(row) >= 3:
+                turn, _, label = row[:3]
+                output.append(DiarizationTurn(str(label), float(turn.start), float(turn.end), confidence=0.5))
+        return output
+    count = getattr(value, "num_segments", None)
+    getter = getattr(value, "get_segment", None)
+    if count is not None and callable(getter):
+        output = []
+        for index in range(int(count)):
+            item = getter(index)
+            raw = str(getattr(item, "speaker", "") or getattr(item, "label", "") or f"SPEAKER_{index:02d}")
+            start = float(getattr(item, "start", 0.0))
+            end = float(getattr(item, "end", 0.0))
+            if end > start:
+                output.append(DiarizationTurn(raw, start, end, confidence=0.5))
+        return output
+    raise DiarizationBackendUnavailable(
+        "sherpa-onnx diarizer returned an unsupported segment result shape."
+    )
 
 
 def create_diarization_backend(name: str) -> DiarizationBackend:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,11 +18,15 @@ from workbench.speaker_transcript import (
     build_speaker_transcript,
     detect_intro_range,
     apply_context_speaker_names,
+    resolve_speaker_backend,
     render_speaker_text,
+    run_diarization,
 )
 from workbench.diarization import (
+    DiarizationBackendUnavailable,
     DiarizationResult,
     SegmentClusteringBackend,
+    SherpaOnnxBackend,
     render_rttm,
     write_raw_diarization_outputs,
 )
@@ -253,6 +258,79 @@ class SpeakerTranscriptTests(unittest.TestCase):
         backend = SegmentClusteringBackend()
         self.assertEqual(backend.name, "segment-clustering")
         self.assertIn("SPEAKER", render_rttm(DiarizationResult("fallback", [DiarizationTurn("SPEAKER_00", 0, 1)])))
+
+    def test_explicit_backend_and_config_are_resolved_without_auto_override(self) -> None:
+        requested, selected, strict, options = resolve_speaker_backend(
+            "sherpa-onnx",
+            config={
+                "diarization": {
+                    "backend": "auto",
+                    "sherpa": {"model_paths": ["models/custom/seg.onnx", "models/custom/emb.onnx"]},
+                }
+            },
+            backend_status={"selected_backend": "resemblyzer"},
+        )
+        self.assertEqual((requested, selected, strict), ("sherpa-onnx", "sherpa-onnx", True))
+        self.assertEqual(options["model_paths"], ["models/custom/seg.onnx", "models/custom/emb.onnx"])
+
+    def test_sherpa_unavailable_is_explicit_failure_not_fallback(self) -> None:
+        backend = SherpaOnnxBackend()
+        with patch("workbench.diarization.importlib.import_module", side_effect=ModuleNotFoundError("sherpa_onnx")):
+            with self.assertRaises(DiarizationBackendUnavailable) as raised:
+                backend.diarize(Path("/tmp/not-used.wav"), options={"backend_config": {}})
+        self.assertIn("sherpa_onnx", str(raised.exception))
+
+    def test_sherpa_adapter_uses_configured_models_and_normalized_audio(self) -> None:
+        class FakeDiarizer:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            def process(self, samples):
+                self.sample_count = len(samples)
+                return [{"speaker": "SPEAKER_00", "start": 0.0, "end": 0.5, "confidence": 0.77}]
+
+        class FakeSherpa:
+            OfflineSpeakerDiarization = FakeDiarizer
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio = root / "audio.wav"
+            with wave.open(str(audio), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(16000)
+                handle.writeframes(b"\x00\x00" * 1600)
+            segmentation = root / "segmentation.onnx"
+            embedding = root / "embedding.onnx"
+            segmentation.write_bytes(b"model")
+            embedding.write_bytes(b"model")
+            with patch("workbench.diarization.importlib.import_module", return_value=FakeSherpa()):
+                result = SherpaOnnxBackend().diarize(
+                    audio,
+                    options={"backend_config": {"model_paths": [str(segmentation), str(embedding)]}},
+                )
+        self.assertEqual(result.backend, "sherpa-onnx")
+        self.assertEqual(result.turns[0].raw_label, "SPEAKER_00")
+        self.assertEqual(result.turns[0].confidence, 0.77)
+
+    def test_strict_run_diarization_does_not_call_fallback_after_backend_error(self) -> None:
+        class FailingBackend:
+            def diarize(self, *args, **kwargs):
+                raise DiarizationBackendUnavailable("missing sherpa model")
+
+        with patch("workbench.speaker_transcript.create_diarization_backend", return_value=FailingBackend()) as factory:
+            with self.assertRaises(DiarizationBackendUnavailable):
+                run_diarization(
+                    Path("/tmp/not-used.wav"),
+                    transcript_segments=[TranscriptSegment(0, 1, "测试")],
+                    intro_end=0,
+                    min_speakers=2,
+                    max_speakers=4,
+                    backend_status={"selected_backend": "sherpa-onnx", "fallback_backend_available": True},
+                    backend_config={},
+                    strict_backend=True,
+                )
+        factory.assert_called_once_with("sherpa-onnx")
 
 
 if __name__ == "__main__":
