@@ -417,6 +417,24 @@ class SpeakerTranscriptTests(unittest.TestCase):
         self.assertNotIn("unknown", [item.speaker for item in aligned])
         self.assertEqual("".join(item.text for item in aligned), "投资")
 
+    def test_self_introduction_moves_greeting_but_not_hosts_question(self) -> None:
+        text = "简单先介绍一下自己呃大家好我是李继刚"
+        words = [TranscriptWord(char, index * 0.1, (index + 1) * 0.1) for index, char in enumerate(text)]
+        boundary = text.index("我是") * 0.1
+        aligned, _ = align_segments_to_speakers(
+            [TranscriptSegment(0.0, len(text) * 0.1, text, "seg_intro", words=words)],
+            [
+                DiarizationTurn("SPEAKER_00", 0.0, boundary),
+                DiarizationTurn("SPEAKER_01", boundary, len(text) * 0.1),
+            ],
+            0.0,
+            context={"speaker_candidates": ["孟岩", "李继刚"]},
+        )
+        self.assertEqual("".join(item.text for item in aligned), text)
+        self.assertEqual(aligned[0].text, "简单先介绍一下自己")
+        self.assertTrue(aligned[1].text.startswith("呃大家好我是李继刚"))
+        self.assertEqual(aligned[1].speaker, "李继刚")
+
     def test_raw_diarization_artifacts_are_immutable_and_rttm_is_anonymous(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

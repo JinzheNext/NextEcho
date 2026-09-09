@@ -1446,6 +1446,8 @@ def align_segments_to_speakers(
             continue
 
         anchor = detect_speaker_self_introduction(segment.text, candidates)
+        if anchor:
+            pieces = _repair_self_introduction_greeting(pieces, anchor)
         for piece in pieces:
             speaker = piece.speaker
             raw_speaker = piece.raw_speaker or speaker
@@ -1463,6 +1465,41 @@ def align_segments_to_speakers(
             piece.raw_speaker = raw_speaker
             assigned.append(piece)
     return merge_adjacent_turns(assigned), unassigned
+
+
+def _repair_self_introduction_greeting(
+    pieces: list[SpeakerTextTurn],
+    anchor: str,
+) -> list[SpeakerTextTurn]:
+    """Keep ``大家好，我是 X`` on the self-introducing voice cluster.
+
+    Acoustic windows may place the turn boundary a second or two late.  The
+    identity phrase itself is strong evidence, but the greeting immediately
+    before it can otherwise remain attached to the host.  Move only that
+    conventional greeting suffix; never move the host's preceding question.
+    """
+
+    anchor_index = next((index for index, piece in enumerate(pieces) if _piece_contains_anchor(piece.text, anchor)), None)
+    if anchor_index is None or anchor_index == 0:
+        return pieces
+    previous = pieces[anchor_index - 1]
+    current = pieces[anchor_index]
+    match = re.search(r"((?:嗯|呃|额|啊|哈)*大家好[，,、 ]*)$", previous.text)
+    if not match:
+        return pieces
+    greeting = match.group(1)
+    prefix = previous.text[: match.start()]
+    original_duration = max(previous.end - previous.start, 0.001)
+    greeting_ratio = min(1.0, len(greeting) / max(len(previous.text), 1))
+    greeting_start = max(previous.start, previous.end - original_duration * greeting_ratio)
+    current.start = min(current.start, greeting_start)
+    current.text = greeting + current.text
+    if prefix:
+        previous.text = prefix
+        previous.end = greeting_start
+    else:
+        pieces.pop(anchor_index - 1)
+    return pieces
 
 
 def _align_words_for_segment(
