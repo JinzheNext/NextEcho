@@ -328,6 +328,28 @@ button:disabled {
   color: var(--muted);
 }
 
+.speaker-mapping {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  border-radius: 8px;
+  background: rgba(9, 12, 15, 0.28);
+}
+
+.speaker-map-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 140px) minmax(160px, 320px);
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.speaker-map-row input {
+  padding: 7px 10px;
+}
+
 .result-card,
 .run-row {
   display: flex;
