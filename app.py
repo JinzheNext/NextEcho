@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,11 @@ from pathlib import Path
 from typing import Iterable
 from uuid import uuid4
 import time
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - Windows has no resource module
+    resource = None
 
 from workbench.speaker_transcript import (
     build_speaker_transcript,
@@ -24,9 +30,13 @@ from workbench.asr import (
     QWEN_FORCED_ALIGNER_MODEL,
     is_apple_silicon,
     qwen_forced_aligner_cached,
+    qwen_forced_aligner_model,
     qwen_memory_safe,
     qwen_mlx_available,
+    qwen_accurate_model,
+    qwen_fast_model,
     qwen_model_cached,
+    qwen_model_provenance,
 )
 from workbench.sources import resolve_sources
 from flask import Flask, jsonify, render_template, request, send_from_directory
@@ -99,6 +109,295 @@ STAGE_TO_STATUS = {
     "complete": "packaging",
     "failed": "failed",
 }
+MANIFEST_SCHEMA_VERSION = 3
+
+
+def _resource_snapshot() -> dict[str, object]:
+    """Capture lightweight local resource telemetry without extra deps."""
+
+    snapshot: dict[str, object] = {
+        "platform": platform.system().lower(),
+        "captured_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "peak_rss_bytes": None,
+        "available": False,
+    }
+    if resource is not None:
+        try:
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            # macOS reports bytes; Linux/BSD traditionally report KiB.
+            raw = int(getattr(usage, "ru_maxrss", 0) or 0)
+            snapshot["peak_rss_bytes"] = raw if platform.system() == "Darwin" else raw * 1024
+            snapshot["available"] = True
+        except (OSError, ValueError):
+            pass
+    return snapshot
+
+
+def _configured_model(getter, fallback: str) -> str:
+    """Read central model selection while keeping the legacy API resilient."""
+
+    try:
+        value = str(getter() or "").strip()
+    except Exception:
+        value = ""
+    return value or fallback
+
+
+def _model_provenance(model: str) -> dict:
+    try:
+        return qwen_model_provenance(model)
+    except Exception as exc:
+        return {"source_repo": model, "revision": "", "sha256": "", "error": str(exc)}
+
+
+def _resource_metrics(start: dict | None = None, end: dict | None = None, *, stages: dict | None = None) -> dict:
+    start = start or {}
+    end = end or _resource_snapshot()
+    start_rss = start.get("peak_rss_bytes")
+    end_rss = end.get("peak_rss_bytes")
+    delta = None
+    if isinstance(start_rss, int) and isinstance(end_rss, int):
+        delta = max(0, end_rss - start_rss)
+    return {
+        "available": bool(end.get("available")),
+        "platform": end.get("platform") or platform.system().lower(),
+        "peak_rss_bytes": end_rss,
+        "peak_rss_delta_bytes": delta,
+        "memory_pressure": "unknown",
+        "available_memory_bytes": None,
+        "swap_delta_bytes": None,
+        "stages": stages or {},
+        "captured_at": end.get("captured_at") or datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    }
+
+
+def _default_manifest_fields(run_dir: Path, *, run_config: dict | None = None) -> dict:
+    config = run_config or {}
+    enhancement = config.get("enhancement") or {}
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "asr": dict(config.get("asr") or {}),
+        "diarization": {
+            "status": "not_started",
+            "backend": "",
+            "model": "",
+            "fallbacks": [],
+            "coverage": {},
+        },
+        "speaker_identity": {
+            "schema_version": 3,
+            "status": "not_started",
+            "speakers": [],
+            "mapping_path": str(run_dir / "speaker.identity-map.json"),
+        },
+        "postprocess": dict(config.get("postprocess") or {
+            "profile": enhancement.get("postprocess_profile", "off"),
+            "enabled": enhancement.get("postprocess_profile", "off") != "off",
+        }),
+        "fallbacks": [],
+        "timings": {"total_elapsed_seconds": int(config.get("elapsed_seconds") or 0), "stages": {}},
+        "artifact_paths": {
+            "items_dir": str(run_dir / "items"),
+            "manifest": str(run_dir / "manifest.json"),
+            "run_config": str(run_dir / "run_config.json"),
+            "errors": str(run_dir / "errors.json"),
+            "speaker_json": str(run_dir / "transcript.speakers.json"),
+            "speaker_txt": str(run_dir / "transcript.speakers.txt"),
+            "speaker_md": str(run_dir / "transcript.speakers.md"),
+        },
+        "resource_metrics": _resource_metrics(),
+    }
+
+
+def _upgrade_manifest_v3(run_dir: Path, manifest: dict | None = None, *, job: dict | None = None) -> dict:
+    """Add v3 provenance fields while preserving all v2 fields verbatim."""
+
+    manifest = dict(manifest or {})
+    config = load_run_config(run_dir) or {}
+    defaults = _default_manifest_fields(run_dir, run_config=config)
+    for key, value in defaults.items():
+        if key not in manifest:
+            manifest[key] = value
+    manifest["schema_version"] = MANIFEST_SCHEMA_VERSION
+    manifest.setdefault("asr", {})
+    manifest["asr"] = {**dict(config.get("asr") or {}), **dict(manifest.get("asr") or {})}
+    manifest["asr"].setdefault("requested_engine", "")
+    manifest["asr"].setdefault("requested_model", "")
+    manifest["asr"].setdefault("actual_engine", "")
+    manifest["asr"].setdefault("actual_model", manifest.get("model_name") or "")
+    manifest["asr"].setdefault("revision", manifest["asr"].get("model_revision") or "")
+    manifest["asr"].setdefault("model_revision", manifest["asr"].get("revision") or "")
+    manifest["asr"].setdefault("model_digest", "")
+    manifest["asr"].setdefault("fallbacks", [])
+    manifest["diarization"] = {
+        "status": "not_started",
+        "backend": "",
+        "model": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": [],
+        "coverage": {},
+        **dict(manifest.get("diarization") or {}),
+    }
+    manifest["speaker_identity"] = {
+        "schema_version": 3,
+        "status": "not_started",
+        "speakers": [],
+        "mapping_path": str(run_dir / "speaker.identity-map.json"),
+        **dict(manifest.get("speaker_identity") or {}),
+    }
+    manifest.setdefault("postprocess", {})
+    manifest["postprocess"] = {**dict(config.get("postprocess") or {}), **dict(manifest.get("postprocess") or {})}
+    manifest["postprocess"].setdefault("profile", (config.get("enhancement") or {}).get("postprocess_profile", "off"))
+    manifest["postprocess"].setdefault("enabled", manifest["postprocess"].get("profile") not in {None, "off"})
+    manifest["postprocess"].setdefault("actual_models", [])
+    manifest["postprocess"].setdefault("fallbacks", [])
+    manifest.setdefault("fallbacks", [])
+    existing_timings = dict(manifest.get("timings") or {})
+    if not existing_timings.get("total_elapsed_seconds") and manifest.get("elapsed_seconds"):
+        existing_timings["total_elapsed_seconds"] = int(manifest.get("elapsed_seconds") or 0)
+    else:
+        existing_timings.setdefault("total_elapsed_seconds", int(manifest.get("elapsed_seconds") or 0))
+    existing_timings["stages"] = dict(existing_timings.get("stages") or {})
+    manifest["timings"] = existing_timings
+    manifest.setdefault("artifact_paths", {})
+    manifest["artifact_paths"] = {**dict(manifest.get("artifact_paths") or {}), **defaults["artifact_paths"]}
+    # These aliases existed in older manifests.  Keep them stable and rooted
+    # in the run directory so temporary worker paths never leak to clients.
+    manifest["run_config_path"] = str(run_dir / "run_config.json")
+    manifest["items_dir"] = str(run_dir / "items")
+    manifest.setdefault("resource_metrics", _resource_metrics())
+    if job:
+        start_metrics = job.get("resource_metrics_start")
+        stage_timings = dict(job.get("stage_timings") or {})
+        current_stage = str(job.get("stage") or "")
+        current_started = job.get("stage_started_monotonic")
+        if current_stage and isinstance(current_started, (int, float)):
+            stage_timings[current_stage] = round(max(0.0, time.monotonic() - float(current_started)), 3)
+        manifest["resource_metrics"] = _resource_metrics(start_metrics, _resource_snapshot(), stages=stage_timings)
+        manifest["timings"].update({"stages": stage_timings})
+        manifest["timings"].setdefault("job_elapsed_seconds", int(job.get("elapsed_seconds") or 0))
+
+    stage_values = manifest["timings"].get("stages") or {}
+    for name, aliases in {
+        "asr_seconds": ("model", "media", "audio", "asr"),
+        "diarization_seconds": ("preprocess", "diarization", "align", "identifying_speakers"),
+        "postprocess_seconds": ("polish", "summarize"),
+    }.items():
+        manifest["timings"].setdefault(name, round(sum(float(stage_values.get(key) or 0) for key in aliases), 3))
+
+    # Normalize item-level provenance so clients can render a single shape for
+    # old and new runs.  Unknown values remain unknown; no names are inferred.
+    all_fallbacks = [item for item in manifest.get("fallbacks") or [] if isinstance(item, dict)]
+    result_items = [item for item in manifest.get("results") or [] if isinstance(item, dict)]
+    for item in result_items:
+        if not isinstance(item, dict):
+            continue
+        item.setdefault("schema_version", 3)
+        item["asr"] = dict(item.get("asr") or {})
+        item["asr"].setdefault("requested_engine", manifest["asr"].get("requested_engine") or "")
+        item["asr"].setdefault("requested_model", manifest["asr"].get("requested_model") or "")
+        item["asr"].setdefault("actual_engine", item["asr"].get("selected_engine") or "")
+        item["asr"].setdefault("actual_model", item["asr"].get("requested_model") or manifest.get("model_name") or "")
+        item["asr"].setdefault("revision", item["asr"].get("model_revision") or "")
+        item["asr"].setdefault("model_revision", item["asr"].get("revision") or "")
+        item["asr"].setdefault("model_digest", "")
+        item["asr"].setdefault("fallbacks", [])
+        item["diarization"] = {"status": item.get("speaker_status") or "not_started", "backend": "", "model": "", "model_revision": "", "model_digest": "", "fallbacks": [], "coverage": {}, **dict(item.get("diarization") or {})}
+        item["speaker_identity"] = {"schema_version": 3, "status": item.get("speaker_status") or "not_started", "speakers": [], **dict(item.get("speaker_identity") or {})}
+        item.setdefault("postprocess", item.get("enhancement") or {})
+        item.setdefault("fallbacks", list(item["asr"].get("fallbacks") or []))
+        item.setdefault("timings", {})
+        item_dir = None
+        try:
+            item_dir = _resolve_item_dir(run_dir, item)
+        except (NameError, OSError, ValueError):
+            item_dir = None
+        if item_dir is None:
+            label = secure_filename(str(item.get("source_label") or "item")) or "item"
+            item_dir = run_dir / "items" / label
+        artifact_names = {
+            "text_path": "transcript.txt",
+            "json_path": "transcript.json",
+            "srt_path": "transcript.srt",
+            "vtt_path": "transcript.vtt",
+            "media_path": "source.media",
+            "audio_path": "转录音频.wav",
+        }
+        artifact_paths = dict(item.get("artifact_paths") or {})
+        for key, filename in artifact_names.items():
+            if item.get(key):
+                artifact_paths[key] = str(item_dir / filename)
+        item["artifact_paths"] = artifact_paths
+        item.setdefault("resource_metrics", _resource_metrics())
+        for fallback in item["asr"].get("fallbacks") or []:
+            if isinstance(fallback, dict):
+                all_fallbacks.append({"source_label": item.get("source_label", ""), **fallback})
+    actual_engines = list(dict.fromkeys(str(item["asr"].get("actual_engine") or "") for item in result_items if item["asr"].get("actual_engine")))
+    actual_models = list(dict.fromkeys(str(item["asr"].get("actual_model") or "") for item in result_items if item["asr"].get("actual_model")))
+    if not manifest["asr"].get("actual_engine") and actual_engines:
+        manifest["asr"]["actual_engine"] = actual_engines[0] if len(actual_engines) == 1 else "mixed"
+    if not manifest["asr"].get("actual_model") and actual_models:
+        manifest["asr"]["actual_model"] = actual_models[0] if len(actual_models) == 1 else "mixed"
+    postprocess_models = list(
+        dict.fromkeys(
+            str(model)
+            for item in result_items
+            for model in ((item.get("enhancement") or {}).get("actual_models") or [])
+            if model
+        )
+    )
+    if not manifest["postprocess"].get("actual_models") and postprocess_models:
+        manifest["postprocess"]["actual_models"] = postprocess_models
+    unique_fallbacks = []
+    seen_fallbacks = set()
+    for fallback in all_fallbacks:
+        try:
+            key = json.dumps(fallback, ensure_ascii=False, sort_keys=True, default=str)
+        except TypeError:
+            key = repr(fallback)
+        if key in seen_fallbacks:
+            continue
+        seen_fallbacks.add(key)
+        unique_fallbacks.append(fallback)
+    manifest["fallbacks"] = unique_fallbacks
+    speaker = manifest.get("speaker_transcript") or {}
+    if speaker:
+        manifest["diarization"] = {
+            **dict(manifest.get("diarization") or {}),
+            "status": speaker.get("status") or "ready",
+            "backend": speaker.get("backend") or "",
+            "backends": speaker.get("backends") or [],
+            "fallback_used": bool(speaker.get("fallback_used")),
+            "coverage": speaker.get("coverage") or {},
+            "failures": speaker.get("failures") or [],
+        }
+        manifest["speaker_identity"] = {
+            **dict(manifest.get("speaker_identity") or {}),
+            "status": speaker.get("status") or "ready",
+            "speakers": speaker.get("speakers") or [],
+            "mapping_path": str(run_dir / "speaker.identity-map.json"),
+        }
+    if speaker.get("status") == "partial" or manifest.get("partial_count") or manifest.get("error_count"):
+        manifest["status"] = "partial"
+    elif manifest.get("completed_at") or manifest.get("results"):
+        manifest["status"] = "ready"
+    else:
+        manifest.setdefault("status", "queued")
+    return manifest
+
+
+def _persist_manifest_v3(run_dir: Path, *, job: dict | None = None) -> dict | None:
+    path = run_dir / "manifest.json"
+    if not path.exists():
+        return None
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    upgraded = _upgrade_manifest_v3(run_dir, manifest, job=job)
+    path.write_text(json.dumps(upgraded, ensure_ascii=False, indent=2), encoding="utf-8")
+    return upgraded
 
 
 def now_slug() -> str:
@@ -116,6 +415,8 @@ def allowed_file(filename: str) -> bool:
 def serialize_result(payload: dict) -> dict:
     output_dir = Path(payload["output_dir"])
     manifest = json.loads(Path(payload["manifest_path"]).read_text(encoding="utf-8"))
+    manifest = _upgrade_manifest_v3(output_dir, manifest)
+    Path(payload["manifest_path"]).write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return {
         "run_id": output_dir.name,
         "output_dir": str(output_dir),
@@ -131,6 +432,8 @@ def serialize_result(payload: dict) -> dict:
 def serialize_run(run_dir: Path) -> dict:
     manifest_path = run_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = _upgrade_manifest_v3(run_dir, manifest)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return {
         "run_id": run_dir.name,
         "output_dir": str(run_dir),
@@ -224,6 +527,7 @@ def synthesize_manifest_if_complete(run_dir: Path) -> Path | None:
         "error_count": len(failed_results),
         "partial_count": sum(1 for item in results if (item.get("enhancement") or {}).get("status") == "partial"),
     }
+    manifest = _upgrade_manifest_v3(run_dir, manifest)
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     if failed_results:
         errors_path = run_dir / "errors.json"
@@ -399,6 +703,14 @@ def update_job(job_id: str, **fields: object) -> None:
         if job is None:
             return
         stage = fields.get("stage")
+        previous_stage = str(job.get("stage") or "")
+        if stage and str(stage) != previous_stage:
+            stage_started = job.get("stage_started_monotonic")
+            if isinstance(stage_started, (int, float)) and previous_stage:
+                timings = dict(job.get("stage_timings") or {})
+                timings[previous_stage] = round(max(0.0, time.monotonic() - float(stage_started)), 3)
+                fields["stage_timings"] = timings
+            fields["stage_started_monotonic"] = time.monotonic()
         if stage and "status" not in fields:
             status = _status_for_stage(str(stage))
             if status:
@@ -412,6 +724,11 @@ def update_job(job_id: str, **fields: object) -> None:
         fields.setdefault("updated_at", timestamp)
         fields.setdefault("heartbeat_at", timestamp)
         job.update(fields)
+
+
+def _job_snapshot(job_id: str) -> dict:
+    with JOBS_LOCK:
+        return dict(JOBS.get(job_id) or {})
 
 
 def _new_job(job_id: str, job_type: str, *, run_id: str = "", message: str = "任务已创建", **fields: object) -> dict:
@@ -431,6 +748,9 @@ def _new_job(job_id: str, job_type: str, *, run_id: str = "", message: str = "�
         "updated_at": time.time(),
         "heartbeat_at": time.time(),
         "heartbeat_count": 0,
+        "resource_metrics_start": _resource_snapshot(),
+        "stage_timings": {},
+        "stage_started_monotonic": time.monotonic(),
         "result": None,
         "error": "",
         **fields,
@@ -441,7 +761,7 @@ def _start_coordinated_heartbeat(job_id: str, lease: HeavyTaskLease, message: st
     def on_heartbeat(snapshot) -> None:
         update_job(
             job_id,
-            heartbeat_count=int(JOBS.get(job_id, {}).get("heartbeat_count") or 0) + 1,
+            heartbeat_count=int(_job_snapshot(job_id).get("heartbeat_count") or 0) + 1,
             heartbeat_message=message,
             coordinator=snapshot.to_dict(),
         )
@@ -559,24 +879,52 @@ def _write_raw_diarization_artifacts(item_dir: Path, payload: dict) -> None:
     raw_rttm_path.write_text("\n".join(rttm_lines) + ("\n" if rttm_lines else ""), encoding="utf-8")
 
 
+def _copy_immutable_artifact(source: Path, target: Path) -> None:
+    """Copy a generated evidence artifact only when no immutable target exists."""
+
+    if target.exists() or not source.exists():
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+
+
+def _rewrite_speaker_paths(value: object, *, staging: Path, item_dir: Path) -> object:
+    """Remove transient staging paths from persisted speaker JSON."""
+
+    if isinstance(value, dict):
+        return {key: _rewrite_speaker_paths(child, staging=staging, item_dir=item_dir) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_rewrite_speaker_paths(child, staging=staging, item_dir=item_dir) for child in value]
+    if isinstance(value, str):
+        prefix = str(staging)
+        if value == prefix or value.startswith(prefix + os.sep) or value.startswith(prefix + "/"):
+            return str(item_dir) + value[len(prefix):]
+    return value
+
+
 def _speaker_payload_v3(payload: dict, *, source_label: str = "") -> dict:
     turns = [item for item in (payload.get("speaker_turns") or []) if isinstance(item, dict)]
-    labels = list(dict.fromkeys(str(item.get("speaker") or "Speaker 1") for item in turns))
+    labels = list(dict.fromkeys(str(item.get("raw_speaker") or item.get("speaker_id") or item.get("speaker") or "Speaker 1") for item in turns))
     name_map = payload.get("speaker_map") or {}
     inferred = payload.get("speaker_name_inference") or {}
     speakers = []
+    existing_speakers = [item for item in (payload.get("speakers") or []) if isinstance(item, dict)]
+    by_id = {
+        str(item.get("speaker_id") or (item.get("raw_labels") or [""])[0] or item.get("display_name") or ""): item
+        for item in existing_speakers
+    }
     for label in labels:
-        display_name = str(name_map.get(label) or "").strip()
-        identity_status = "resolved" if display_name and display_name != label else "unknown"
-        evidence = []
-        if identity_status == "resolved":
-            evidence.append({"type": "metadata", "source": "speaker_context"})
+        existing = dict(by_id.get(label) or {})
+        display_name = str(existing.get("display_name") or name_map.get(label) or "").strip()
+        identity_status = str(existing.get("identity_status") or ("resolved" if display_name and display_name != label else "unknown"))
+        evidence = list(existing.get("identity_evidence") or [])
         speakers.append(
             {
-                "speaker_id": label,
-                "raw_labels": [label],
+                **existing,
+                "speaker_id": str(existing.get("speaker_id") or label),
+                "raw_labels": existing.get("raw_labels") or [label],
                 "display_name": display_name or label,
-                "confidence": 0.9 if identity_status == "resolved" else 0.0,
+                "confidence": float(existing.get("confidence") or (0.9 if identity_status == "resolved" else 0.0)),
                 "identity_status": identity_status,
                 "identity_evidence": evidence,
             }
@@ -694,7 +1042,15 @@ def _speaker_item_payload(item_dir: Path, source_label: str) -> dict:
     }
 
 
-def _run_speaker_for_items(job_id: str, run_dir: Path, *, required: bool = False) -> tuple[dict | None, list[dict]]:
+def _run_speaker_for_items(
+    job_id: str,
+    run_dir: Path,
+    *,
+    required: bool = False,
+    backend: str = "auto",
+    min_speakers: int = 2,
+    max_speakers: int = 6,
+) -> tuple[dict | None, list[dict]]:
     """Run diarization independently per source and retain raw ASR on errors."""
 
     item_payloads: list[dict] = []
@@ -729,8 +1085,26 @@ def _run_speaker_for_items(job_id: str, run_dir: Path, *, required: bool = False
             context_path = item_dir / "source.context.json"
             if context_path.exists():
                 shutil.copy2(context_path, stage_dir / context_path.name)
-            payload = build_speaker_transcript(stage_dir, progress_callback=lambda event: update_job(job_id, **event))
+            def speaker_progress(event: dict) -> None:
+                event_stage = str(event.get("stage") or "")
+                if event_stage == "align":
+                    update_job(job_id, status="aligning", stage="align", message=event.get("message") or "正在对齐转写内容", progress=event.get("progress", 75))
+                else:
+                    update_job(job_id, **event)
+
+            speaker_kwargs = {"progress_callback": speaker_progress}
+            if backend and backend != "auto":
+                speaker_kwargs["backend"] = backend
+            if min_speakers != 2:
+                speaker_kwargs["min_speakers"] = min_speakers
+            if max_speakers != 6:
+                speaker_kwargs["max_speakers"] = max_speakers
+            payload = build_speaker_transcript(stage_dir, **speaker_kwargs)
+            update_job(job_id, status="identifying_speakers", stage="identifying_speakers", message="正在识别说话人身份", progress=86)
             payload = _speaker_payload_v3(payload, source_label=source_label)
+            payload["run_dir"] = str(item_dir)
+            payload["source_audio"] = str(audio_path)
+            payload = _rewrite_speaker_paths(payload, staging=stage_dir, item_dir=item_dir)
             # Keep the app contract testable with lightweight/dynamic
             # backends that return a payload without using the legacy writer.
             if not (stage_dir / "transcript.speakers.json").exists():
@@ -739,7 +1113,19 @@ def _run_speaker_for_items(job_id: str, run_dir: Path, *, required: bool = False
                 _write_speaker_text_files(stage_dir, payload.get("speaker_turns") or [])
             if not (stage_dir / "speaker_map.json").exists():
                 (stage_dir / "speaker_map.json").write_text(json.dumps(payload.get("speaker_map") or {}, ensure_ascii=False, indent=2), encoding="utf-8")
-            _write_raw_diarization_artifacts(item_dir, payload)
+            _copy_immutable_artifact(stage_dir / "diarization.raw.json", item_dir / "diarization.raw.json")
+            _copy_immutable_artifact(stage_dir / "diarization.raw.rttm", item_dir / "diarization.raw.rttm")
+            staged_voice_reference = stage_dir / "derived" / "audio.voice_reference.wav"
+            stable_voice_reference = item_dir / "derived" / "audio.voice_reference.wav"
+            _copy_immutable_artifact(staged_voice_reference, stable_voice_reference)
+            if not (item_dir / "diarization.raw.json").exists():
+                _write_raw_diarization_artifacts(item_dir, payload)
+            payload = _rewrite_speaker_paths(payload, staging=stage_dir, item_dir=item_dir)
+            if isinstance(payload.get("diarization_raw"), dict):
+                payload["diarization_raw"]["json_path"] = str(item_dir / "diarization.raw.json")
+                payload["diarization_raw"]["rttm_path"] = str(item_dir / "diarization.raw.rttm")
+            if isinstance(payload.get("preprocess"), dict):
+                payload["preprocess"]["voice_reference_audio"] = str(stable_voice_reference)
             for filename in ("transcript.speakers.json", "transcript.speakers.txt", "transcript.speakers.md", "speaker_map.json"):
                 source_path = stage_dir / filename
                 if source_path.exists():
@@ -785,10 +1171,20 @@ def _annotate_manifest_speaker(run_dir: Path, aggregate: dict | None, failures: 
             item["speaker_transcript"] = view.get("paths") or {}
             item["diarization"] = {
                 "backend": payload.get("backend") or "",
+                "model": payload.get("model") or (payload.get("diarization") or {}).get("model") or "",
+                "model_revision": payload.get("model_revision") or (payload.get("diarization") or {}).get("model_revision") or "",
+                "model_digest": payload.get("model_digest") or (payload.get("diarization") or {}).get("model_digest") or "",
                 "fallback_used": bool(payload.get("fallback_used")),
                 "fallback_reason": payload.get("fallback_reason") or "",
                 "coverage": payload.get("coverage") or {},
                 "speaker_count_detected": payload.get("speaker_count_detected") or 0,
+                "raw": payload.get("diarization_raw") or {},
+            }
+            item["speaker_identity"] = {
+                "schema_version": 3,
+                "status": payload.get("identity_status") or "ready",
+                "speakers": payload.get("speakers") or [],
+                "mapping_path": str(run_dir / "speaker.identity-map.json"),
             }
         elif any(str(error.get("source_label") or "") == source_label for error in failures):
             item["speaker_status"] = "partial"
@@ -798,6 +1194,7 @@ def _annotate_manifest_speaker(run_dir: Path, aggregate: dict | None, failures: 
         "backends": aggregate.get("backends") or [],
         "fallback_used": bool(aggregate.get("fallback_used")),
         "coverage": aggregate.get("coverage") or {},
+        "speakers": aggregate.get("speakers") or [],
         "failures": failures,
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -862,6 +1259,7 @@ def run_transcription_job(
                 update_job(job_id, message=f"部分说话人结果未完成，原始转录仍可使用：{detail}", progress=98)
                 if speaker_mode == "required":
                     raise RuntimeError(f"说话人区分未完成：{detail}")
+        _persist_manifest_v3(run_dir, job=_job_snapshot(job_id))
         result = serialize_result(payload)
         if speaker_payload is not None:
             result["speaker_transcript"] = speaker_payload
@@ -909,6 +1307,9 @@ def run_transcription_job(
 def run_speaker_transcript_job(
     job_id: str,
     run_dir: Path,
+    backend: str = "auto",
+    min_speakers: int = 2,
+    max_speakers: int = 6,
 ) -> None:
     started_monotonic = time.monotonic()
     lease: HeavyTaskLease | None = None
@@ -916,8 +1317,15 @@ def run_speaker_transcript_job(
     try:
         lease = _acquire_heavy_task(job_id, stage="diarization", message="本地模型已占用，开始说话人分离")
         stop_heartbeat = _start_coordinated_heartbeat(job_id, lease, "说话人模型正在持续处理，请稍候")
-        speaker_payload, failures = _run_speaker_for_items(job_id, run_dir)
+        speaker_payload, failures = _run_speaker_for_items(
+            job_id,
+            run_dir,
+            backend=backend,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+        )
         _annotate_manifest_speaker(run_dir, speaker_payload, failures)
+        _persist_manifest_v3(run_dir, job=_job_snapshot(job_id))
         if speaker_payload is None and failures:
             raise RuntimeError("；".join(str(item.get("error") or "说话人分离失败") for item in failures))
         status = "partial" if failures else "ready"
@@ -928,6 +1336,7 @@ def run_speaker_transcript_job(
             progress=99,
             message="正在封装访谈逐字稿",
         )
+        _persist_manifest_v3(run_dir, job=_job_snapshot(job_id))
         update_job(
             job_id,
             status=status,
@@ -1003,6 +1412,7 @@ def run_enhancement_job(job_id: str, run_dir: Path, profile: str, glossary_text:
             partial += int(audit.get("status") == "partial")
         if not processed:
             raise FileNotFoundError("这个历史任务没有可供整理的 transcript.json")
+        _persist_manifest_v3(run_dir, job=_job_snapshot(job_id))
         update_job(job_id, status="packaging", stage="complete", progress=99, message="正在封装智能整理结果")
         update_job(
             job_id,
@@ -1031,10 +1441,13 @@ def run_enhancement_job(job_id: str, run_dir: Path, profile: str, glossary_text:
 
 
 def run_model_download_job(job_id: str, kind: str) -> None:
+    accurate_model = _configured_model(qwen_accurate_model, QWEN_ACCURATE_MODEL)
+    fast_model = _configured_model(qwen_fast_model, QWEN_FAST_MODEL)
+    aligner_model = _configured_model(qwen_forced_aligner_model, QWEN_FORCED_ALIGNER_MODEL)
     model_map = {
-        "asr-accurate": ("asr", QWEN_ACCURATE_MODEL),
-        "asr-fast": ("asr", QWEN_FAST_MODEL),
-        "asr-forced-aligner": ("asr-aligner", QWEN_FORCED_ALIGNER_MODEL),
+        "asr-accurate": ("asr", accurate_model),
+        "asr-fast": ("asr", fast_model),
+        "asr-forced-aligner": ("asr-aligner", aligner_model),
         "llm-fast": ("ollama", FAST_MODEL),
         "llm-quality": ("ollama", QUALITY_MODEL),
     }
@@ -1052,7 +1465,7 @@ def run_model_download_job(job_id: str, kind: str) -> None:
         if provider in {"asr", "asr-aligner"}:
             if not qwen_mlx_available():
                 raise RuntimeError("Qwen ASR 仅可在安装 mlx-qwen3-asr 的 Apple Silicon Mac 上下载")
-            repos = [model] if provider == "asr-aligner" else [model, QWEN_FORCED_ALIGNER_MODEL]
+            repos = [model] if provider == "asr-aligner" else [model, aligner_model]
             command = [
                 sys.executable,
                 "-c",
@@ -1157,6 +1570,9 @@ def transcribe():
 
 @app.get("/api/models/status")
 def model_status():
+    configured_accurate = _configured_model(qwen_accurate_model, QWEN_ACCURATE_MODEL)
+    configured_fast = _configured_model(qwen_fast_model, QWEN_FAST_MODEL)
+    configured_aligner = _configured_model(qwen_forced_aligner_model, QWEN_FORCED_ALIGNER_MODEL)
     try:
         speaker_backend = detect_speaker_backend_status()
     except Exception as exc:
@@ -1171,14 +1587,21 @@ def model_status():
             "apple_silicon": is_apple_silicon(),
             "qwen_mlx_available": qwen_mlx_available(),
             "qwen_memory_safe": qwen_memory_safe(),
-            "asr_models": {"accurate": QWEN_ACCURATE_MODEL, "fast": QWEN_FAST_MODEL},
+            # Keep the original two keys for old clients; the configured IDs
+            # and provenance below are the authoritative selection view.
+            "asr_models": {"accurate": QWEN_ACCURATE_MODEL, "fast": QWEN_FAST_MODEL, "configured_accurate": configured_accurate, "configured_fast": configured_fast},
             "qwen_asr_model_cache": {
-                "accurate": qwen_model_cached(QWEN_ACCURATE_MODEL),
-                "fast": qwen_model_cached(QWEN_FAST_MODEL),
+                "accurate": qwen_model_cached(configured_accurate),
+                "fast": qwen_model_cached(configured_fast),
             },
             "qwen_forced_aligner": {
-                "model": QWEN_FORCED_ALIGNER_MODEL,
-                "cached": qwen_forced_aligner_cached(),
+                "model": configured_aligner,
+                "cached": qwen_forced_aligner_cached(configured_aligner),
+                "provenance": _model_provenance(configured_aligner),
+            },
+            "qwen_asr_provenance": {
+                "accurate": _model_provenance(configured_accurate),
+                "fast": _model_provenance(configured_fast),
             },
             "ollama": ollama,
             "llm_models": {"fast": FAST_MODEL, "quality": QUALITY_MODEL},
@@ -1188,7 +1611,7 @@ def model_status():
                 "fallback": "resemblyzer" if speaker_backend.get("selected_backend") == "resemblyzer" else "segment-clustering" if speaker_backend.get("selected_backend") == "segment-clustering" else "",
             },
             "selected": {
-                "asr": {"engine": "qwen3-asr" if qwen_mlx_available() and qwen_memory_safe() else "whisper-cpp", "model": QWEN_ACCURATE_MODEL if qwen_mlx_available() and qwen_memory_safe() else DEFAULT_MODEL_NAME},
+                "asr": {"engine": "qwen3-asr" if qwen_mlx_available() and qwen_memory_safe() else "whisper-cpp", "model": configured_accurate if qwen_mlx_available() and qwen_memory_safe() else DEFAULT_MODEL_NAME},
                 "diarization": {"backend": speaker_backend.get("selected_backend") or "unavailable"},
                 "llm": {"backend": "ollama", "model": FAST_MODEL},
             },
@@ -1256,24 +1679,47 @@ def list_runs():
 
 @app.get("/api/runs/<run_id>")
 def get_run(run_id: str):
-    run_dir = (RUNS_ROOT / run_id).resolve()
+    run_dir = _safe_run_dir(run_id)
+    if run_dir is None:
+        return jsonify({"error": "run not found"}), 404
     manifest_path = synthesize_manifest_if_complete(run_dir) or (run_dir / "manifest.json")
-    if RUNS_ROOT.resolve() not in run_dir.parents or not manifest_path.exists():
+    if not manifest_path.exists():
         return jsonify({"error": "run not found"}), 404
     return jsonify(serialize_run(run_dir))
 
 
 @app.post("/api/runs/<run_id>/speaker-transcript")
+@app.post("/api/runs/<run_id>/re-diarize")
+@app.post("/api/runs/<run_id>/rediarize")
 def create_speaker_transcript(run_id: str):
     run_dir = _safe_run_dir(run_id)
     if run_dir is None or not (run_dir / "manifest.json").exists():
         return jsonify({"error": "run not found"}), 404
+    payload = request.get_json(silent=True) if request.is_json else request.form
+    payload = payload if isinstance(payload, dict) else {}
+    backend = str(payload.get("backend") or "auto").strip().lower() or "auto"
+    if backend not in {"auto", "pyannote", "pyannote-community-1", "sherpa", "sherpa-onnx", "resemblyzer", "segment-clustering", "fallback"}:
+        return jsonify({"error": "Unsupported diarization backend."}), 400
+    try:
+        min_speakers = max(1, min(32, int(payload.get("min_speakers", 2))))
+        max_speakers = max(min_speakers, min(32, int(payload.get("max_speakers", 6))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "min_speakers and max_speakers must be integers"}), 400
     job_id = uuid4().hex
     with JOBS_LOCK:
-        JOBS[job_id] = _new_job(job_id, SPEAKER_TRANSCRIPT_JOB, run_id=run_id, message="访谈逐字稿任务已创建")
+        JOBS[job_id] = _new_job(
+            job_id,
+            SPEAKER_TRANSCRIPT_JOB,
+            run_id=run_id,
+            message="访谈逐字稿任务已创建",
+            backend=backend,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+            re_diarize=request.path.endswith(("re-diarize", "rediarize")),
+        )
     Thread(
         target=run_speaker_transcript_job,
-        args=(job_id, run_dir),
+        args=(job_id, run_dir, backend, min_speakers, max_speakers),
         daemon=True,
     ).start()
     return jsonify({"job_id": job_id, "run_id": run_id}), 202
@@ -1433,6 +1879,7 @@ def save_speaker_map(run_id: str):
 
 
 @app.post("/api/runs/<run_id>/enhance")
+@app.post("/api/runs/<run_id>/re-enhance")
 def enhance_run(run_id: str):
     run_dir = _safe_run_dir(run_id)
     if run_dir is None or not (run_dir / "manifest.json").exists():
