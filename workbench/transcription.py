@@ -739,6 +739,7 @@ def write_qwen_transcript_result(
             "text": item["text"],
             "offsets": {"from": item["start_ms"], "to": item["end_ms"]},
             "timestamps": {"from": _format_srt_timestamp(item["start_ms"]), "to": _format_srt_timestamp(item["end_ms"])},
+            "words": item.get("words", []),
         }
         for index, item in enumerate(segments)
     ]
@@ -776,6 +777,7 @@ def write_qwen_transcript_result(
 def aggregate_qwen_words(words: list[dict[str, Any]], *, fallback_text: str) -> list[dict[str, Any]]:
     grouped: list[dict[str, Any]] = []
     current: list[str] = []
+    current_words: list[dict[str, Any]] = []
     start_ms = 0
     end_ms = 0
     for word in words:
@@ -787,13 +789,15 @@ def aggregate_qwen_words(words: list[dict[str, Any]], *, fallback_text: str) -> 
         if not current:
             start_ms = word_start
         current.append(text)
+        current_words.append({"text": text, "start": word_start / 1000.0, "end": word_end / 1000.0})
         end_ms = max(word_end, word_start)
         joined = "".join(current)
         if text.endswith(("。", "？", "！", ".", "?", "!")) or end_ms - start_ms >= 15_000 or len(joined) >= 50:
-            grouped.append({"text": joined, "start_ms": start_ms, "end_ms": end_ms})
+            grouped.append({"text": joined, "start_ms": start_ms, "end_ms": end_ms, "words": current_words})
             current = []
+            current_words = []
     if current:
-        grouped.append({"text": "".join(current), "start_ms": start_ms, "end_ms": end_ms})
+        grouped.append({"text": "".join(current), "start_ms": start_ms, "end_ms": end_ms, "words": current_words})
     if not grouped and fallback_text.strip():
         grouped.append({"text": fallback_text.strip(), "start_ms": 0, "end_ms": 0})
     return grouped

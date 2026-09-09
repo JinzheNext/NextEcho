@@ -53,6 +53,7 @@ class AsrTests(unittest.TestCase):
             self.assertEqual(payload["engine"]["model"], "Qwen/Qwen3-ASR-1.7B")
             self.assertEqual(payload["engine"]["provenance"]["revision"], "abc123")
             self.assertEqual(payload["transcription"][0]["timestamps"]["from"], "00:00:00,000")
+            self.assertEqual(payload["transcription"][0]["words"][0], {"text": "你好。", "start": 0.0, "end": 1.0})
             self.assertTrue((root / "transcript.srt").exists())
             self.assertTrue((root / "transcript.vtt").exists())
 

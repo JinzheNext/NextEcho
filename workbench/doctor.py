@@ -198,7 +198,7 @@ def run_doctor(
     fast_model = check_model(FAST_MODEL_NAME)
     recommended_quality, reason = recommend_quality(memory_gb, accurate_model, fast_model)
     recommended_model, recommended_model_reason = recommend_whisper_model(memory_gb)
-    speaker_backend = detect_speaker_backend_status()
+    speaker_backend = detect_speaker_backend_status(config=config_obj)
     accurate_qwen_model = qwen_accurate_model(config_obj)
     fast_qwen_model = qwen_fast_model(config_obj)
     forced_aligner_model = qwen_forced_aligner_model(config_obj)
