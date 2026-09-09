@@ -11,6 +11,7 @@ from workbench.cli import cmd_enhance
 from workbench.enhancement import default_glossary_rules, strip_filler_words
 from workbench.postprocess import (
     POLISH_MAX_CHARS,
+    POLISH_MAX_SEGMENTS,
     POLISH_TARGET_CHARS,
     Segment,
     TranscriptCoverage,
@@ -159,12 +160,32 @@ class PostprocessTests(unittest.TestCase):
         self.assertTrue(all(sum(len(item.text) for item in chunk) <= POLISH_MAX_CHARS for chunk in chunks))
         self.assertEqual([item.id for chunk in chunks for item in chunk], [item.id for item in segments])
 
+    def test_polish_chunks_cap_structured_segment_count_without_splitting_segments(self) -> None:
+        segments = [Segment(f"seg_{index:02d}", "完整短句。", index * 1000, (index + 1) * 1000, "A") for index in range(26)]
+        chunks = chunk_segments(
+            segments,
+            max_chars=POLISH_MAX_CHARS,
+            target_chars=POLISH_TARGET_CHARS,
+            max_segments=POLISH_MAX_SEGMENTS,
+        )
+        self.assertEqual([len(chunk) for chunk in chunks], [12, 12, 2])
+        self.assertEqual([item.id for chunk in chunks for item in chunk], [item.id for item in segments])
+
     def test_polish_validator_rejects_immutable_speaker_and_time_changes(self) -> None:
         source = [Segment("seg", "原始内容。", 100, 200, "spk_0")]
         with self.assertRaises(ValueError):
             validate_polish_response(
                 source,
                 {"segments": [{"id": "seg", "speaker": "spk_1", "start_ms": 100, "end_ms": 200, "polished_text": "原始内容。", "uncertain_terms": [], "change_notes": []}]},
+                default_glossary_rules(),
+            )
+
+    def test_polish_validator_rejects_large_meaningful_deletion(self) -> None:
+        source = [Segment("seg", "她说你有没有意识到你很喜欢纪刚，我说是吗，这你都看出来了。", 100, 200, "孟岩")]
+        with self.assertRaisesRegex(ValueError, "retention too low"):
+            validate_polish_response(
+                source,
+                {"segments": [{"id": "seg", "polished_text": "了。", "uncertain_terms": [], "change_notes": []}]},
                 default_glossary_rules(),
             )
         with self.assertRaises(ValueError):

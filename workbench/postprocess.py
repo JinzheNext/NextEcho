@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,6 +34,7 @@ TARGET_CHARS = 4500
 POLISH_MAX_CHARS = 4000
 POLISH_TARGET_CHARS = 1800
 POLISH_MIN_CHARS = 1200
+POLISH_MAX_SEGMENTS = 12
 
 ProgressCallback = Callable[[dict[str, Any]], None] | None
 _LOCAL_URL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -662,7 +664,12 @@ def polish_segments(
         text, applied = apply_glossary(strip_filler_words(normalize_text_for_enhancement(segment.text)), rules)
         normalized.append(Segment(segment.id, text, segment.start_ms, segment.end_ms, segment.speaker))
         replacements.extend(applied)
-    chunks = chunk_segments(normalized, max_chars=POLISH_MAX_CHARS, target_chars=POLISH_TARGET_CHARS)
+    chunks = chunk_segments(
+        normalized,
+        max_chars=POLISH_MAX_CHARS,
+        target_chars=POLISH_TARGET_CHARS,
+        max_segments=POLISH_MAX_SEGMENTS,
+    )
     context_signature = _value_signature(
         {
             "context": compact_source_context(source_context or {}, shownotes_limit=0, comment_limit=20, include_highlights=False),
@@ -1039,6 +1046,7 @@ def chunk_segments(
     max_chars: int = MAX_CHARS,
     target_chars: int = TARGET_CHARS,
     min_chars: int = POLISH_MIN_CHARS,
+    max_segments: int = 0,
 ) -> list[list[Segment]]:
     """Group complete segments at speaker/ punctuation boundaries.
 
@@ -1063,7 +1071,7 @@ def chunk_segments(
             previous = current[-1]
             speaker_changed = bool(previous.speaker or segment.speaker) and previous.speaker != segment.speaker
             punctuation_boundary = previous.text.rstrip().endswith(("。", "？", "！", ".", "?", "!", "；", ";"))
-            hard_limit = size + segment_size > max_chars
+            hard_limit = size + segment_size > max_chars or (max_segments > 0 and len(current) >= max_segments)
             soft_boundary = size >= min_chars and (speaker_changed or (size >= target_chars and punctuation_boundary))
             if hard_limit or soft_boundary:
                 chunks.append(current)
@@ -1135,6 +1143,15 @@ def ensure_preserved(before: str, after: str, rules: GlossaryRules) -> None:
     for _, replacement in rules.replacements:
         if replacement in before and replacement not in after:
             raise ValueError(f"Glossary term missing: {replacement}")
+    before_meaningful = re.sub(r"[^0-9A-Za-z\u3400-\u9fff]+", "", before)
+    after_meaningful = re.sub(r"[^0-9A-Za-z\u3400-\u9fff]+", "", after)
+    if before_meaningful:
+        retention = len(after_meaningful) / len(before_meaningful)
+        similarity = SequenceMatcher(None, before_meaningful, after_meaningful, autojunk=False).ratio()
+        if retention < 0.7:
+            raise ValueError(f"Meaningful text retention too low: {retention:.3f}")
+        if similarity < 0.6:
+            raise ValueError(f"Polished text diverged from source: similarity={similarity:.3f}")
 
 
 def context_reference_inventory(payload: dict[str, Any]) -> tuple[set[str], dict[str, str]]:
