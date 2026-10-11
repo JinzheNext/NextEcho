@@ -1,0 +1,3 @@
+# Optional runtime: only install this on an Apple Silicon Mac.
+# It is isolated from the cross-platform Whisper path on purpose.
+mlx-qwen3-asr==0.3.5
