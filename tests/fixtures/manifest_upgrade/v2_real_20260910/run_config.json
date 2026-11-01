@@ -1,0 +1,45 @@
+{
+  "started_at": "2026-09-09T22:17:17Z",
+  "completed_at": "2026-09-09T22:22:34Z",
+  "elapsed_seconds": 317,
+  "generated_at": "2026-09-09T22:17:17Z",
+  "model_name": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+  "model_path": "",
+  "whisper_model_name": "large-v3-turbo-q5_0",
+  "whisper_model_path": "",
+  "schema_version": 2,
+  "asr": {
+    "requested_engine": "qwen3-asr",
+    "selected_engine": "qwen3-asr",
+    "requested_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+    "candidate_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit"
+  },
+  "config": {
+    "source": "repo-default:/example/user/Documents/jerry_projects/local-transcription-workbench/config/nextecho.toml+user-override:/example/user/Library/Application Support/NextEcho/config.toml",
+    "source_label": "user-override",
+    "source_paths": [
+      "/example/user/Documents/jerry_projects/local-transcription-workbench/config/nextecho.toml",
+      "/example/user/Library/Application Support/NextEcho/config.toml"
+    ]
+  },
+  "language": "zh",
+  "max_seconds": 300,
+  "output_formats": [
+    "txt",
+    "json",
+    "srt",
+    "vtt"
+  ],
+  "enhancement": {
+    "enabled": true,
+    "ai_polish": false,
+    "ai_style": "faithful-dialogue-v1",
+    "postprocess_profile": "fast",
+    "user_glossary_supplied": false
+  },
+  "postprocess": {
+    "profile": "fast",
+    "enabled": true
+  },
+  "source_count": 1
+}

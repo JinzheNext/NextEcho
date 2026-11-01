@@ -11,7 +11,7 @@
     <section class="hero">
       <p class="eyebrow">NextEcho</p>
       <h1>让播客自动转录进知识库</h1>
-      <p class="lede">YouTube、B 站、小宇宙，甚至你本地的音视频文件，都可以直接转成全文、字幕和结构化结果。不给平台，不丢内容，整理一次，后面反复使用。</p>
+      <p class="lede">B 站、小宇宙、Apple Podcasts、播客 RSS，甚至你本地的音视频文件，都可以直接转成全文、字幕和结构化结果。不给平台，不丢内容，整理一次，后面反复使用。</p>
     </section>
 
     <section class="panel">
@@ -32,7 +32,7 @@
 
         <label>
           <span>把链接贴进来</span>
-          <textarea id="urls" name="urls" rows="4" placeholder="支持 YouTube、B 站、小宇宙，也支持直链音视频。每行一个链接。"></textarea>
+          <textarea id="urls" name="urls" rows="4" placeholder="支持 B 站、小宇宙、Apple Podcasts、播客 RSS，也支持直链音视频。每行一个链接。"></textarea>
         </label>
         <div id="source-preview" class="source-preview empty">这里会显示链接识别结果。</div>
 
@@ -43,6 +43,46 @@
               <option value="accurate" selected>高精度（推荐）</option>
               <option value="fast">更快</option>
             </select>
+          </label>
+          <label>
+            <span>本地转录引擎</span>
+            <select name="asr_engine">
+              <option value="auto" selected>自动选择（推荐）</option>
+              <option value="qwen3-asr">Qwen3-ASR（Apple 芯片）</option>
+              <option value="whisper-cpp">Whisper（兼容模式）</option>
+            </select>
+          </label>
+          <label>
+            <span>说话人区分</span>
+            <select name="speaker_mode">
+              <option value="auto" selected>自动区分（播客推荐）</option>
+              <option value="off">关闭</option>
+              <option value="required">必须成功，否则任务失败</option>
+            </select>
+          </label>
+          <label>
+            <span>术语表（可选）</span>
+            <textarea name="glossary" rows="5" placeholder="例如：&#10;波客 => 播客&#10;AGI => 通用人工智能&#10;protect: NextEcho"></textarea>
+          </label>
+        </div>
+
+        <div class="grid grid-inline">
+          <label>
+            <span>智能加工</span>
+            <select name="postprocess_profile">
+              <option value="fast" selected>统一 4B：整理与摘要共用模型</option>
+              <option value="quality">高质量：全程 9B</option>
+              <option value="balanced">混合均衡：4B 整理 + 9B 摘要</option>
+              <option value="off">关闭，仅保留原始转录</option>
+            </select>
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" name="ai_polish" value="1">
+            <span>兼容旧版 AI 润色开关</span>
+          </label>
+          <label>
+            <span>AI 润色风格（可选）</span>
+            <input name="ai_style" type="text" placeholder="例如：播客摘要风格、口语更顺一些">
           </label>
         </div>
 
@@ -59,7 +99,16 @@
         <div id="progress-bar" class="progress-bar"></div>
       </div>
       <p id="progress-copy" class="progress-copy hidden"></p>
+      <p id="progress-note" class="progress-note hidden"></p>
       <div id="results" class="results empty">链接进来之后，这里会出现全文、字幕、JSON 和原始文件。</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>本地模型状态</h2>
+        <span id="model-status-label">检查中…</span>
+      </div>
+      <div id="model-status" class="source-preview empty">正在检查 Apple Silicon、Qwen ASR 和 Ollama。</div>
     </section>
 
     <section class="panel runs-panel">

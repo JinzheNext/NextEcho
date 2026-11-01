@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $RootDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $AppUrl = "http://127.0.0.1:8765"
+$HealthUrl = "$AppUrl/api/health"
 Set-Location $RootDir
 
 function Show-Info($Message) {
@@ -42,7 +43,7 @@ $pythonCommand = Get-PythonCommand
 if ($null -eq $pythonCommand) {
   $pythonInstalled = Install-WithWinget @("Python.Python.3.11", "Python.Python.3.12") "Python 3"
   if (-not $pythonInstalled) {
-    Show-Info "未检测到 Python，且自动安装失败。请先安装 Python 3.10 或更高版本，然后重新双击 Install NextEcho.bat。"
+    Show-Info "未检测到 Python，且自动安装失败。请先安装 Python 3.11 或更高版本，然后重新双击 Install NextEcho.bat。"
     exit 1
   }
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
@@ -87,9 +88,7 @@ if (-not (Get-Command whisper-cli -ErrorAction SilentlyContinue)) {
   }
 }
 
-if (-not (Get-Command yt-dlp -ErrorAction SilentlyContinue)) {
-  & $PythonExe -m pip install yt-dlp
-}
+& $PythonExe -m pip install -U "yt-dlp[default]"
 
 New-Item -ItemType Directory -Force -Path "models\whisper.cpp" | Out-Null
 New-Item -ItemType Directory -Force -Path "outputs\transcriptions" | Out-Null
@@ -97,9 +96,11 @@ New-Item -ItemType Directory -Force -Path "outputs\transcriptions" | Out-Null
 & $PythonExe -m workbench.cli download-model base
 
 try {
-  Invoke-WebRequest -Uri $AppUrl -UseBasicParsing -TimeoutSec 2 | Out-Null
+  Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2 | Out-Null
 } catch {
-  Start-Process -FilePath $PythonExe -ArgumentList "app.py" -WorkingDirectory $RootDir
+  $LogDir = Join-Path $RootDir "logs"
+  New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+  Start-Process -FilePath $PythonExe -ArgumentList "$RootDir\scripts\server_runner.py" -WorkingDirectory $RootDir
   Start-Sleep -Seconds 3
 }
 

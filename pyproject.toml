@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nextecho"
+version = "0.2.12"
+description = "Local-first audio transcription and agent workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-only"
+dependencies = ["flask>=3.0", "opencc-python-reimplemented==0.1.7"]
+
+[project.scripts]
+nextecho = "workbench.cli:main"
+
+[project.optional-dependencies]
+apple-silicon = ["mlx-qwen3-asr==0.3.5; platform_system=='Darwin' and platform_machine=='arm64'"]
+speakers = ["pyannote.audio>=4.0,<5.0"]
+speakers-lite = ["numpy>=2.0", "scikit-learn>=1.6"]
+speakers-sherpa = ["sherpa-onnx==1.13.7", "soundfile>=0.12"]
+speakers-native = ["sherpa-onnx==1.13.8", "soundfile>=0.12", "numpy>=2.0"]
+speakers-embedding = ["resemblyzer==0.1.4"]
+asr-sensevoice = ["sherpa-onnx==1.13.8", "soundfile>=0.12"]
+asr-funasr = ["funasr==1.4.16", "torch==2.14.1", "kaldi-native-fbank==1.22.3", "sherpa-onnx==1.13.8", "soundfile>=0.12"]
+dev = ["ruff", "mypy", "yt-dlp"]
+
+[tool.setuptools]
+py-modules = ["app"]
+
+[tool.setuptools.packages.find]
+include = ["workbench*"]
+
+[tool.setuptools.package-data]
+workbench = ["data/*.toml", "data/*.json"]
+
+[tool.setuptools.data-files]
+"share/nextecho/templates" = ["templates/index.html"]
+"share/nextecho/static" = ["static/app.js", "static/styles.css"]
+"share/doc/nextecho" = ["LICENSE", "NOTICE", "THIRD_PARTY_LICENSES.md", "OPEN_SOURCE_COMPLIANCE.md"]
+"share/doc/nextecho/docs" = ["docs/model-license-inventory.md", "docs/model-license-inventory.json", "docs/forced-alignment-candidate.md", "docs/nemotron-candidate.md", "docs/headless-usage.md", "docs/agent-bundle.md", "docs/release-v0.2.12.md"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

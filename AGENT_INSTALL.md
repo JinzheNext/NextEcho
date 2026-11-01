@@ -4,13 +4,35 @@ This guide is written for an AI coding agent such as Claude Code, Codex, Cursor 
 
 ## What this capability does
 
-- Runs audio/video transcription locally with `ffmpeg + whisper.cpp`.
+- Runs audio/video transcription locally with FFmpeg and a separately prepared ASR backend (SenseVoice, Fun-ASR-Nano, or the retained whisper.cpp path).
 - Provides a local web UI at `http://127.0.0.1:8765`.
 - Provides a CLI that agents can call directly.
-- Resolves YouTube, Bilibili, and Xiaoyuzhou page URLs into local transcription jobs.
+- Resolves Bilibili, Xiaoyuzhou, Apple Podcasts, and podcast RSS inputs into local transcription jobs.
 - Provides a speaker-attributed interview transcript mode (`Speaker 1 / Speaker 2`) for long-form conversations.
 - Writes reproducible artifact folders containing source media, normalized audio, TXT, JSON, SRT, VTT, and metadata.
 - Does **not** spend LLM tokens for the transcription computation. Agent orchestration may still spend a small amount of LLM context/tokens.
+
+## Headless installation and Skill
+
+The 0.2.12 Agent bundle contains the Skill, runtime wheel, matching source distribution, installer and hash manifest. It supports local deployment and reuses existing model configuration. Read [the bundle guide](docs/agent-bundle.md), then run these commands from the extracted bundle with Python ≥3.11 on macOS/Linux:
+
+```bash
+python3.11 install.py --check
+python3.11 install.py
+```
+
+The installer uses an isolated runtime, defaults to the Codex skills directory, and binds it outside the Skill. Existing Skill/binding files require explicit `--replace` and are backed up; configuration, models and task data are preserved. Core Python dependencies require network access on first installation. No models, media, credentials or local bindings ship in the bundle, and installation does not start inference or a website. Other Agent Skills hosts can select their confirmed directory with `--skill-dir`.
+
+For a source installation without the bundle:
+
+```bash
+python -m pip install /path/to/NextEcho
+python -m workbench.cli --version
+```
+
+Copy `skills/nextecho` into your agent's skill directory, then follow its `references/install.md` to bind the installed interpreter and independent model environment. Keep model weights, runtime records and credentials outside the skill. The full command and recovery reference is [docs/headless-usage.md](docs/headless-usage.md).
+
+The Skill defaults to polishing and speaker-mode auto, without a summary. It returns the verified descriptive Markdown path, with source notes, chapter navigation and captured public comments. Bind optional speaker/CTC weights with prepare --speaker-model-root; missing speaker dependencies produce partial for auto or blocked for required. Names require acoustic evidence or user confirmation scoped to that recording. Candidate models require explicit selection and resource calibration; they are not automatically production defaults. The instructions below describe retained legacy web/CLI installation, whose dependencies differ from native CPU ASR profiles. New detached execution currently targets macOS/POSIX; use legacy commands on Windows.
 
 ## First-time installation
 
@@ -49,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
 
 If required system tools are missing:
 
-- Install Python 3.10+.
+- Install Python 3.11+.
 - Install ffmpeg and add it to PATH.
 - Install whisper.cpp and ensure `whisper-cli` is on PATH.
 - Optional for webpage URLs: `python -m pip install yt-dlp` or install a system `yt-dlp` binary.
@@ -112,16 +134,17 @@ python -m workbench.cli transcribe /path/to/audio.mp3 --model base --json
 When the user wants to inspect how a page URL will resolve before transcription:
 
 ```bash
-python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.bilibili.com/video/BV1g6okBLEtL/" --json
 python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/6a19390a7460cabdeb57c0e5" --json
+python -m workbench.cli resolve-sources "https://podcasts.apple.com/us/podcast/the-daily/id1200361736" --json
 ```
 
 When the user gives a single platform page URL and wants the full local transcription workflow:
 
 ```bash
 python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
-python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
-python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --model small --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/6a19390a7460cabdeb57c0e5" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/6a19390a7460cabdeb57c0e5" --model small --json
 ```
 
 When the user gives a podcast RSS feed and wants the most recent episodes:
@@ -255,7 +278,7 @@ outputs/transcriptions/run_xxx/
         └── transcript.vtt
 ```
 
-For agent workflows, read `manifest.json` first, then each item's `metadata.json` and `transcript.txt`.
+Normal Skill workflows return the verified compact receipt/path without loading transcripts into the Agent. Read `manifest.json`, item metadata and transcript text only when debugging or when the user requests content analysis; these remain available for legacy workflows.
 
 ## Troubleshooting
 
@@ -263,6 +286,8 @@ For agent workflows, read `manifest.json` first, then each item's `metadata.json
 - Missing `whisper-cli`: install whisper.cpp and ensure `whisper-cli` is on PATH.
 - Webpage URL fails: install `yt-dlp`, then retry. Some sites may require browser cookies or may block downloads.
 - `resolve-sources` returns a platform error: keep the stderr summary; it often tells you whether the issue is network, platform throttling, or an outdated `yt-dlp`.
+- Bilibili returns `HTTP Error 412 / Precondition Failed`: open the same video in a browser first, confirm it plays, then retry. If needed, update `yt-dlp` and set `TRANSCRIBE_YTDLP_BROWSER=chrome` (or `firefox` / `edge` / `brave`) before launching the app.
+- Apple Podcasts links may resolve as show metadata without a direct audio URL. In that case, switch to the show RSS feed, the publisher episode page, or a direct audio link.
 - First run is slow: likely model download or first model load. Run `doctor` and check model paths.
 - 8GB RAM machines: start with `accurate` only if doctor says it is reasonable; otherwise use `fast`.
 - Speaker transcript fails immediately: check `pyannote.audio` installation and whether `HF_TOKEN` is configured.

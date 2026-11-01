@@ -1,0 +1,1171 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-10-20",
+  "project_license": "AGPL-3.0-only",
+  "project_LICENSE_sha256": "22042bed9cee6660234c5d8801bdf2802f9f8e29b49231272fe2088e2ccfbbfd",
+  "purpose": "observed evaluation asset identities; not legal clearance or model quality approval",
+  "weights_bundled_in_application": false,
+  "release_clearance": false,
+  "entries": [
+    {
+      "id": "fun-asr-nano-pt",
+      "kind": "original-weights-and-tokenizer",
+      "repo": "FunAudioLLM/Fun-ASR-Nano-2512",
+      "revision": "272c57b82523ada6fd87095e955f8e29100979ab",
+      "source_url": "https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/tree/272c57b82523ada6fd87095e955f8e29100979ab",
+      "license_declaration": "Apache-2.0 (pinned model card)",
+      "files": {
+        ".gitattributes": {
+          "bytes": 2161,
+          "sha256": "c6391bc5513b1407e95e1b5567f11dd7f71616ee294f85b133d397afe72d5e2d"
+        },
+        "Qwen3-0.6B/config.json": {
+          "bytes": 726,
+          "sha256": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd"
+        },
+        "Qwen3-0.6B/generation_config.json": {
+          "bytes": 239,
+          "sha256": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"
+        },
+        "Qwen3-0.6B/merges.txt": {
+          "bytes": 1671853,
+          "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5"
+        },
+        "Qwen3-0.6B/tokenizer.json": {
+          "bytes": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+        },
+        "Qwen3-0.6B/tokenizer_config.json": {
+          "bytes": 9732,
+          "sha256": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101"
+        },
+        "Qwen3-0.6B/vocab.json": {
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+        },
+        "README.md": {
+          "bytes": 14586,
+          "sha256": "c6b3c162768ab8482d65aabb836d2216b137b5fe10276c2dbc3e21c362d741e1"
+        },
+        "README_zh.md": {
+          "bytes": 12216,
+          "sha256": "ba64e2ef164fc40b8e3b6cf584b9459bcd738e008a0d0f5f08f1ef398b91b0bd"
+        },
+        "config.yaml": {
+          "bytes": 3140,
+          "sha256": "daed38ea6484f5650fb32cbd9069b9aa13880acaf2bcb1f0bf4be2712837917c"
+        },
+        "configuration.json": {
+          "bytes": 398,
+          "sha256": "b64a3a55d35bcbe2cf4d31f2d3ef25a423d3ba2ebff203298c27fa055f3c7612"
+        },
+        "model.pt": {
+          "bytes": 1971149431,
+          "sha256": "55ae0d2fee369f0f11cce0795f6927934ad17cf11b278a7e56a51272074160bb"
+        },
+        "multilingual.tiktoken": {
+          "bytes": 907395,
+          "sha256": "747979631e813193436aabcff7c1c235d37de8097b71c563ec8b63b7a515c718"
+        }
+      },
+      "identity": "all locally present non-example repository assets hashed; LFS hashes matched",
+      "bundled": false
+    },
+    {
+      "id": "sensevoice-int8",
+      "kind": "converted-weights",
+      "repo": "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+      "conversion_bundle_revision": "2365baeacb507f821a0c8120fcee3d484dba7a07",
+      "conversion_execution_revision": null,
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tree/2365baeacb507f821a0c8120fcee3d484dba7a07",
+      "files": {
+        ".gitattributes": {
+          "bytes": 1519,
+          "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361"
+        },
+        "LICENSE": {
+          "bytes": 71,
+          "sha256": "221c6df10b0931a5629adad671ea48fb7747e034c414b6d2bfa275bc3dd4ea17"
+        },
+        "README.md": {
+          "bytes": 104,
+          "sha256": "763991a00edaea534ab36bf1b7cf89e61e911666dcfabbba71f91f9f7c593a63"
+        },
+        "export-onnx.py": {
+          "bytes": 5905,
+          "sha256": "c97f6a33f9d7135efd4d55b3e24e288c47d925f3b4f04b8b3418c2821c0a89ce"
+        },
+        "model.int8.onnx": {
+          "bytes": 239233841,
+          "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+        },
+        "model.onnx": {
+          "bytes": 937617178,
+          "sha256": "977016bd9c79f9eb343430b5cc305e07ab64d5212dff41b0dcfa1694bee9a8cb"
+        },
+        "tokens.txt": {
+          "bytes": 315894,
+          "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+        }
+      },
+      "original_weights_repo": "FunAudioLLM/SenseVoiceSmall",
+      "original_weights_revision_used_for_conversion": null,
+      "license_declaration": "conversion LICENSE forwards to FunASR; original model card declares custom model-license, not runtime MIT",
+      "current_original_card_revision": "3847d57b6bdf2dd8875cb1508d2af43d80a16bf7",
+      "license_url": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+      "release_status": "unresolved exact conversion/original terms; no weight redistribution",
+      "bundled": false
+    },
+    {
+      "id": "pyannote-segmentation-3.0-onnx",
+      "kind": "converted-weights",
+      "repo": "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+      "conversion_bundle_revision": "9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+      "conversion_execution_revision": null,
+      "original_weights_revision_used_for_conversion": null,
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/tree/9403a6902bb58e3d5ae8c7e77c3422de279db2e0",
+      "files": {
+        "LICENSE": {
+          "bytes": 1061,
+          "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+        },
+        "README.md": {
+          "bytes": 115,
+          "sha256": "0380ed76a50efcc421dc62f251ed06e8349688466beac3177bee6e00dc336bfc"
+        },
+        "export-onnx.py": {
+          "bytes": 3953,
+          "sha256": "21df426fc6ca2ad54b5c9e114729990e0a669d602ea4e052f38287f99d32c0b0"
+        },
+        "model.int8.onnx": {
+          "bytes": 1540506,
+          "sha256": "d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d"
+        },
+        "model.onnx": {
+          "bytes": 5992913,
+          "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+        },
+        "run.sh": {
+          "bytes": 1985,
+          "sha256": "5844c56ec90b29d0f01056f81e3f66f84ed4ef598bfc8705f86cd290d73138b3"
+        },
+        "show-onnx.py": {
+          "bytes": 857,
+          "sha256": "ace74dd3749e345cfac03a2d869830a99e7425ebc100545d7e8b2b95568ee575"
+        },
+        "speaker-diarization-onnx.py": {
+          "bytes": 15204,
+          "sha256": "51e301c2d02c87351a22582e51e883d4f18e4755d193587e69e1fd7f357132e7"
+        },
+        "speaker-diarization-torch.py": {
+          "bytes": 2306,
+          "sha256": "72f9fa5dd9f4966869acf79ef3b1328398434c70373f462d373895757aa0fae7"
+        },
+        "vad-onnx.py": {
+          "bytes": 6883,
+          "sha256": "4fbd5d74faf7bb34133f3268d1f184f9a43bfa3e3220acf1dbec7e9bef41e848"
+        },
+        "vad-torch.py": {
+          "bytes": 1029,
+          "sha256": "ecd6d40be0229624b7a312a1e2a3cffddeaf432706395df26c76fe588bf8dc66"
+        }
+      },
+      "license_declaration": "conversion bundle LICENSE declares MIT; original card currently declares MIT with gated access",
+      "original_card_metadata": {
+        "url": "https://huggingface.co/api/models/pyannote/segmentation-3.0",
+        "ok": true,
+        "sha256": "e4d4b500117afbb4b098e4ffa677a8086af9f18ad084c779fa0b55b61bbf83a6",
+        "revision": "e66f3d3b9eb0873085418a7b813d3b369bf160bb",
+        "license": "mit",
+        "gated": "auto"
+      },
+      "release_status": "conversion/base checkpoint chain incomplete; no weight redistribution",
+      "bundled": false
+    },
+    {
+      "id": "eres2net-base-onnx",
+      "kind": "converted-weights",
+      "files": {
+        "embedding.onnx": {
+          "bytes": 39593761,
+          "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+        }
+      },
+      "embedded_metadata": {
+        "file": "embedding.onnx",
+        "bytes": 39593761,
+        "producer_name": "pytorch",
+        "producer_version": "2.4.1",
+        "metadata": {
+          "framework": "3d-speaker",
+          "language": "Chinese",
+          "url": "https://www.modelscope.cn/models/iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k/summary",
+          "comment": "This model is from iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k",
+          "sample_rate": "16000",
+          "output_dim": "512",
+          "normalize_samples": "1",
+          "feature_normalize_type": "global-mean"
+        }
+      },
+      "source_url": "https://www.modelscope.cn/models/iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k/summary",
+      "original_weights_revision_used_for_conversion": null,
+      "conversion_bundle_revision": null,
+      "conversion_execution_revision": null,
+      "license_declaration": "exact converted artifact unresolved; upstream code Apache-2.0 is insufficient",
+      "release_status": "no weight redistribution",
+      "bundled": false
+    },
+    {
+      "id": "eres2net-large-onnx",
+      "kind": "converted-weights",
+      "files": {
+        "embedding-large.onnx": {
+          "bytes": 116058710,
+          "sha256": "19547e85b6c14ec44b8add4e7cb9ce353c7e995d4f1c9ffd408176ac3a2d6895"
+        }
+      },
+      "embedded_metadata": {
+        "file": "embedding-large.onnx",
+        "bytes": 116058710,
+        "producer_name": "pytorch",
+        "producer_version": "2.4.1",
+        "metadata": {
+          "framework": "3d-speaker",
+          "language": "Chinese",
+          "url": "https://www.modelscope.cn/models/iic/speech_eres2net_large_sv_zh-cn_3dspeaker_16k/summary",
+          "comment": "This model is from iic/speech_eres2net_large_sv_zh-cn_3dspeaker_16k",
+          "sample_rate": "16000",
+          "output_dim": "512",
+          "normalize_samples": "1",
+          "feature_normalize_type": "global-mean"
+        }
+      },
+      "source_url": "https://www.modelscope.cn/models/iic/speech_eres2net_large_sv_zh-cn_3dspeaker_16k/summary",
+      "original_weights_revision_used_for_conversion": null,
+      "conversion_bundle_revision": null,
+      "conversion_execution_revision": null,
+      "license_declaration": "exact converted artifact unresolved; upstream code Apache-2.0 is insufficient",
+      "release_status": "no weight redistribution",
+      "bundled": false
+    },
+    {
+      "id": "silero-vad-onnx",
+      "kind": "converted-weights",
+      "files": {
+        "silero_vad.onnx": {
+          "bytes": 643854,
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+        }
+      },
+      "source_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+      "conversion_bundle_revision": null,
+      "conversion_execution_revision": null,
+      "license_declaration": "upstream project MIT; exact release asset generation chain unresolved",
+      "bundled": false
+    },
+    {
+      "id": "qwen3-forced-aligner-hf",
+      "kind": "original-weights-and-tokenizer",
+      "repo": "Qwen/Qwen3-ForcedAligner-0.6B-hf",
+      "revision": "c07281df297b9905d24a508279258cccf987a064",
+      "license_declaration": "Apache-2.0 (pinned model card)",
+      "files": {
+        "README.md": {
+          "bytes": 9419,
+          "sha256": "30de8315ece609b239c719539336b99188a2a92aef89a1fdcd60b11e40abd063"
+        },
+        "chat_template.jinja": {
+          "bytes": 551,
+          "sha256": "59b5ae119bda7c00089bba5f49af775791ea67c7aeb7d2b828cddda9463121bf"
+        },
+        "config.json": {
+          "bytes": 248029,
+          "sha256": "82ac390b36a8f80c5a0c4e202367debd149e5d8c30abe4cf5eed439101b1c5ce"
+        },
+        "model.safetensors": {
+          "bytes": 1835545960,
+          "sha256": "00568245ceca5af1991d28562a75fe1ddc9bfeb041c27fda66947ea05c47fb86"
+        },
+        "processor_config.json": {
+          "bytes": 487,
+          "sha256": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a"
+        },
+        "tokenizer.json": {
+          "bytes": 11429842,
+          "sha256": "cadfb9cbd9ff8f4e309075ec6a71b063295ff796afb4b5dbc0fd2873fbb301f2"
+        },
+        "tokenizer_config.json": {
+          "bytes": 998,
+          "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11"
+        }
+      },
+      "bundled": false
+    },
+    {
+      "id": "nemotron3-diarization-q8",
+      "kind": "converted-weights",
+      "repo": "nvidia/Nemotron-3-Diarization",
+      "conversion_bundle_revision": "f667ed73aee57d40cc39428eb768b4fd87a0a29e",
+      "conversion_execution_revision": null,
+      "files": {
+        "Nemotron-3-Diarization.q8_0.gguf": {
+          "sha256": "08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1",
+          "bytes": 107012128
+        }
+      },
+      "license_declaration": "OpenMDW-1.1 (pinned model card)",
+      "bundled": false
+    },
+    {
+      "id": "nemo-speech-cpp-metal",
+      "kind": "runtime-code",
+      "code": {
+        "repo": "NVIDIA/NeMo-Speech.cpp",
+        "tag": "v0.2.0",
+        "tag_object": "47f43763bb40ec463150dd8d9a788c54f3728bdb",
+        "commit": "6a3ca369370782acee0dd155e34394ba60b920c4",
+        "archive_sha256": "2db94a47ad61a16e6ff3da1786fc4097747233dedf2f12671201782af640165c",
+        "source_origin": "official codeload commit URL, Git tag resolved by ls-remote",
+        "release_url": "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/download/v0.2.0/nemo-speech-0.2.0-macos-aarch64-metal.tar.gz",
+        "release_archive_sha256": "5cb02ba7c04f0b5585ce5cde9c830be5f0b7dfb4c83083c500109c381b4f2da9",
+        "release_digest_matches_published": true,
+        "global_install": false
+      },
+      "license_declaration": "Apache-2.0 plus retained bundled third-party notices",
+      "runtime_files_count": 72,
+      "runtime_file_manifest_sha256": "62317387d1a0fd4cd526f85598c2bf80dd032f460a3214cd5acae96219c506e6",
+      "all_listed_runtime_file_bytes_reverified": true,
+      "bundled": false
+    },
+    {
+      "id": "qwen3.5:2b-mlx",
+      "kind": "converted-service-weights",
+      "service_metadata": {
+        "model": "qwen3.5:2b-mlx",
+        "available_now": true,
+        "tag_digest": "9dd89c688f18f01cb3636d01f9512d8daae2a531b3e726f59d68cf7b91c8358e",
+        "details": {
+          "parent_model": "",
+          "format": "safetensors",
+          "family": "qwen3_5",
+          "families": null,
+          "parameter_size": "2.2B",
+          "quantization_level": "mxfp8"
+        },
+        "license_sha256": "5f3a3c817e78f5b8a4ad2d2c458a3e4b2cce470d6c12642c4eeb12cb8a9bf51d",
+        "license_mentions_apache2": true,
+        "weight_bytes_independently_verified": false,
+        "code_or_conversion_revision": null
+      },
+      "local_raw_manifest_sha256": "722de12ed700e08cf1961ce61fd1e4bb9a5515ac21ce4dad1672415f3a6a89f3",
+      "local_compact_manifest_sha256": "722de12ed700e08cf1961ce61fd1e4bb9a5515ac21ce4dad1672415f3a6a89f3",
+      "reported_tag_digest_matches_local_manifest_hash": false,
+      "local_blob_count": 627,
+      "all_local_declared_blob_hashes_reverified": true,
+      "blob_manifest_sha256": "807e9d9c9a633ced476067a5aec630505b177b57db7ab3020af3c3193c1e143d",
+      "license_declaration": "Apache-2.0 (current local license blob and /api/show)",
+      "historical_license_text_sha256": "653a3a6b4be9dab35c0358ee8efa89879d815b8b76a547809c93dc1b9210890a",
+      "license_text_hash_changed_since_historical_capture": true,
+      "source_revision": null,
+      "conversion_execution_revision": null,
+      "identity_limit": "local declared blobs verified; service tag digest has not been derived from local manifest; no proof of in-memory weight identity",
+      "bundled": false
+    },
+    {
+      "id": "qwen3.5:4b-mlx",
+      "kind": "converted-service-weights",
+      "service_metadata": {
+        "model": "qwen3.5:4b-mlx",
+        "available_now": true,
+        "tag_digest": "61aa3858e9d3022e8fca725550089addd9289c4446f33bd09dfd12f95f2a6792",
+        "details": {
+          "parent_model": "",
+          "format": "safetensors",
+          "family": "qwen3_5",
+          "families": null,
+          "parameter_size": "4.5B",
+          "quantization_level": "nvfp4"
+        },
+        "license_sha256": "5f3a3c817e78f5b8a4ad2d2c458a3e4b2cce470d6c12642c4eeb12cb8a9bf51d",
+        "license_mentions_apache2": true,
+        "weight_bytes_independently_verified": false,
+        "code_or_conversion_revision": null
+      },
+      "local_raw_manifest_sha256": "5d1b1422d36b972866f6af6f694b9eb7111ef8f7b9767d4938aed2b7cdbec117",
+      "local_compact_manifest_sha256": "5d1b1422d36b972866f6af6f694b9eb7111ef8f7b9767d4938aed2b7cdbec117",
+      "reported_tag_digest_matches_local_manifest_hash": false,
+      "local_blob_count": 733,
+      "all_local_declared_blob_hashes_reverified": true,
+      "blob_manifest_sha256": "010c43fe8b8aafe69b4e56ed0ec2f725eb49aadfc1299736742dd66c506e7953",
+      "license_declaration": "Apache-2.0 (current local license blob and /api/show)",
+      "historical_license_text_sha256": "653a3a6b4be9dab35c0358ee8efa89879d815b8b76a547809c93dc1b9210890a",
+      "license_text_hash_changed_since_historical_capture": true,
+      "source_revision": null,
+      "conversion_execution_revision": null,
+      "identity_limit": "local declared blobs verified; service tag digest has not been derived from local manifest; no proof of in-memory weight identity",
+      "bundled": false
+    },
+    {
+      "id": "qwen3.5:9b-mlx",
+      "kind": "converted-service-weights",
+      "service_metadata": {
+        "model": "qwen3.5:9b-mlx",
+        "available_now": true,
+        "tag_digest": "203e30078279db51132b9e026ceb7bb21330e5b1af67ef190671b375c9770404",
+        "details": {
+          "parent_model": "",
+          "format": "safetensors",
+          "family": "qwen3_5",
+          "families": null,
+          "parameter_size": "9.4B",
+          "quantization_level": "nvfp4"
+        },
+        "license_sha256": "5f3a3c817e78f5b8a4ad2d2c458a3e4b2cce470d6c12642c4eeb12cb8a9bf51d",
+        "license_mentions_apache2": true,
+        "weight_bytes_independently_verified": false,
+        "code_or_conversion_revision": null
+      },
+      "local_raw_manifest_sha256": "f55640616a2b9f0976dc0363cf590ea9e70c746eafd7c33d0a77c0ef7c4c69ea",
+      "local_compact_manifest_sha256": "f55640616a2b9f0976dc0363cf590ea9e70c746eafd7c33d0a77c0ef7c4c69ea",
+      "reported_tag_digest_matches_local_manifest_hash": false,
+      "local_blob_count": 770,
+      "all_local_declared_blob_hashes_reverified": true,
+      "blob_manifest_sha256": "b3137da1a480da25edd0f4c79d0b81f5748d07a92726eab0b00a73086b63586f",
+      "license_declaration": "Apache-2.0 (current local license blob and /api/show)",
+      "historical_license_text_sha256": "653a3a6b4be9dab35c0358ee8efa89879d815b8b76a547809c93dc1b9210890a",
+      "license_text_hash_changed_since_historical_capture": true,
+      "source_revision": null,
+      "conversion_execution_revision": null,
+      "identity_limit": "local declared blobs verified; service tag digest has not been derived from local manifest; no proof of in-memory weight identity",
+      "bundled": false
+    },
+    {
+      "id": "pyannote-community-1",
+      "kind": "metadata-only-unacquired",
+      "repo": "pyannote/speaker-diarization-community-1",
+      "revision": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
+      "license_declaration": "CC-BY-4.0 (previous public model-card observation)",
+      "files": {},
+      "gated_access_accepted_by_this_audit": false,
+      "bundled": false
+    },
+    {
+      "id": "27b-35b-deferred",
+      "kind": "deferred-not-run",
+      "files": {},
+      "new_load_or_download": false,
+      "license_declaration": "not reassessed; no license inherited from 2B/4B/9B",
+      "bundled": false
+    }
+  ],
+  "external_runtime_metadata": [
+    {
+      "name": "funasr",
+      "version": "1.4.16",
+      "license_expression": null,
+      "license_field": "The MIT License",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_and_notices": [
+        {
+          "relative": "funasr-1.4.16.dist-info/METADATA",
+          "bytes": 29053,
+          "sha256": "c1f830730144afa09a5180a253a81666675cd8d89190ca12c95f1665beb08170"
+        },
+        {
+          "relative": "funasr-1.4.16.dist-info/licenses/LICENSE",
+          "bytes": 1061,
+          "sha256": "f382b62dcc61fc566b9215b1e3b604b539bfd96ed52ae1eeff5090f6dc176057"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "torch",
+      "version": "2.14.1",
+      "license_expression": "Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT",
+      "license_field": null,
+      "license_classifiers": [],
+      "metadata_and_notices": [
+        {
+          "relative": "torch-2.14.1.dist-info/METADATA",
+          "bytes": 38300,
+          "sha256": "b9d1eec08600fef67d552cd550f34e2a08f536925aee84f358dd09db4789e9e9"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/LICENSE",
+          "bytes": 3464,
+          "sha256": "bd018feef8825e88181c84eb7e3aa4eafb8f08a20d9fd6ef948569610c4a3e43"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/FP16/LICENSE",
+          "bytes": 1157,
+          "sha256": "17e4f539024be2749ee729d1e2f01d24cef12ece8c9bf18e91a4349be29c80bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/FXdiv/LICENSE",
+          "bytes": 1117,
+          "sha256": "7cac00006125b1486a27e4801ed66357236e984c540bd323945ab7b66b078ec3"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/NNPACK/LICENSE",
+          "bytes": 1352,
+          "sha256": "ab09e33621f513ebdd1ef685b324f39c1f6bee9221d15600bafd958322df1231"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/NVTX/LICENSE.txt",
+          "bytes": 12483,
+          "sha256": "abdfd8a6738b27cd1504e091f77b682dbae928339f040b8a6f59a548245991a0"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/NVTX/docs/LICENSE.txt",
+          "bytes": 12483,
+          "sha256": "abdfd8a6738b27cd1504e091f77b682dbae928339f040b8a6f59a548245991a0"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/NVTX/python/LICENSE.txt",
+          "bytes": 12483,
+          "sha256": "abdfd8a6738b27cd1504e091f77b682dbae928339f040b8a6f59a548245991a0"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/NVTX/rust/LICENSE",
+          "bytes": 12449,
+          "sha256": "e165ed77854f47fb208850d23d935a9f0ab8bb4527381466beeb16025e2f6e9e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/VulkanMemoryAllocator/LICENSE.txt",
+          "bytes": 1099,
+          "sha256": "8d70e4cf2a9941f6454da71cd60e38484dd3e34810c824760d550e982af6d97a"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/XNNPACK/LICENSE",
+          "bytes": 1560,
+          "sha256": "63f519e15726f4c4f830bd958f694c84fecb4e0a4cacc527d2696bb71ef95ada"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/aiter/3rdparty/composable_kernel/LICENSE",
+          "bytes": 1726,
+          "sha256": "20f3b83dfda01bd18d285e0edbb9d044be6dde04cdf76a1ec18d9fc7127936bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/aiter/LICENSE",
+          "bytes": 1100,
+          "sha256": "0baca809927cad448401b252ce3bae12687c2987597ad7088cf3423f872d5bcd"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/benchmark/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/composable_kernel/LICENSE",
+          "bytes": 1726,
+          "sha256": "20f3b83dfda01bd18d285e0edbb9d044be6dde04cdf76a1ec18d9fc7127936bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/cpp-httplib/LICENSE",
+          "bytes": 1075,
+          "sha256": "4b45cbe16d7b71b89ae6127e26e0d90a029198ca5e958ad8e3d0b8bbed364d8b"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/cpuinfo/LICENSE",
+          "bytes": 1424,
+          "sha256": "8e7e60636c3aa0cb03571a1a841ce5697f9551ff92b3c426c2561613d15ade70"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/cpuinfo/deps/clog/LICENSE",
+          "bytes": 1384,
+          "sha256": "68a14c3e79add023eecd83d611e73f05b8bf1d16852efeb7eb4033a96736da9e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/cudnn_frontend/LICENSE.txt",
+          "bytes": 1148,
+          "sha256": "3fc4b473a2c08768a8066bf7e4a58a1185060f3ad674f2ca9e2011bca4adf2ce"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/cutlass/LICENSE.txt",
+          "bytes": 1861,
+          "sha256": "ad1513ca983da737a6843364ad19e8424a56d860736c2da773b8c5be527e1475"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/cutlass/python/LICENSE.txt",
+          "bytes": 1547,
+          "sha256": "00bf1806f664ac1afe4221f5f04b384fb6f1ca6eb33efcb6dccf599eb06d08b9"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/LICENSE",
+          "bytes": 1535,
+          "sha256": "12c2370ec32e78115dcd71ba22cdcb1297320fdc4ade81f798136d42357c58b8"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/composable_kernel/LICENSE",
+          "bytes": 1726,
+          "sha256": "20f3b83dfda01bd18d285e0edbb9d044be6dde04cdf76a1ec18d9fc7127936bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cpuinfo/LICENSE",
+          "bytes": 1424,
+          "sha256": "8e7e60636c3aa0cb03571a1a841ce5697f9551ff92b3c426c2561613d15ade70"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cpuinfo/deps/clog/LICENSE",
+          "bytes": 1384,
+          "sha256": "68a14c3e79add023eecd83d611e73f05b8bf1d16852efeb7eb4033a96736da9e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cutlass/LICENSE.txt",
+          "bytes": 1854,
+          "sha256": "80a7a18b73d41f64dd9ca881af35938f8de88b18c728703251f4c94d1299884d"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cutlass/python/LICENSE.txt",
+          "bytes": 1547,
+          "sha256": "42fec630f410aa308f70a51a89fadcd19586fa620f9831a32bee528a9a10000e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/hipify_torch/LICENSE.txt",
+          "bytes": 1112,
+          "sha256": "ecf819d55b17c2f091b3ba0934d044368aa0680d8a81374860306aa2b91aa1eb"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/experimental/hstu/LICENSE",
+          "bytes": 1558,
+          "sha256": "8c9ccb96c065e706135b6cbad279b721da6156e51f3a5f27c6b3329af9416d73"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/src/quantize_ops/mx/LICENSE",
+          "bytes": 1141,
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/test/quantize/mx/LICENSE",
+          "bytes": 1141,
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/LICENSE",
+          "bytes": 1558,
+          "sha256": "8c9ccb96c065e706135b6cbad279b721da6156e51f3a5f27c6b3329af9416d73"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/composable_kernel/LICENSE",
+          "bytes": 1726,
+          "sha256": "20f3b83dfda01bd18d285e0edbb9d044be6dde04cdf76a1ec18d9fc7127936bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/cutlass/LICENSE.txt",
+          "bytes": 1854,
+          "sha256": "80a7a18b73d41f64dd9ca881af35938f8de88b18c728703251f4c94d1299884d"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/cutlass/python/LICENSE.txt",
+          "bytes": 1547,
+          "sha256": "42fec630f410aa308f70a51a89fadcd19586fa620f9831a32bee528a9a10000e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/flash_attn/cute/LICENSE",
+          "bytes": 1558,
+          "sha256": "8c9ccb96c065e706135b6cbad279b721da6156e51f3a5f27c6b3329af9416d73"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/third_party/aiter/3rdparty/composable_kernel/LICENSE",
+          "bytes": 1726,
+          "sha256": "20f3b83dfda01bd18d285e0edbb9d044be6dde04cdf76a1ec18d9fc7127936bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flash-attention/third_party/aiter/LICENSE",
+          "bytes": 1100,
+          "sha256": "0baca809927cad448401b252ce3bae12687c2987597ad7088cf3423f872d5bcd"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flatbuffers/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flatbuffers/dart/LICENSE",
+          "bytes": 11341,
+          "sha256": "edd9b3459bee4c79b549a5ef66d06d12bd144ddb8d08e0b448fb421267f43dd5"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/flatbuffers/swift/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/fmt/LICENSE",
+          "bytes": 1094,
+          "sha256": "a65fcc5a1095fc33cc37e4fff69366e49d7e92f613558a2b95ed1b70e33758b4"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/gemmlowp/gemmlowp/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/gloo/LICENSE",
+          "bytes": 1525,
+          "sha256": "2afbc572cf7f60888159bc2ca48ba58f8adec06682ae5de820d61449d1eeea81"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/ideep/LICENSE",
+          "bytes": 1062,
+          "sha256": "a26add03107a53a605a89711b9b7dbd4f5dd668ae193a912e01a879366a23b0e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/ideep/mkl-dnn/LICENSE",
+          "bytes": 11607,
+          "sha256": "e9fc874fc09801b9acf3411ba72394098473704d832d713404b6c4861a086318"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/ideep/mkl-dnn/third_party/gtest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/ideep/mkl-dnn/third_party/opencl/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/kineto/LICENSE",
+          "bytes": 1609,
+          "sha256": "6f3d59b9103e72e5c977eecf61b261c2e1546a9be2995847e3ee2d31021fd39b"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/kineto/libkineto/third_party/dynolog_headers/LICENSE",
+          "bytes": 1086,
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/kineto/libkineto/third_party/fmt/LICENSE",
+          "bytes": 1431,
+          "sha256": "07580f2a3b35709ce703d523f447b242f6dfec7582a8c0df102c7fa2849375f8"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/kineto/libkineto/third_party/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/llvm-openmp/LICENSE.txt",
+          "bytes": 17003,
+          "sha256": "68395143f21a9aa29b8232168c71892af5ec4f1ae2529571cd250a71c9e37a03"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mimalloc/LICENSE",
+          "bytes": 1096,
+          "sha256": "82ade5d7d9b029044b5fbbc326207fc47c2d44ee4dd71e8a559c36d728217de9"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/miniz-3.0.2/LICENSE",
+          "bytes": 1184,
+          "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/LICENSE",
+          "bytes": 1533,
+          "sha256": "44519cbe722d7bf092cd7e0fa26558b9e3905b88fca4c0c278e2733a9f6b4cf9"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/external/composable_kernel/LICENSE",
+          "bytes": 1726,
+          "sha256": "20f3b83dfda01bd18d285e0edbb9d044be6dde04cdf76a1ec18d9fc7127936bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/external/cutlass/LICENSE.txt",
+          "bytes": 1854,
+          "sha256": "80a7a18b73d41f64dd9ca881af35938f8de88b18c728703251f4c94d1299884d"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/external/cutlass/python/LICENSE.txt",
+          "bytes": 1547,
+          "sha256": "42fec630f410aa308f70a51a89fadcd19586fa620f9831a32bee528a9a10000e"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/external/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/external/hipify_torch/LICENSE.txt",
+          "bytes": 1112,
+          "sha256": "ecf819d55b17c2f091b3ba0934d044368aa0680d8a81374860306aa2b91aa1eb"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/mslk/mslk/attention/flash_attn/LICENSE",
+          "bytes": 1558,
+          "sha256": "8c9ccb96c065e706135b6cbad279b721da6156e51f3a5f27c6b3329af9416d73"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/nccl/LICENSE.txt",
+          "bytes": 13261,
+          "sha256": "c1f53beabe4dbf05bd87c00f7ca6084c0cb541c3f7bf8edab7913f266018b7be"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/nccl/bindings/nccl4py/LICENSE.txt",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/nccl/contrib/nccl_checkpoint/python/LICENSE.txt",
+          "bytes": 11365,
+          "sha256": "89374f8cc48236dccfcd0cea43974f7ee4f4bf77c8649da71c7c4cfef515f0d7"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/nccl/contrib/nccl_ep/LICENSE.txt",
+          "bytes": 11365,
+          "sha256": "89374f8cc48236dccfcd0cea43974f7ee4f4bf77c8649da71c7c4cfef515f0d7"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/nccl/contrib/nccl_ubx/LICENSE.txt",
+          "bytes": 11365,
+          "sha256": "89374f8cc48236dccfcd0cea43974f7ee4f4bf77c8649da71c7c4cfef515f0d7"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/onnx/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/onnx/third_party/pybind11/LICENSE",
+          "bytes": 1684,
+          "sha256": "83965b843b98f670d3a85bd041ed4b372c8ec50d7b4a5995a83ac697ba675dcb"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/perfetto/LICENSE",
+          "bytes": 14990,
+          "sha256": "9a682a56cffc9524dfa9b0b1c0dca9cb81a19e96d5bd0793aaf02c08a95ee7ca"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/LICENSE",
+          "bytes": 1732,
+          "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/benchmark/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/googlemock/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/googlemock/scripts/generator/LICENSE",
+          "bytes": 11386,
+          "sha256": "5e0df8c845c742e76f2f64d2d9ce1b7e74a2422fddbc577ae6a56319083de0bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/utf8_range/LICENSE",
+          "bytes": 1065,
+          "sha256": "5a629d2b868081d8af08bbce5d038116f3a0e2e0d4ce9adf4d53f14e76b6b2e0"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/psimd/LICENSE",
+          "bytes": 1162,
+          "sha256": "984ce1e0b8ee89d234e28b960381f240e03a07a8031f35012f9c3256f56964e2"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/pthreadpool/LICENSE",
+          "bytes": 1378,
+          "sha256": "57814a606b4d0fb087d9a534919084b6c11b58a4174cb5a4aef200187780dc3a"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/pybind11/LICENSE",
+          "bytes": 1684,
+          "sha256": "83965b843b98f670d3a85bd041ed4b372c8ec50d7b4a5995a83ac697ba675dcb"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/sleef/LICENSE.txt",
+          "bytes": 1338,
+          "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/LICENSE.txt",
+          "bytes": 1535,
+          "sha256": "f4dcef0d1f0520b414d5bfaeed8df02f188e4ec05c0a17bf1c18f25f6cc66245"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/googlemock/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/googlemock/scripts/generator/LICENSE",
+          "bytes": 11386,
+          "sha256": "5e0df8c845c742e76f2f64d2d9ce1b7e74a2422fddbc577ae6a56319083de0bf"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/googletest/LICENSE",
+          "bytes": 1475,
+          "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/libnop/LICENSE",
+          "bytes": 577,
+          "sha256": "876e8f7432440974ee5543a2aa1344370ef1f2f7949ad98a1f3899cf722d5631"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/libuv/LICENSE",
+          "bytes": 1079,
+          "sha256": "16de0c32b265cb7d46a6d3bd614f259dd4d693a5e26b3407b04aae8d73041f0c"
+        },
+        {
+          "relative": "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/pybind11/LICENSE",
+          "bytes": 1676,
+          "sha256": "9a37ea54aa3cf12c7f3292799f20822ffd4b9b7142b36a7a9997b28c39264dc9"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "kaldi-native-fbank",
+      "version": "1.22.3",
+      "license_expression": null,
+      "license_field": "Apache-2.0",
+      "license_classifiers": [],
+      "metadata_and_notices": [
+        {
+          "relative": "kaldi_native_fbank-1.22.3.dist-info/METADATA",
+          "bytes": 3283,
+          "sha256": "e8c6b15a2900e1ba4014a225141033c5270fc797f46dd52c0ab42c5cbe96cd29"
+        },
+        {
+          "relative": "kaldi_native_fbank-1.22.3.dist-info/licenses/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "sherpa_onnx",
+      "version": "1.13.8",
+      "license_expression": null,
+      "license_field": "Apache licensed, as found in the LICENSE file",
+      "license_classifiers": [],
+      "metadata_and_notices": [
+        {
+          "relative": "sherpa_onnx-1.13.8.dist-info/METADATA",
+          "bytes": 53858,
+          "sha256": "673eb7af551328cfbc696cff484a795cdb895f7e6bfc48265ef3978832edc6d0"
+        },
+        {
+          "relative": "sherpa_onnx-1.13.8.dist-info/licenses/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "soundfile",
+      "version": "0.14.0",
+      "license_expression": null,
+      "license_field": "BSD 3-Clause License",
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_and_notices": [
+        {
+          "relative": "soundfile-0.14.0.dist-info/LICENSE",
+          "bytes": 1512,
+          "sha256": "0dd2e411fed553ba891845077e5a32c5b726d1bbc46ff31a2118ae1ccf816752"
+        },
+        {
+          "relative": "soundfile-0.14.0.dist-info/METADATA",
+          "bytes": 18186,
+          "sha256": "266fbe4cb310c5222edd5216564149585c55395db7b29630f2e4b0ff8ac9cd47"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4",
+      "license_expression": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "license_field": null,
+      "license_classifiers": [],
+      "metadata_and_notices": [
+        {
+          "relative": "numpy-2.5.4.dist-info/METADATA",
+          "bytes": 6635,
+          "sha256": "e2b909d6a37d76c2bc130f528d7fed0c517322bce16dc7846b6a6df30e200403"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/LICENSE.txt",
+          "bytes": 46826,
+          "sha256": "649a589ab31076e79e9ce62ba24eae9959598124176640dbc95f87bd10f34fcf"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+          "bytes": 1018,
+          "sha256": "fbc539f47d0cf83bc61378080fb873d5c14630126cacbfe754035c3926daa5ec"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+          "bytes": 20785,
+          "sha256": "e340270d4f64384569a91d546acb5b094d69ce47f0c015db77abb74dc6f815af"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+          "bytes": 1514,
+          "sha256": "211e7d737d6179a08f791ebb0a99897ce7cd2457410c542876d125576edfe910"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+          "bytes": 1543,
+          "sha256": "c17011467b4fe6e20fbfbeda4df09e58c2bca5480a063e55735a4000a379aad9"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+          "bytes": 1498,
+          "sha256": "a85ca13fdf90160b64a0698215868c13b74d835ad0a4e2ba44713b8c5058a056"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+          "bytes": 2266,
+          "sha256": "a14cc25e10d40a3aa705b7de2fb764a6535d8ee9b2db4e1724900585457dfd55"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/ma/LICENSE",
+          "bytes": 1593,
+          "sha256": "05f3b88351988ecfad10abe92c0c50e5875c6452d5009a0084cc291551ffcca6"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/LICENSE.md",
+          "bytes": 3511,
+          "sha256": "103166b62b80443afb9eb3488e052ea06be0cff566b908f199e561fde49af19f"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+          "bytes": 2745,
+          "sha256": "469778be8f33d54e1bcaab28c281cc472916d2d273f835e55bc487d30503face"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+          "bytes": 2926,
+          "sha256": "0e111337b25494a773106695f0e799f642b8567aaacca4f116a74a8177179156"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+          "bytes": 1154,
+          "sha256": "e7d4f4fb20358f314210a892ae17351e04993813646f697ec387385ca2a36918"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+          "bytes": 1509,
+          "sha256": "6f5828a57223d4cc7f8ea505a2623e7b978b242752c1515e355f46ba2cec1800"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+          "bytes": 1226,
+          "sha256": "9d4098846018319cd68e228ee6220361787f73bccbf00237a85e4fc9621b998f"
+        },
+        {
+          "relative": "numpy-2.5.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+          "bytes": 332,
+          "sha256": "268b0ca06759d31ea3ca68dd35f20e877916e927b1c2a835e4592a3c4354b1f9"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "transformers",
+      "version": "5.19.0",
+      "license_expression": null,
+      "license_field": "Apache 2.0 License",
+      "license_classifiers": [],
+      "metadata_and_notices": [
+        {
+          "relative": "transformers-5.19.0.dist-info/METADATA",
+          "bytes": 32344,
+          "sha256": "25c2bda8ef027a2e2146093b78d8989c59c4cda0d7686429c6aaffe06302879a"
+        },
+        {
+          "relative": "transformers-5.19.0.dist-info/licenses/LICENSE",
+          "bytes": 11418,
+          "sha256": "77fd4710def9ec3c0f6225800e0235f15a425abd4a8b03559127fcd782612049"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.23.3",
+      "license_expression": null,
+      "license_field": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_and_notices": [
+        {
+          "relative": "tokenizers-0.23.3.dist-info/METADATA",
+          "bytes": 9830,
+          "sha256": "87032ea29ec14be956ce0f15d164a8f436d6f1adbe19b261d6c179d9184f5cba"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "2.2.0",
+      "license_expression": null,
+      "license_field": "Apache-2.0",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_and_notices": [
+        {
+          "relative": "huggingface_hub-2.2.0.dist-info/METADATA",
+          "bytes": 16210,
+          "sha256": "fec7fc2879fa91b7cbf7a21b1434087215d62869b2bc69fb59654c328d9a3d14"
+        },
+        {
+          "relative": "huggingface_hub-2.2.0.dist-info/licenses/LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ],
+      "wheel_record_only_not_full_package_code_verification": true
+    }
+  ],
+  "limits": [
+    "No private audio, transcripts, account data or voice vectors in this inventory",
+    "Current upstream metadata is separate from the unknown original conversion checkpoint",
+    "Installed package metadata/notices are hashed, not all external runtime code bytes",
+    "Ollama current license text hash differs from historical capture; both retained without rewriting history",
+    "Unknown conversion/weight terms remain unknown; no commercial redistribution assertion",
+    "Compatibility catalog and deferred models are not all installed models on this machine"
+  ],
+  "ollama_unique_blob_count": 2116,
+  "ollama_unique_blob_bytes": 15955133617
+}

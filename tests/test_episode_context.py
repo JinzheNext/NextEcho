@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from workbench.episode_context import crawl_episode_context, html_to_text, parse_timestamp_ms, split_shownotes_sections
+
+
+class EpisodeContextTests(unittest.TestCase):
+    def test_html_to_text_keeps_show_notes_boundaries(self) -> None:
+        self.assertEqual(html_to_text("<p>本期嘉宾</p><p>李继刚</p><p>01:23 讨论</p>"), "本期嘉宾\n\n李继刚\n\n01:23 讨论")
+
+    def test_crawl_extracts_next_data_and_top_comments(self) -> None:
+        comments = [
+            {"id": f"c{index}", "text": f"评论 {index}", "likeCount": index, "author": {"nickname": f"用户{index}"}}
+            for index in range(25)
+        ]
+        next_data = {
+            "props": {
+                "pageProps": {
+                    "episode": {
+                        "eid": "episode-1",
+                        "title": "E1 对谈",
+                        # A publisher account is not a host credit. State the
+                        # host explicitly in this positive parser fixture.
+                        "shownotes": "<p>主持：孟岩</p><p>本期嘉宾</p><p>李继刚</p>",
+                        "podcast": {"title": "测试节目", "author": "孟岩"},
+                        "commentCount": 25,
+                    },
+                    "comments": comments,
+                }
+            }
+        }
+        html = f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(next_data, ensure_ascii=False)}</script></html>'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            # Exercise the same parser through a deterministic local fixture.
+            from unittest.mock import patch
+
+            with patch("workbench.episode_context._fetch_page", return_value=(html, "fixture", "")):
+                payload = crawl_episode_context("https://example.test/episode/1", output_dir, crawler="native")
+
+            self.assertEqual(payload["status"], "ready")
+            self.assertEqual([item["name"] for item in payload["speaker_candidates"]], ["孟岩", "李继刚"])
+            self.assertEqual(len(payload["comments"]), 20)
+            self.assertEqual(payload["comments"][0]["like_count"], 24)
+            self.assertTrue((output_dir / "source.raw.html").exists())
+            self.assertTrue((output_dir / "source.shownotes.md").exists())
+            self.assertTrue((output_dir / "source.comments.top20.json").exists())
+            self.assertTrue((output_dir / "source.context.json").exists())
+
+    def test_timestamped_shownotes_have_stable_context_refs(self) -> None:
+        self.assertEqual(parse_timestamp_ms("01:23"), 83_000)
+        self.assertEqual(parse_timestamp_ms("01:02:03"), 3_723_000)
+        sections = split_shownotes_sections("前言\n00:00 开场\n05:00 后半段\n01:02:03 收尾")
+        self.assertEqual([item["context_ref"] for item in sections], ["shownotes:0", "shownotes:1", "shownotes:2"])
+        self.assertEqual(sections[0]["start_ms"], 0)
+        self.assertEqual(sections[0]["end_ms"], 300_000)
+        self.assertEqual(sections[1]["start_ms"], 300_000)
+
+    def test_crawled_comments_are_context_only(self) -> None:
+        comments = [{"id": "c1", "text": "评论内容", "likeCount": 2, "author": {"nickname": "用户"}}]
+        next_data = {
+            "props": {
+                "pageProps": {
+                    "episode": {"eid": "episode-2", "title": "E2", "shownotes": "<p>00:00 开场</p>", "commentCount": 1},
+                    "comments": comments,
+                }
+            }
+        }
+        html = f'<script id="__NEXT_DATA__">{json.dumps(next_data, ensure_ascii=False)}</script>'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from unittest.mock import patch
+
+            with patch("workbench.episode_context._fetch_page", return_value=(html, "fixture", "")):
+                payload = crawl_episode_context("https://example.test/episode/2", Path(temp_dir), crawler="native")
+        self.assertEqual(payload["shownotes"]["sections"][0]["context_ref"], "shownotes:0")
+        self.assertEqual(payload["comments"][0]["context_ref"], "comment:c1")
+        self.assertFalse(payload["comments"][0]["evidence_eligible"])
+        self.assertTrue(payload["comments"][0]["context_only"])
+
+
+if __name__ == "__main__":
+    unittest.main()

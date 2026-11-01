@@ -1,0 +1,11 @@
+{
+  "source_count": 2,
+  "started_at": "2026-06-01T10:00:00Z",
+  "model_name": "ggml-base.bin",
+  "asr": {
+    "requested_engine": "auto"
+  },
+  "enhancement": {
+    "postprocess_profile": "balanced"
+  }
+}
