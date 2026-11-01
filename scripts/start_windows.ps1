@@ -1,6 +1,9 @@
 $ErrorActionPreference = "Stop"
 $RootDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $AppUrl = "http://127.0.0.1:8765"
+$HealthUrl = "$AppUrl/api/health"
+$LogDir = Join-Path $RootDir "logs"
+$PidFile = Join-Path $LogDir "server.pid"
 Set-Location $RootDir
 
 function Show-Info($Message) {
@@ -18,10 +21,13 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or -not (Get-Comman
   exit 0
 }
 
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+
 try {
-  Invoke-WebRequest -Uri $AppUrl -UseBasicParsing -TimeoutSec 2 | Out-Null
+  Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2 | Out-Null
 } catch {
-  Start-Process -FilePath "$RootDir\.venv\Scripts\python.exe" -ArgumentList "app.py" -WorkingDirectory $RootDir
+  $process = Start-Process -FilePath "$RootDir\.venv\Scripts\python.exe" -ArgumentList "$RootDir\scripts\server_runner.py" -WorkingDirectory $RootDir -PassThru
+  Set-Content -Path $PidFile -Value $process.Id
   Start-Sleep -Seconds 3
 }
 

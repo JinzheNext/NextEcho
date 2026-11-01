@@ -44,7 +44,9 @@ set -euo pipefail
 ROOT_DIR="$ROOT_DIR"
 LOG_DIR="$LOG_DIR"
 APP_URL="http://127.0.0.1:8765"
+HEALTH_URL="http://127.0.0.1:8765/api/health"
 LOG_FILE="\$LOG_DIR/app.log"
+PID_FILE="\$LOG_DIR/server.pid"
 mkdir -p "\$LOG_DIR"
 
 show_alert() {
@@ -75,8 +77,8 @@ if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v whisper-cli >/dev/null 2>
   exit 0
 fi
 
-if ! curl -sSf "\$APP_URL" >/dev/null 2>&1; then
-  nohup "\$ROOT_DIR/.venv/bin/python" app.py >> "\$LOG_FILE" 2>&1 &
+if ! curl -sSf "\$HEALTH_URL" >/dev/null 2>&1; then
+  bash "\$ROOT_DIR/scripts/mac_service.sh" start >> "\$LOG_FILE" 2>&1
   sleep 2
 fi
 

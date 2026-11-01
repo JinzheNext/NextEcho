@@ -1,0 +1,9 @@
+include AGENT_INSTALL.md README.en.md requirements*.txt
+include *.command *.bat
+recursive-include scripts *.py *.sh *.ps1
+recursive-include config *.toml
+recursive-include docs *.md *.json
+recursive-include skills/nextecho *.md *.py
+recursive-include tests *.py *.json *.md
+global-exclude *.pyc
+prune skills/nextecho/scripts/__pycache__

@@ -1,0 +1,9 @@
+# Core runtime frozen for the 0.2.12 Agent bundle; model workers are separate.
+blinker==1.9.0
+click==8.5.0
+flask==3.1.3
+itsdangerous==2.2.0
+jinja2==3.1.6
+markupsafe==3.0.4
+opencc-python-reimplemented==0.1.7
+werkzeug==3.1.9

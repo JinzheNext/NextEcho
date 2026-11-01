@@ -1,0 +1,1531 @@
+{
+  "started_at": "2026-09-09T22:17:17Z",
+  "completed_at": "2026-09-09T22:22:34Z",
+  "elapsed_seconds": 317,
+  "generated_at": "2026-09-09T22:17:17Z",
+  "model_name": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+  "model_path": "",
+  "whisper_model_name": "large-v3-turbo-q5_0",
+  "whisper_model_path": "",
+  "schema_version": 3,
+  "asr": {
+    "requested_engine": "qwen3-asr",
+    "selected_engine": "qwen3-asr",
+    "requested_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+    "candidate_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+    "actual_engine": "qwen3-asr",
+    "actual_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+    "revision": "",
+    "model_revision": "",
+    "model_digest": "",
+    "fallbacks": []
+  },
+  "language": "zh",
+  "max_seconds": 300,
+  "output_formats": [
+    "txt",
+    "json",
+    "srt",
+    "vtt"
+  ],
+  "enhancement": {
+    "enabled": true,
+    "ai_polish": false,
+    "ai_style": "faithful-dialogue-v1",
+    "postprocess_profile": "fast",
+    "user_glossary_supplied": false
+  },
+  "postprocess": {
+    "profile": "fast",
+    "enabled": true,
+    "actual_models": [
+      "qwen3:4b"
+    ],
+    "fallbacks": []
+  },
+  "fallbacks": [],
+  "timings": {
+    "total_elapsed_seconds": 317,
+    "stages": {},
+    "asr_seconds": 0.0,
+    "diarization_seconds": 0.0,
+    "postprocess_seconds": 0.0
+  },
+  "artifact_paths": {
+    "items_dir": "<RUN_DIR>/items",
+    "manifest": "<RUN_DIR>/manifest.json",
+    "run_config": "<RUN_DIR>/run_config.json",
+    "errors": "<RUN_DIR>/errors.json",
+    "speaker_json": "<RUN_DIR>/transcript.speakers.json",
+    "speaker_txt": "<RUN_DIR>/transcript.speakers.txt",
+    "speaker_md": "<RUN_DIR>/transcript.speakers.md"
+  },
+  "run_config_path": "<RUN_DIR>/run_config.json",
+  "items_dir": "<RUN_DIR>/items",
+  "results": [
+    {
+      "source": "https://www.xiaoyuzhoufm.com/episode/69a64629de29766da93331ec",
+      "source_label": "001_E45-孟岩对话李继刚-人何以自处",
+      "status": "ready",
+      "created_at": "2026-09-09T22:22:34Z",
+      "updated_at": "2026-09-09T22:22:34Z",
+      "char_count": 1341,
+      "text_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.txt",
+      "json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.json",
+      "srt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.srt",
+      "vtt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.vtt",
+      "media_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/录音原声.m4a",
+      "audio_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/转录音频.wav",
+      "enhanced_text_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.txt",
+      "enhanced_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.json",
+      "enhanced_srt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.srt",
+      "enhanced_vtt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.vtt",
+      "summary_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.summary.json",
+      "knowledge_markdown_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.knowledge.md",
+      "enhancement": {
+        "enabled": true,
+        "schema_version": 1,
+        "fingerprint": "73c701f69af4afc6da61523b0f5b134d3ca3742a5504b6352aeb6af5af0d19c8",
+        "prompt_version": "nextecho-postprocess-v4-evidence-coverage-speaker-chunks",
+        "profile": "fast",
+        "model_selection": {
+          "provider": "selection",
+          "profile": "fast",
+          "preferred_id": "gemma-e4b-iq4xs",
+          "preferred_candidates": [
+            "gemma-e4b-iq4xs"
+          ],
+          "fallback_model": "qwen3:4b",
+          "selected_4b": "qwen3:4b",
+          "quality_model": "qwen3.5:9b-q4_K_M",
+          "polish_models": [
+            "qwen3:4b"
+          ],
+          "summary_models": [
+            "qwen3:4b"
+          ],
+          "available_models": [
+            "bge-m3:latest",
+            "qwen3-embedding:4b-qwen-ms",
+            "qwen3.5:9b-q4_K_M",
+            "qwen3:4b"
+          ],
+          "model_metadata": {
+            "qwen3.5:9b-q4_K_M": {
+              "name": "qwen3.5:9b-q4_K_M",
+              "model": "qwen3.5:9b-q4_K_M",
+              "digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+              "modified_at": "2026-09-07T00:48:54.147602399+08:00",
+              "size": 6594474711,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "qwen35",
+                "families": [
+                  "qwen35"
+                ],
+                "parameter_size": "9.7B",
+                "quantization_level": "Q4_K_M",
+                "context_length": 262144,
+                "embedding_length": 4096
+              }
+            },
+            "qwen3:4b": {
+              "name": "qwen3:4b",
+              "model": "qwen3:4b",
+              "digest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+              "modified_at": "2026-09-02T00:35:02.998344966+08:00",
+              "size": 2497293931,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "qwen3",
+                "families": [
+                  "qwen3"
+                ],
+                "parameter_size": "4.0B",
+                "quantization_level": "Q4_K_M",
+                "context_length": 262144,
+                "embedding_length": 2560
+              }
+            },
+            "qwen3-embedding:4b-qwen-ms": {
+              "name": "qwen3-embedding:4b-qwen-ms",
+              "model": "qwen3-embedding:4b-qwen-ms",
+              "digest": "c4877adaef42dc4e55484d574975d79132d2b7b5126b572cf661ae21258e927c",
+              "modified_at": "2026-07-14T23:47:02.975123716+08:00",
+              "size": 2496704041,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "qwen3",
+                "families": [
+                  "qwen3"
+                ],
+                "parameter_size": "4.0B",
+                "quantization_level": "Q4_K_M",
+                "context_length": 40960,
+                "embedding_length": 2560
+              }
+            },
+            "bge-m3:latest": {
+              "name": "bge-m3:latest",
+              "model": "bge-m3:latest",
+              "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+              "modified_at": "2026-07-14T08:53:41.695410512+08:00",
+              "size": 1157672605,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "bert",
+                "families": [
+                  "bert"
+                ],
+                "parameter_size": "566.70M",
+                "quantization_level": "F16",
+                "context_length": 8192,
+                "embedding_length": 1024
+              }
+            }
+          },
+          "config_source": "repo-default:/example/user/Documents/jerry_projects/local-transcription-workbench/config/nextecho.toml+user-override:/example/user/Library/Application Support/NextEcho/config.toml"
+        },
+        "ollama": {
+          "ready": true,
+          "tags_digest": "d25449f52254dce6b9d006df75c058f1aac3df5ae47b04b490f7dffd7f5c54a0",
+          "models": [
+            "qwen3.5:9b-q4_K_M",
+            "qwen3:4b",
+            "qwen3-embedding:4b-qwen-ms",
+            "bge-m3:latest"
+          ]
+        },
+        "status": "ready",
+        "polish": {
+          "status": "ready",
+          "actual_models": [
+            "qwen3:4b",
+            "qwen3:4b",
+            "qwen3:4b"
+          ],
+          "fallbacks": [],
+          "chunks": 3,
+          "chunk_target_chars": 1800,
+          "chunk_min_chars": 1200,
+          "chunk_max_chars": 4000,
+          "oversized_segments": [],
+          "rules_applied": []
+        },
+        "summary": {
+          "status": "ready",
+          "actual_models": [
+            "qwen3:4b",
+            "qwen3:4b"
+          ],
+          "fallbacks": [],
+          "chunks": 1,
+          "coverage": {
+            "start_ms": 10640,
+            "end_ms": 299850,
+            "limit_end_ms": 300000,
+            "effective_end_ms": 300000,
+            "max_seconds": 300,
+            "episode_duration_seconds": 12398,
+            "covered_seconds": 289.36,
+            "partial": true,
+            "status": "partial",
+            "source": "run_config.json"
+          },
+          "context_refs": [
+            "comment:69a6cedad6f5836c2d4f8a7b",
+            "comment:69a6d41ccba0a2dcab8e4ede",
+            "comment:69a6ddc1f39f3de0803851a5",
+            "comment:69a6e494d6f5836c2d601b07",
+            "comment:69a6e7c78a315c931e15941f",
+            "comment:69a6f02f8a315c931e1bf498",
+            "comment:69a77d2a6c5fb9ac62f98fe1",
+            "comment:69a79ce0694c3f0a4eb08403",
+            "comment:69a79f423ca385ca15a04933",
+            "comment:69a7d46b042bd24566d8fd77",
+            "comment:69a7f86acf13123afea0f659",
+            "comment:69a846a6333a3e1a76bc67d6",
+            "comment:69a8613451740e8f0ee8e87d",
+            "comment:69a8a7be109afd706b408c5d",
+            "comment:69a8d4f33e85257cbef2353c",
+            "comment:69a904b0efa309d1098a8ce0",
+            "comment:69a916499301859b5bfae35e",
+            "comment:69aa247edd8a836e48b823ea",
+            "comment:69aac2033ca7f4073f2fa421",
+            "comment:69ace3c0b09368e1f55fb728",
+            "shownotes:0",
+            "shownotes:20"
+          ]
+        },
+        "coverage": {
+          "start_ms": 10640,
+          "end_ms": 299850,
+          "limit_end_ms": 300000,
+          "effective_end_ms": 300000,
+          "max_seconds": 300,
+          "episode_duration_seconds": 12398,
+          "covered_seconds": 289.36,
+          "partial": true,
+          "status": "partial",
+          "source": "run_config.json"
+        },
+        "evidence_policy": {
+          "transcript_segment_ids": "verbatim evidence from timestamped transcript segments only",
+          "context_refs": "shownotes/comments are external context references, never segment evidence",
+          "comments_are_evidence": false,
+          "partial_transcript": true,
+          "unlocatable_context_is_excluded": true,
+          "mixed_claims_require_inferred": true
+        },
+        "context": {
+          "shownotes_chars": 86,
+          "shownotes_total_chars": 5723,
+          "comments_available": 20,
+          "comments_are_evidence": false,
+          "tfidf_keywords": [
+            "ai",
+            "嘉宾",
+            "孟岩",
+            "提示词",
+            "粘贴至",
+            "李继刚",
+            "prompt",
+            "claude",
+            "过去",
+            "模型",
+            "新建",
+            "保存",
+            "主持人",
+            "v2",
+            "system",
+            "project",
+            "claude.md",
+            "面对面",
+            "霍金",
+            "问题",
+            "重构",
+            "道也好",
+            "越强",
+            "费米",
+            "豆包",
+            "表达",
+            "萨根",
+            "节目",
+            "腾讯",
+            "继刚",
+            "结构",
+            "系统",
+            "系列",
+            "粘贴",
+            "生成",
+            "生命",
+            "理性",
+            "特点",
+            "注意",
+            "求真"
+          ],
+          "highlight_chars": 3000
+        },
+        "actual_models": [
+          "qwen3:4b"
+        ],
+        "generated_at": "2026-09-09T22:22:34Z",
+        "timings": {
+          "polish_seconds": 78.54,
+          "summary_seconds": 157.699,
+          "total_seconds": 236.276
+        },
+        "paths": {
+          "enhanced_text_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.txt",
+          "enhanced_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.json",
+          "enhanced_srt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.srt",
+          "enhanced_vtt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.vtt",
+          "summary_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.summary.json",
+          "knowledge_markdown_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.knowledge.md"
+        },
+        "enhanced_text_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.txt",
+        "enhanced_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.json",
+        "enhanced_srt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.srt",
+        "enhanced_vtt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.vtt",
+        "summary_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.summary.json",
+        "knowledge_markdown_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.knowledge.md"
+      },
+      "asr": {
+        "requested_engine": "qwen3-asr",
+        "requested_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+        "actual_engine": "qwen3-asr",
+        "actual_model": "aufklarer/Qwen3-ASR-1.7B-MLX-5bit",
+        "version": "0.3.5",
+        "fallbacks": [],
+        "resources": {
+          "memory_before": {
+            "available_bytes": 7594328064,
+            "pressure": "normal",
+            "swap_used_bytes": 4925486530,
+            "details": {
+              "available": {
+                "source": "vm_stat",
+                "page_size": 16384,
+                "pages": {
+                  "pages free": 146976,
+                  "pages active": 279891,
+                  "pages inactive": 219013,
+                  "pages speculative": 94210,
+                  "pages throttled": 0,
+                  "pages wired down": 138853,
+                  "pages purgeable": 3322,
+                  "pages copy-on-write": 14382547,
+                  "pages zero filled": 161314983,
+                  "pages reactivated": 12137922,
+                  "pages purged": 2626086,
+                  "pages stored in compressor": 835905,
+                  "pages occupied by compressor": 115559
+                }
+              },
+              "pressure": {
+                "source": "memory_pressure",
+                "raw": "The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 74%",
+                "free_percent": 74.0
+              }
+            },
+            "available_gb": 7.073,
+            "swap_used_gb": 4.587
+          },
+          "memory_after": {
+            "available_bytes": 9092825088,
+            "pressure": "normal",
+            "swap_used_bytes": 6436096573,
+            "details": {
+              "available": {
+                "source": "vm_stat",
+                "page_size": 16384,
+                "pages": {
+                  "pages free": 429035,
+                  "pages active": 125012,
+                  "pages inactive": 119948,
+                  "pages speculative": 4048,
+                  "pages throttled": 0,
+                  "pages wired down": 278346,
+                  "pages purgeable": 1951,
+                  "pages copy-on-write": 14408441,
+                  "pages zero filled": 162947823,
+                  "pages reactivated": 12251260,
+                  "pages purged": 2632714,
+                  "pages stored in compressor": 884390,
+                  "pages occupied by compressor": 38026
+                }
+              },
+              "pressure": {
+                "source": "memory_pressure",
+                "raw": "The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 69%",
+                "free_percent": 69.0
+              }
+            },
+            "available_gb": 8.468,
+            "swap_used_gb": 5.994
+          },
+          "swap_delta_bytes": 1510610043,
+          "swap_delta_gb": 1.407,
+          "gate": {
+            "safe": true,
+            "available_bytes": 7594328064,
+            "available_gb": 7.073,
+            "pressure": "normal",
+            "reserve_bytes": 3221225472,
+            "reserve_gb": 3.0,
+            "swap_used_bytes": 4925486530,
+            "swap_used_gb": 4.587,
+            "swap_delta_bytes": null,
+            "swap_delta_gb": null,
+            "max_swap_delta_bytes": 1073741824,
+            "max_swap_delta_gb": 1.0,
+            "memory_pressure_max": "warn",
+            "reasons": [],
+            "details": {
+              "available": {
+                "source": "vm_stat",
+                "page_size": 16384,
+                "pages": {
+                  "pages free": 146976,
+                  "pages active": 279891,
+                  "pages inactive": 219013,
+                  "pages speculative": 94210,
+                  "pages throttled": 0,
+                  "pages wired down": 138853,
+                  "pages purgeable": 3322,
+                  "pages copy-on-write": 14382547,
+                  "pages zero filled": 161314983,
+                  "pages reactivated": 12137922,
+                  "pages purged": 2626086,
+                  "pages stored in compressor": 835905,
+                  "pages occupied by compressor": 115559
+                }
+              },
+              "pressure": {
+                "source": "memory_pressure",
+                "raw": "The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 74%",
+                "free_percent": 74.0
+              }
+            }
+          }
+        },
+        "revision": "",
+        "model_revision": "",
+        "model_digest": ""
+      },
+      "source_context": {
+        "schema_version": 2,
+        "status": "ready",
+        "url": "https://www.xiaoyuzhoufm.com/episode/69a64629de29766da93331ec",
+        "provider": "xiaoyuzhou-next-data",
+        "fetched_at": "2026-09-09T22:17:17.873249Z",
+        "episode": {
+          "id": "69a64629de29766da93331ec",
+          "title": "E45 孟岩对话李继刚：人何以自处",
+          "podcast": "无人知晓",
+          "host": "孟岩",
+          "published_at": "2026-03-03T12:00:00.000Z",
+          "duration_seconds": 12398,
+          "play_count": 1279240,
+          "comment_count": 3040
+        },
+        "speaker_candidates": [
+          {
+            "name": "孟岩",
+            "role": "host",
+            "source": "podcast.author"
+          },
+          {
+            "name": "李继刚",
+            "role": "guest",
+            "source": "shownotes"
+          }
+        ],
+        "shownotes": {
+          "html": "<p><span>♾️ 大家好，欢迎来到「无人知晓」，我是孟岩。</span></p><span></span><p><span>这期节目，我和李继刚聊了三个多小时。</span></p><span></span><p><span>他有一个我很喜欢的判断：工业革命拿走了体力，AI 正在拿走脑力。</span><strong><span>留给人的，是心力。</span></strong></p><span></span><p><span>不是你知道什么，而是你想要什么。不是你能想出什么，而是你能感受到什么。</span></p><span></span><p><span>我们聊了 AI 时代的阅读、表达和教育，聊了信息输入如何塑造一个人的命运。</span></p><span></span><p><span>他从理性的尽头走向心灵，我从心灵出发走向结构，但所有话题，最终都指向同一个问题：</span></p><span></span><p><strong><span>人何以自处？</span></strong></p><span></span><h2><span>🔗 官网地址</span></h2><span></span><p><a href=\"https://youzhiyouxing.cn/n/materials/2141\" data-url=\"https://youzhiyouxing.cn/n/materials/2141\"><span>点此访问有知有行官网，获取完整文稿区内容。</span></a></p><span></span><h2><span>💬 本期嘉宾</span></h2><span></span><p><span>李继刚</span></p><span></span><h2><span>🪡 时间戳</span></h2><span></span><p><span><a class=\"timestamp\" data-timestamp=\"255\">04:15</a> 道也好，真理也罢——我们每个人只是在拿着自己的取景框看它</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"466\">07:46</a> 投资：现金只是筹码，换的是未来财富份额上升的可能性</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1196\">19:56</a> 我隔一阵子就审视下那个问题：</span><strong><span>人来世间走这一趟，到底干嘛来的？</span></strong></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1333\">22:13</a> 求真：不为什么，只为「进一寸有进一寸的欢喜」</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1872\">31:12</a> 我们同时活在三个世界里：原子世界、比特世界与向量世界</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2805\">46:45</a> 表达，即存在</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3460\">57:40</a> 干状态与湿状态：AI 时代，稀缺的是心力</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"4117\">68:37</a> </span><strong><span>人机协作的两条路：一条通向异质性的增幅，一条通向思考的撤离</span></strong></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"4604\">76:44</a> 人类孟岩的反身之问：谁是谁的 agent？</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"4808\">80:08</a> 组织的长尾效应：互联网时代，公司是一张网；AI 时代，公司在打一口井</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"5760\">96:00</a> 若闲暇成为未来的时代处境，人迟早要回答一个问题：你往何处去？</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"7083\">118:03</a> </span><strong><span>提示词是有形状的</span></strong></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"7759\">129:19</a> &nbsp;所有的事情只要重复三次，我就要把它自动化</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"8812\">146:52</a> 如果德鲁克活在今天，他讨论的或许会是：一个人如何管理一万个 agents</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"9761\">162:41</a> 我只抓两个压舱石：1. 什么是不变的；2. 稀缺性转移到哪里了</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"10167\">169:27</a> </span><strong><span>品味（taste）即权重：审美，是个人神经元被反复冲刷后的显影</span></strong></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"10347\">172:27</a> 回归线下、真正在场：彼此看见的交流，才是人与人相遇的意义所在</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"10988\">183:08</a> </span><strong><span>Your feed is your fate.</span></strong></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"11409\">190:09</a> 以前是水的教育，往脑子里灌；未来是火的教育，找那根小火柴</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"12110\">201:50</a> </span><strong><span>终点：人，何以自处？</span></strong></p><span></span><h2><span>☁️ 猜你想搜</span></h2><span></span><p><span>嘉宾个人公众号：</span><a href=\"https://mp.weixin.qq.com/s/KlkomVKEYKjVAb6NEXcjSg\" data-url=\"https://mp.weixin.qq.com/s/KlkomVKEYKjVAb6NEXcjSg\"><span>李继刚</span></a><span>，当中包含了嘉宾个人使用并公开分享出来的多个prompt、近期在读的论文以及他与AI共创的实践等诸多内容。</span></p><span></span><p><strong><span>以下按时间顺序排列</span></strong></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"221\">03:41</a> </span><strong><span>Reframing（重构）</span></strong><span>：用新的视角重新看待同一件事，从而改变对它的理解、认知或感受。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"389\">06:29</a> &nbsp;此处孟岩提及的「栅格理论」实为 </span><strong><span>格栅理论（Latticework of Mental Models）</span></strong><span>：投资大师查理·芒格提出的思维方法。将多个学科的核心模型，像格栅一样组合在脑中，遇到问题时从多个角度同时分析，而非只用单一视角判断。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"628\">10:28</a> 《文明、现代化、价值投资与中国》：喜马拉雅资本创始人、查理·芒格家族资产管理者李录的理论文集。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1412\">23:32</a></span><strong><span> 贝叶斯定理（Bayes’ theorem）</span></strong><span>：一种概率公式，用已有信息更新对未来事件判断的方法。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1646\">27:26</a> </span><strong><span>奥卡姆剃刀（Occam’s razor）</span></strong><span>：14 世纪哲学原则，主张「如无必要，勿增实体」，即优先选择更简单的解释。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1721\">28:41</a></span><strong><span> 万有理论（Theory of Everything）</span></strong><span>：物理学中设想的终极统一公式，用来同时解释强力、弱力、电磁力与引力。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"1906\">31:46</a> </span><strong><span>向量（Vector）：</span></strong><span>在数学中指既有方向又有大小的量，在 AI 中常指「用一组数字表示语义坐标」。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2048\">34:08</a> </span><strong><span>马太效应（Matthew effect）：</span></strong><span>出自《圣经·马太福音》，现代多指强者愈强、弱者愈弱的社会现象，资源、机会、声誉等往往会向已经占优势的人进一步集中，AI 从而形成「赢家通吃」的结构。</span></p><span></span><blockquote><span>因为凡有的，还要加给他，叫他有余；没有的，连他所有的也要夺过来。</span><br><span>For unto every one that hath shall be given, and he shall have abundance: but from him that hath not shall be taken away even that which he hath.</span></blockquote><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2063\">34:23</a> </span><strong><span>梅特卡夫定律（Metcalfe’s law）</span></strong><span>：网络节点越多，网络整体价值增长越快。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2455\">40:55</a></span><strong><span>《世界是平的：一部二十一世纪简史》（The World Is Flat: A Brief History of the Twenty-first Century）</span></strong><span>：托马斯·弗里德曼（Thomas L. Friedman） 2005 年的著作，认为全球化与互联网让距离成本大幅下降。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2633\">43:53</a> </span><strong><span>圆桌讨论提示词</span></strong><span>：</span><a href=\"https://gist.github.com/lijigang/a8f9cf12985d474cef15cda63f4e1892\" data-url=\"https://gist.github.com/lijigang/a8f9cf12985d474cef15cda63f4e1892\"><span>点击链接获取</span></a></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2848\">47:28</a> </span><strong><span>大他者（The Big Other）</span></strong><span>：拉康精神分析概念，指个体之外的权威性象征秩序，如社会规则或语言结构。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2856\">47:36</a> </span><strong><span>《AlphaGo》</span></strong><span>：2017 年的纪录片，记录了 DeepMind 与李世石的人机围棋赛。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2856\">47:36</a> </span><strong><span>《The Thinking Game》</span></strong><span>：2024 年的纪录片，聚焦 DeepMind 团队与 AGI / AlphaFold 相关探索。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"2980\">49:40</a> </span><strong><span>《</span></strong><a href=\"https://mp.weixin.qq.com/s/cX3bYrI9Sq7sOJj0E6V9IQ\" data-url=\"https://mp.weixin.qq.com/s/cX3bYrI9Sq7sOJj0E6V9IQ\"><span>互联网已死，Agent 永生</span></a><strong><span>》</span></strong><span>，作者认为互联网时代的核心概念——DAU、SaaS、注意力经济、平台化路径——已全面过时，因为软件的主要用户正从人类转变为 AI Agent；新时代的竞争核心是算力与 Token 消耗能力，人的价值在于「决定干什么」而非亲自执行。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3050\">50:50</a> </span><strong><span>长尾效应（Long tail）</span></strong><span>：指那些原来不受到重视的销量小但种类多的产品或服务由于总量巨大，累积起来的总收益超过主流产品的现象。</span></p><span></span><p><img src=\"https://bts-image.xyzcdn.net/aHR0cHM6Ly96eHVuaXR5LmZlaXNodS5jbi9zcGFjZS9hcGkvYm94L3N0cmVhbS9kb3dubG9hZC9hc3luY2NvZGUvP2NvZGU9TVRZMlpXRmhNemc1TlRka1lURTVZek5pWlRsbVl6Z3daV0ppT1RJNE5UbGZhR1l5VEhONGJVaERSSFpvUkdaUFVrUndka0pqZVZjelp6SnRhRnBpZUU5ZlZHOXJaVzQ2UW1GR1kySnBaWFJtYjNwT2VtSjRSMGxXZUdOdWJXUlZia3BqWHpFM056STFNemM0TlRBNk1UYzNNalUwTVRRMU1GOVdOQQ==\"></p><span></span><p><span>（图片由 claude 生成）</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3384\">56:24</a> </span><strong><span>《新物种起源》</span></strong><span>：段永朝、姜奇平围绕互联网文明展开的对谈集。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3498\">58:18</a> </span><strong><span>信息论（Information theory）：</span></strong><span>研究信息如何度量、传输与压缩的理论体系。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3498\">58:18</a> 嘉宾此处提及的论文：</span><a href=\"https://arxiv.org/html/2601.03220v1\" data-url=\"https://arxiv.org/html/2601.03220v1\"><strong><span>From Entropy to Epiplexity</span></strong></a></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3498\">58:18</a> </span><strong><span>信息熵（Shannon entropy）：</span></strong><span>衡量信息不确定性（信息量）的指标。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"3990\">66:30</a> </span><strong><span>神经元（Neuron）：</span></strong><span>大脑中的神经细胞，是负责传递和处理信息的基本单位，神经元之间通过「突触」相互连接，形成庞大的神经网络。</span></p><span></span><blockquote><span>嘉宾提及的「重刷过程塑造神经元连接」对应神经科学中的</span><strong><span>神经可塑性（Neuroplasticity）</span></strong><span>——当我们反复思考、练习或经历某种刺激时，神经元之间的连接会被强化或重组，让大脑在某个方向上变得更高效、更稳定、更有结构。</span></blockquote><span></span><p><span><a class=\"timestamp\" data-timestamp=\"4075\">67:55</a> </span><strong><span>Loss 函数（损失函数）</span></strong><span>：大模型训练中用来衡量「预测错误程度」的函数，数值越小表示模型越准确。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"4276\">71:16</a> </span><strong><span>变换器架构（Transformer）</span></strong><span>：当前主流大模型的核心架构。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"4895\">81:35</a> </span><strong><span>上下文窗口（Context window）</span></strong><span>：模型一次能「同时看到」的文本范围。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"5154\">85:54</a> </span><a href=\"https://www.anthropic.com/news/claude-is-a-space-to-think\" data-url=\"https://www.anthropic.com/news/claude-is-a-space-to-think\"><strong><span>《Claude is a space to think》</span></strong></a><strong><span>：</span></strong><span>Anthropic 在官网上发布的一篇文章，明确表示旗下产品不会加入广告。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"5247\">87:27</a> </span><strong><span>CTR（Click Through Rate）点击率</span></strong><span>：广告被点击次数 ÷ 展示次数。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"5247\">87:27</a></span><strong><span> eCPM（effective Cost Per Mille）</span></strong><span>：每千次展示带来的实际广告收入。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"5859\">97:39</a> 此处指英国科幻剧集《黑镜》（Black Mirror）第七季第三集</span><strong><span>《白日梦饭店》（Hotel Reverie）</span></strong><span>：故事设定在一家可通过技术进入沉浸式幻想世界的酒店，人们在其中体验「理想人生」或重写现实选择。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"5968\">99:28</a> </span><strong><span>《坏世界研究：作为第一哲学的政治哲学》</span></strong><span>：作者赵汀阳，中国社会科学院学部委员，哲学研究所研究员，书中原文如下</span></p><span></span><blockquote><span>如果一个世界足够好以至于人人都能够满意，那么几乎所有的哲学问题就都不存在了。好世界没有什么需要想的。只要具备人人自私和资源稀缺这样两个条件，世界就是个坏的世界。</span></blockquote><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6171\">102:51</a> </span><strong><span>奖励函数与损失函数</span></strong><span>，下文来自嘉宾社交媒体：</span></p><span></span><blockquote><span>人生奖励函数： “</span><strong><span>我在（I am）</span></strong><span>” 的强度。即在多大程度上，你是因果链条的起点，而非终点。</span><br><span>人生损失函数： “</span><strong><span>它在（It is）</span></strong><span>” 的侵蚀。即在多大程度上，你被客观环境、生物本能和社会惯性所格式化。</span></blockquote><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6227\">103:47</a> 嘉宾此处提及的论文：</span><a href=\"https://arxiv.org/html/2509.21340v1\" data-url=\"https://arxiv.org/html/2509.21340v1\"><strong><span>Cycle Is All You Need</span></strong></a></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6324\">105:24</a> </span><strong><span>《金字塔原理》（The Pyramid Principle）</span></strong><span>：作者巴巴拉·明托（Barbara Minto）。金字塔原理指一种表达与写作方法，核心是「结论先行、以上统下」——先给出中心结论，再用分层结构展开论证，每一层内容都对上一层负责，形成清晰的逻辑结构。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6450\">107:30</a> </span><strong><span>Obsidian</span></strong><span>：一款本地笔记软件，特点是用「双向链接」把笔记连接成知识网络，强调长期知识积累与结构化思考。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6530\">108:50</a> </span><strong><span>维特根斯坦（Ludwig Wittgenstein）</span></strong><span>：20 世纪哲学家，提出「语言游戏」概念，认为语言意义来自使用情境。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6683\">111:23</a> 嘉宾与 AI 交互的 12 条原则，详见：</span><a href=\"https://mp.weixin.qq.com/s/ucTHS7FAAi3Zz5cWnXCdKg\" data-url=\"https://mp.weixin.qq.com/s/ucTHS7FAAi3Zz5cWnXCdKg\"><span>AI交互协议</span></a></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"6984\">116:24</a> 孟岩此处提及的「失控玩家」实为</span><strong><span>电影</span></strong><span>《</span><strong><span>头号玩家》</span></strong><span>：斯皮尔伯格执导，讲述人们沉浸在虚拟现实世界 OASIS 中生活、冒险的故事。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"7669\">127:49</a> </span><strong><span>Emacs</span></strong><span>：可高度定制的老牌文本编辑器。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"7686\">128:06</a> </span><strong><span>王语嫣</span></strong><span>：金庸《天龙八部》角色，以博闻强记、熟知武学典籍著称。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"8404\">140:04</a> </span><strong><span>Tim Urban 的两篇文章：</span></strong><span>均于 2015 年 1 月底发表在 Wait But Why 博客</span><br><span>第一篇《</span><a href=\"https://waitbutwhy.com/2015/01/artificial-intelligence-revolution-1.html\" data-url=\"https://waitbutwhy.com/2015/01/artificial-intelligence-revolution-1.html\"><span>The AI Revolution: The Road to Superintelligence（AI革命：通往超级智能之路）</span></a><span>》</span><br><span>第二篇《</span><a href=\"https://waitbutwhy.com/2015/01/artificial-intelligence-revolution-2.html\" data-url=\"https://waitbutwhy.com/2015/01/artificial-intelligence-revolution-2.html\"><span>The AI Revolution: Our Immortality or Extinction（AI革命：我们的永生或灭绝）</span></a><span>》A</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"8586\">143:06</a> 嘉宾此处说的「意识简史」实为书籍</span><a href=\"https://m.douban.com/book/subject/37252290/\" data-url=\"https://m.douban.com/book/subject/37252290/\"><span>《心智简史》</span></a><span>。</span></p><span></span><p><span><a class=\"timestamp\" data-timestamp=\"8634\">143:54</a> </span><strong><span>《人工智能的神话或悲歌》</span></strong><span>：赵汀阳于 2022 年出版的科技哲学文集。</span></p><span></span><p><span>......</span></p><span></span><p><span>🗺️ </span><a href=\"https://youzhiyouxing.cn/n/materials/2141\" data-url=\"https://youzhiyouxing.cn/n/materials/2141\"><span>文稿区字数有限，如需查阅完整文稿内容，请点此访问有知有行的官网查看全文</span></a></p><span></span><h2><strong><span>🎵</span></strong></h2><span></span><p><span>Amaksi - Midnight Flash</span></p><span></span><p><span>FAM - Land Of Forgotten Dreams</span></p><span></span><p><span>DimmySad - Inspiring Sentimental Corporate Ambient</span></p><span></span><h2><span>🫳 创作者们</span></h2><span></span><p><strong><span>嘉宾</span></strong><span> 李继刚</span></p><span></span><p><strong><span>主播</span></strong><span> 孟岩 @有知有行</span></p><span></span><p><strong><span>后期</span></strong><span> 柯霖 @顺带一提</span></p><span></span><p><strong><span>制作</span></strong><span> 有知有行</span></p><span></span><ul><span>  </span><li><span>关于无人知晓</span></li><span></span></ul><span></span><p><span>无人知晓是一档由孟岩主理的播客。每期都会邀请一位好友（或自己）来做客。至于更新频率、嘉宾选择、每期主题，就如同这个名字一样，无人知晓。</span></p><span></span><p><span>孟岩和他的伙伴们还打造了一款帮助普通人投资的产品「有知有行」，希望能够帮助到你。</span></p><span></span><ul><span>  </span><li><span>关于有知有行</span></li><span></span></ul><span></span><p><span>有知有行成立于 2020 年，目前在陪伴投资者用正确的方式学习投资，下场实操。凭借在投资领域的良好口碑，有知有行在初创阶段已与一大批忠实用户同行。未来我们希望成为一家财富管理公司，不仅帮助投资者学习投资，也能让大家在有知有行安心交易，踏实赚钱。</span></p><span></span><p><a href=\"https://youzhiyouxing.cn/s/f4C2nY7P\" data-url=\"https://youzhiyouxing.cn/s/f4C2nY7P\"><span>欢迎在各大应用商店搜索「有知有行」下载我们的 App</span></a></p><span></span><ul><span>  </span><li><span>收听方式</span></li><span></span></ul><span></span><p><span>有知有行、小宇宙、苹果播客、豆瓣、三联中读、喜马拉雅、QQ音乐、网易云音乐、蜻蜓FM、荔枝播客、微信听书、Spotify、Amazon Music，以及 Overcast、Pocket Casts、Castro 等泛用型播客客户端。</span></p><span></span><p><span>本播客所述投资相关内容皆以交流分享为目的，仅供参考，不构成任何市场预测、判断，或投资、咨询建议。市场有风险，投资需谨慎。主持人及嘉宾对投资相关内容的准确性、可靠性、时效性及完整性不作任何明示或暗示的保证，并提醒您对相关内容请结合自身情况进行独立评估，依据或使用相关内容所造成的后果由您独自承担。</span></p><span></span><p><span>感谢您对本播客原创内容的青睐。如需转载或引用本播客所述内容，请注明出处。转载前请与有知有行联系并取得同意。</span></p>",
+          "text": "♾️ 文文文，文文文文「文文文文」，文文文文。\n\n文文文文，文文文文文文文文文文文文。\n\n文文文文文文文文文文文：文文文文文文文文文，xx 文文文文文文。文文文文，文文文。\n\n文文文文文文文，文文文文文文文。文文文文文文文文，文文文文文文文文文。\n\n文文文文 xx 文文文文文、文文文文文，文文文文文文文文文文文文文文文文。\n\n文文文文文文文文文文文，文文文文文文文文文文，文文文文文，文文文文文文文文文文：\n\n文文文文文？\n\n🔗 文文文文\n\n文文文文文文文文文文，文文文文文文文文文。 (xxxxx://xxxxxxxxxxxxx.xx/x/xxxxxxxxx/xxxx)\n\n💬 文文文文\n\n文文文\n\n🪡 文文文\n\nxx:xx 文文文，文文文文——文文文文文文文文文文文文文文文文文文\n\nxx:xx 文文：文文文文文文，文文文文文文文文文文文文文文文\n\nxx:xx 文文文文文文文文文文文文文：文文文文文文文文，文文文文文文？\n\nxx:xx 文文：文文文文，文文「文文文文文文文文文文」\n\nxx:xx 文文文文文文文文文文文：文文文文、文文文文文文文文文\n\nxx:xx 文文，文文文\n\nxx:xx 文文文文文文文：xx 文文，文文文文文文\n\nxx:xx 文文文文文文文文：文文文文文文文文文文，文文文文文文文文文\n\nxx:xx 文文文文文文文文文：文文文文 xxxxx？\n\nxx:xx 文文文文文文文：文文文文文，文文文文文文；xx 文文，文文文文文文文\n\nxx:xx 文文文文文文文文文文文文，文文文文文文文文文文：文文文文文？\n\nxxx:xx 文文文文文文文文\n\nxxx:xx  文文文文文文文文文文文，文文文文文文文文\n\nxxx:xx 文文文文文文文文文，文文文文文文文文：文文文文文文文文文文 xxxxxx\n\nxxx:xx 文文文文文文文文：x. 文文文文文文；x. 文文文文文文文文文\n\nxxx:xx 文文（xxxxx）文文文：文文，文文文文文文文文文文文文文文文\n\nxxx:xx 文文文文、文文文文：文文文文文文文，文文文文文文文文文文文文\n\nxxx:xx xxxx xxxx xx xxxx xxxx.\n\nxxx:xx 文文文文文文文，文文文文文；文文文文文文文，文文文文文文\n\nxxx:xx 文文：文，文文文文？\n\n☁️ 文文文文\n\n文文文文文文文：文文文 (xxxxx://xx.xxxxxx.xx.xxx/x/xxxxxxxxxxxxxxxxxxxxxx)，文文文文文文文文文文文文文文文文文文文文文xxxxxx、文文文文文文文文文文文xx文文文文文文文文文文。\n\n文文文文文文文文文\n\nxx:xx xxxxxxxxx（文文）：文文文文文文文文文文文文文，文文文文文文文文文、文文文文文。\n\nxx:xx  文文文文文文文「文文文文」文文 文文文文（xxxxxxxxxxx xx xxxxxx xxxxxx）：文文文文文文·文文文文文文文文文。文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文文文，文文文文文文文文文文。\n\nxx:xx 《文文、文文文、文文文文文文文》：文文文文文文文文文、文文·文文文文文文文文文文文文文文文文。\n\nxx:xx 文文文文文（xxxxx’ xxxxxxx）：文文文文文文，文文文文文文文文文文文文文文文文文。\n\nxx:xx 文文文文文（xxxxx’x xxxxx）：xx 文文文文文文，文文「文文文文，文文文文」，文文文文文文文文文文文。\n\nxx:xx 文文文文（xxxxxx xx xxxxxxxxxx）：文文文文文文文文文文文文文，文文文文文文文文、文文、文文文文文文。\n\nxx:xx 文文（xxxxxx）：文文文文文文文文文文文文文文文，文 xx 文文文「文文文文文文文文文文文」。\n\nxx:xx 文文文文（xxxxxxx xxxxxx）：文文《文文·文文文文》，文文文文文文文文、文文文文文文文文文，文文、文文、文文文文文文文文文文文文文文文文文文文，xx 文文文文「文文文文」文文文。\n文文文文文，文文文文文，文文文文；文文文，文文文文文文文文文文。\nxxx xxxx xxxxx xxx xxxx xxxx xxxxx xx xxxxx, xxx xx xxxxx xxxx xxxxxxxxx: xxx xxxx xxx xxxx xxxx xxx xxxxx xx xxxxx xxxx xxxx xxxx xxxxx xx xxxx.\nxx:xx 文文文文文文（xxxxxxxx’x xxx）：文文文文文文，文文文文文文文文文文。\n\nxx:xx《文文文文文：文文文文文文文文文》（xxx xxxxx xx xxxx: x xxxxx xxxxxxx xx xxx xxxxxx-xxxxx xxxxxxx）：文文文·文文文文（xxxxxx x. xxxxxxxx） xxxx 文文文文，文文文文文文文文文文文文文文文文文文。\n\nxx:xx 文文文文文文文：文文文文文文 (xxxxx://xxxx.xxxxxx.xxx/xxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)\n\nxx:xx 文文文（xxx xxx xxxxx）：文文文文文文文文，文文文文文文文文文文文文文，文文文文文文文文文文。\n\nxx:xx 《xxxxxxx》：xxxx 文文文文文，文文文 xxxxxxxx 文文文文文文文文文文。\n\nxx:xx 《xxx xxxxxxxx xxxx》：xxxx 文文文文文，文文 xxxxxxxx 文文文 xxx / xxxxxxxxx 文文文文。\n\nxx:xx 《文文文文文，xxxxx 文文 (xxxxx://xx.xxxxxx.xx.xxx/x/xxxxxxxxxxxxxxxxxxxxxx)》，文文文文文文文文文文文文文文——xxx、xxxx、文文文文文、文文文文文——文文文文文，文文文文文文文文文文文文文文文文 xx xxxxx；文文文文文文文文文文文文 xxxxx 文文文文，文文文文文文「文文文文文」文文文文文文。\n\nxx:xx 文文文文（xxxx xxxx）：文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。\n\n（文文文 xxxxxx 文文）\n\nxx:xx 《文文文文文》：文文文、文文文文文文文文文文文文文文文文。\n\nxx:xx 文文文（xxxxxxxxxxx xxxxxx）：文文文文文文文文、文文文文文文文文文文。\n\nxx:xx 文文文文文文文文文：xxxx xxxxxxx xx xxxxxxxxxx (xxxxx://xxxxx.xxx/xxxx/xxxx.xxxxxxx)\n\nxx:xx 文文文（xxxxxxx xxxxxxx）：文文文文文文文文（文文文）文文文。\n\nxx:xx 文文文（xxxxxx）：文文文文文文文文，文文文文文文文文文文文文文文文，文文文文文文文「文文」文文文文，文文文文文文文文文。\n文文文文文「文文文文文文文文文文文」文文文文文文文文文文文文文（xxxxxxxxxxxxxxx）——文文文文文文文、文文文文文文文文文文，文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文、文文文、文文文文。\nxx:xx xxxx 文文（文文文文）：文文文文文文文文文文「文文文文文文」文文文，文文文文文文文文文文文。\n\nxx:xx 文文文文文（xxxxxxxxxxx）：文文文文文文文文文文文文。\n\nxx:xx 文文文文文（xxxxxxx xxxxxx）：文文文文文「文文文文」文文文文文。\n\nxx:xx 《xxxxxx xx x xxxxx xx xxxxx》 (xxxxx://xxx.xxxxxxxxx.xxx/xxxx/xxxxxx-xx-x-xxxxx-xx-xxxxx)：xxxxxxxxx 文文文文文文文文文文文，文文文文文文文文文文文文文文。\n\nxx:xx xxx（xxxxx xxxxxxx xxxx）文文文：文文文文文文文 ÷ 文文文文。\n\nxx:xx xxxx（xxxxxxxxx xxxx xxx xxxxx）：文文文文文文文文文文文文文文。\n\nxx:xx 文文文文文文文文文《文文》（xxxxx xxxxxx）文文文文文文《文文文文文》（xxxxx xxxxxxx）：文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文「文文文文」文文文文文文文。\n\nxx:xx 《文文文文文：文文文文文文文文文文文》：文文文文文，文文文文文文文文文文文，文文文文文文文文，文文文文文文\n文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文文，文文文文文文文文文。\nxxx:xx 文文文文文文文文文，文文文文文文文文文文：\n文文文文文文： “文文（x xx）” 文文文。文文文文文文文，文文文文文文文文文，文文文文。\n文文文文文文： “文文（xx xx）” 文文文。文文文文文文文，文文文文文文、文文文文文文文文文文文文文。\nxxx:xx 文文文文文文文文文：xxxxx xx xxx xxx xxxx (xxxxx://xxxxx.xxx/xxxx/xxxx.xxxxxxx)\n\nxxx:xx 《文文文文文》（xxx xxxxxxx xxxxxxxxx）：文文文文文·文文（xxxxxxx xxxxx）。文文文文文文文文文文文文文文文，文文文「文文文文、文文文文」——文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文，文文文文文文文文文。\n\nxxx:xx xxxxxxxx：文文文文文文文文，文文文文「文文文文」文文文文文文文文文文，文文文文文文文文文文文文文文。\n\nxxx:xx 文文文文文（xxxxxx xxxxxxxxxxxx）：xx 文文文文文，文文「文文文文」文文，文文文文文文文文文文文文。\n\nxxx:xx 文文文 xx 文文文 xx 文文文，文文：xx文文文文 (xxxxx://xx.xxxxxx.xx.xxx/x/xxxxxxxxxxxxxxxxxxxxxx)\n\nxxx:xx 文文文文文文文「文文文文」文文文文《文文文文》：文文文文文文文，文文文文文文文文文文文文文 xxxxx 文文文、文文文文文。\n\nxxx:xx xxxxx：文文文文文文文文文文文文文。\n\nxxx:xx 文文文：文文《文文文文》文文，文文文文文、文文文文文文文文。\n\nxxx:xx xxx xxxxx 文文文文文：文文 xxxx 文 x 文文文文文 xxxx xxx xxx 文文\n文文文《xxx xx xxxxxxxxxx: xxx xxxx xx xxxxxxxxxxxxxxxxx（xx文文：文文文文文文文文） (xxxxx://xxxxxxxxxx.xxx/xxxx/xx/xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxx-x.xxxx)》\n文文文《xxx xx xxxxxxxxxx: xxx xxxxxxxxxxx xx xxxxxxxxxx（xx文文：文文文文文文文文） (xxxxx://xxxxxxxxxx.xxx/xxxx/xx/xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxx-x.xxxx)》x\n\nxxx:xx 文文文文文文「文文文文」文文文文《文文文文》 (xxxxx://x.xxxxxx.xxx/xxxx/xxxxxxx/xxxxxxxx/)。\n\nxxx:xx 《文文文文文文文文文文》：文文文文 xxxx 文文文文文文文文文文。\n\n......\n\n🗺️ 文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文文文文文 (xxxxx://xxxxxxxxxxxxx.xx/x/xxxxxxxxx/xxxx)\n\n🎵\n\nxxxxxx - xxxxxxxx xxxxx\n\nxxx - xxxx xx xxxxxxxxx xxxxxx\n\nxxxxxxxx - xxxxxxxxx xxxxxxxxxxx xxxxxxxxx xxxxxxx\n\n🫳 文文文文\n\n文文 文文文\n\n文文 文文 @文文文文\n\n文文 文文 @文文文文\n\n文文 文文文文\n \n文文文文文文\n\n文文文文文文文文文文文文文文文。文文文文文文文文文文（文文文）文文文。文文文文文文、文文文文、文文文文，文文文文文文文文文，文文文文。\n\n文文文文文文文文文文文文文文文文文文文文文文文文「文文文文」，文文文文文文文文。\n \n文文文文文文\n\n文文文文文文文 xxxx 文，文文文文文文文文文文文文文文文文文文，文文文文。文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文文文文文文文，文文文文。\n\n文文文文文文文文文文文「文文文文」文文文文文 xxx (xxxxx://xxxxxxxxxxxxx.xx/x/xxxxxxxx)\n \n文文文文\n\n文文文文、文文文、文文文文、文文、文文文文、文文文文、xx文文、文文文文文、文文xx、文文文文、文文文文、xxxxxxx、xxxxxx xxxxx，文文 xxxxxxxx、xxxxxx xxxxx、xxxxxx 文文文文文文文文文。\n\n文文文文文文文文文文文文文文文文文文文文，文文文文，文文文文文文文文文、文文，文文文、文文文文。文文文文文，文文文文文。文文文文文文文文文文文文文文文文文、文文文、文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文。\n\n文文文文文文文文文文文文文文。文文文文文文文文文文文文文文，文文文文文。文文文文文文文文文文文文文文文文。",
+          "character_count": 5723,
+          "sections": [
+            {
+              "context_ref": "shownotes:0",
+              "start_ms": 255000,
+              "end_ms": 466000,
+              "text": "xx:xx 文文文，文文文文——文文文文文文文文文文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:1",
+              "start_ms": 466000,
+              "end_ms": 1196000,
+              "text": "xx:xx 文文：文文文文文文，文文文文文文文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:2",
+              "start_ms": 1196000,
+              "end_ms": 1333000,
+              "text": "xx:xx 文文文文文文文文文文文文文：文文文文文文文文，文文文文文文？"
+            },
+            {
+              "context_ref": "shownotes:3",
+              "start_ms": 1333000,
+              "end_ms": 1872000,
+              "text": "xx:xx 文文：文文文文，文文「文文文文文文文文文文」"
+            },
+            {
+              "context_ref": "shownotes:4",
+              "start_ms": 1872000,
+              "end_ms": 2805000,
+              "text": "xx:xx 文文文文文文文文文文文：文文文文、文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:5",
+              "start_ms": 2805000,
+              "end_ms": 3460000,
+              "text": "xx:xx 文文，文文文"
+            },
+            {
+              "context_ref": "shownotes:6",
+              "start_ms": 3460000,
+              "end_ms": 4117000,
+              "text": "xx:xx 文文文文文文文：xx 文文，文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:7",
+              "start_ms": 4117000,
+              "end_ms": 4604000,
+              "text": "xx:xx 文文文文文文文文：文文文文文文文文文文，文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:8",
+              "start_ms": 4604000,
+              "end_ms": 4808000,
+              "text": "xx:xx 文文文文文文文文文：文文文文 xxxxx？"
+            },
+            {
+              "context_ref": "shownotes:9",
+              "start_ms": 4808000,
+              "end_ms": 5760000,
+              "text": "xx:xx 文文文文文文文：文文文文文，文文文文文文；xx 文文，文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:10",
+              "start_ms": 5760000,
+              "end_ms": 7083000,
+              "text": "xx:xx 文文文文文文文文文文文文，文文文文文文文文文文：文文文文文？"
+            },
+            {
+              "context_ref": "shownotes:11",
+              "start_ms": 7083000,
+              "end_ms": 7759000,
+              "text": "xxx:xx 文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:12",
+              "start_ms": 7759000,
+              "end_ms": 8812000,
+              "text": "xxx:xx  文文文文文文文文文文文，文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:13",
+              "start_ms": 8812000,
+              "end_ms": 9761000,
+              "text": "xxx:xx 文文文文文文文文文，文文文文文文文文：文文文文文文文文文文 xxxxxx"
+            },
+            {
+              "context_ref": "shownotes:14",
+              "start_ms": 9761000,
+              "end_ms": 10167000,
+              "text": "xxx:xx 文文文文文文文文：x. 文文文文文文；x. 文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:15",
+              "start_ms": 10167000,
+              "end_ms": 10347000,
+              "text": "xxx:xx 文文（xxxxx）文文文：文文，文文文文文文文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:16",
+              "start_ms": 10347000,
+              "end_ms": 10988000,
+              "text": "xxx:xx 文文文文、文文文文：文文文文文文文，文文文文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:17",
+              "start_ms": 10988000,
+              "end_ms": 11409000,
+              "text": "xxx:xx xxxx xxxx xx xxxx xxxx."
+            },
+            {
+              "context_ref": "shownotes:18",
+              "start_ms": 11409000,
+              "end_ms": 12110000,
+              "text": "xxx:xx 文文文文文文文，文文文文文；文文文文文文文，文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:19",
+              "start_ms": 12110000,
+              "end_ms": 221000,
+              "text": "xxx:xx 文文：文，文文文文？\n\n☁️ 文文文文\n\n文文文文文文文：文文文 (xxxxx://xx.xxxxxx.xx.xxx/x/xxxxxxxxxxxxxxxxxxxxxx)，文文文文文文文文文文文文文文文文文文文文文xxxxxx、文文文文文文文文文文文xx文文文文文文文文文文。\n\n文文文文文文文文文"
+            },
+            {
+              "context_ref": "shownotes:20",
+              "start_ms": 221000,
+              "end_ms": 389000,
+              "text": "xx:xx xxxxxxxxx（文文）：文文文文文文文文文文文文文，文文文文文文文文文、文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:21",
+              "start_ms": 389000,
+              "end_ms": 628000,
+              "text": "xx:xx  文文文文文文文「文文文文」文文 文文文文（xxxxxxxxxxx xx xxxxxx xxxxxx）：文文文文文文·文文文文文文文文文。文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文文文，文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:22",
+              "start_ms": 628000,
+              "end_ms": 1412000,
+              "text": "xx:xx 《文文、文文文、文文文文文文文》：文文文文文文文文文、文文·文文文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:23",
+              "start_ms": 1412000,
+              "end_ms": 1646000,
+              "text": "xx:xx 文文文文文（xxxxx’ xxxxxxx）：文文文文文文，文文文文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:24",
+              "start_ms": 1646000,
+              "end_ms": 1721000,
+              "text": "xx:xx 文文文文文（xxxxx’x xxxxx）：xx 文文文文文文，文文「文文文文，文文文文」，文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:25",
+              "start_ms": 1721000,
+              "end_ms": 1906000,
+              "text": "xx:xx 文文文文（xxxxxx xx xxxxxxxxxx）：文文文文文文文文文文文文文，文文文文文文文文、文文、文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:26",
+              "start_ms": 1906000,
+              "end_ms": 2048000,
+              "text": "xx:xx 文文（xxxxxx）：文文文文文文文文文文文文文文文，文 xx 文文文「文文文文文文文文文文文」。"
+            },
+            {
+              "context_ref": "shownotes:27",
+              "start_ms": 2048000,
+              "end_ms": 2063000,
+              "text": "xx:xx 文文文文（xxxxxxx xxxxxx）：文文《文文·文文文文》，文文文文文文文文、文文文文文文文文文，文文、文文、文文文文文文文文文文文文文文文文文文文，xx 文文文文「文文文文」文文文。\n文文文文文，文文文文文，文文文文；文文文，文文文文文文文文文文。\nxxx xxxx xxxxx xxx xxxx xxxx xxxxx xx xxxxx, xxx xx xxxxx xxxx xxxxxxxxx: xxx xxxx xxx xxxx xxxx xxx xxxxx xx xxxxx xxxx xxxx xxxx xxxxx xx xxxx."
+            },
+            {
+              "context_ref": "shownotes:28",
+              "start_ms": 2063000,
+              "end_ms": 2455000,
+              "text": "xx:xx 文文文文文文（xxxxxxxx’x xxx）：文文文文文文，文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:29",
+              "start_ms": 2455000,
+              "end_ms": 2633000,
+              "text": "xx:xx《文文文文文：文文文文文文文文文》（xxx xxxxx xx xxxx: x xxxxx xxxxxxx xx xxx xxxxxx-xxxxx xxxxxxx）：文文文·文文文文（xxxxxx x. xxxxxxxx） xxxx 文文文文，文文文文文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:30",
+              "start_ms": 2633000,
+              "end_ms": 2848000,
+              "text": "xx:xx 文文文文文文文：文文文文文文 (xxxxx://xxxx.xxxxxx.xxx/xxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)"
+            },
+            {
+              "context_ref": "shownotes:31",
+              "start_ms": 2848000,
+              "end_ms": 2856000,
+              "text": "xx:xx 文文文（xxx xxx xxxxx）：文文文文文文文文，文文文文文文文文文文文文文，文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:32",
+              "start_ms": 2856000,
+              "end_ms": 2856000,
+              "text": "xx:xx 《xxxxxxx》：xxxx 文文文文文，文文文 xxxxxxxx 文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:33",
+              "start_ms": 2856000,
+              "end_ms": 2980000,
+              "text": "xx:xx 《xxx xxxxxxxx xxxx》：xxxx 文文文文文，文文 xxxxxxxx 文文文 xxx / xxxxxxxxx 文文文文。"
+            },
+            {
+              "context_ref": "shownotes:34",
+              "start_ms": 2980000,
+              "end_ms": 3050000,
+              "text": "xx:xx 《文文文文文，xxxxx 文文 (xxxxx://xx.xxxxxx.xx.xxx/x/xxxxxxxxxxxxxxxxxxxxxx)》，文文文文文文文文文文文文文文——xxx、xxxx、文文文文文、文文文文文——文文文文文，文文文文文文文文文文文文文文文文 xx xxxxx；文文文文文文文文文文文文 xxxxx 文文文文，文文文文文文「文文文文文」文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:35",
+              "start_ms": 3050000,
+              "end_ms": 3384000,
+              "text": "xx:xx 文文文文（xxxx xxxx）：文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。\n\n（文文文 xxxxxx 文文）"
+            },
+            {
+              "context_ref": "shownotes:36",
+              "start_ms": 3384000,
+              "end_ms": 3498000,
+              "text": "xx:xx 《文文文文文》：文文文、文文文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:37",
+              "start_ms": 3498000,
+              "end_ms": 3498000,
+              "text": "xx:xx 文文文（xxxxxxxxxxx xxxxxx）：文文文文文文文文、文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:38",
+              "start_ms": 3498000,
+              "end_ms": 3498000,
+              "text": "xx:xx 文文文文文文文文文：xxxx xxxxxxx xx xxxxxxxxxx (xxxxx://xxxxx.xxx/xxxx/xxxx.xxxxxxx)"
+            },
+            {
+              "context_ref": "shownotes:39",
+              "start_ms": 3498000,
+              "end_ms": 3990000,
+              "text": "xx:xx 文文文（xxxxxxx xxxxxxx）：文文文文文文文文（文文文）文文文。"
+            },
+            {
+              "context_ref": "shownotes:40",
+              "start_ms": 3990000,
+              "end_ms": 4075000,
+              "text": "xx:xx 文文文（xxxxxx）：文文文文文文文文，文文文文文文文文文文文文文文文，文文文文文文文「文文」文文文文，文文文文文文文文文。\n文文文文文「文文文文文文文文文文文」文文文文文文文文文文文文文（xxxxxxxxxxxxxxx）——文文文文文文文、文文文文文文文文文文，文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文、文文文、文文文文。"
+            },
+            {
+              "context_ref": "shownotes:41",
+              "start_ms": 4075000,
+              "end_ms": 4276000,
+              "text": "xx:xx xxxx 文文（文文文文）：文文文文文文文文文文「文文文文文文」文文文，文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:42",
+              "start_ms": 4276000,
+              "end_ms": 4895000,
+              "text": "xx:xx 文文文文文（xxxxxxxxxxx）：文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:43",
+              "start_ms": 4895000,
+              "end_ms": 5154000,
+              "text": "xx:xx 文文文文文（xxxxxxx xxxxxx）：文文文文文「文文文文」文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:44",
+              "start_ms": 5154000,
+              "end_ms": 5247000,
+              "text": "xx:xx 《xxxxxx xx x xxxxx xx xxxxx》 (xxxxx://xxx.xxxxxxxxx.xxx/xxxx/xxxxxx-xx-x-xxxxx-xx-xxxxx)：xxxxxxxxx 文文文文文文文文文文文，文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:45",
+              "start_ms": 5247000,
+              "end_ms": 5247000,
+              "text": "xx:xx xxx（xxxxx xxxxxxx xxxx）文文文：文文文文文文文 ÷ 文文文文。"
+            },
+            {
+              "context_ref": "shownotes:46",
+              "start_ms": 5247000,
+              "end_ms": 5859000,
+              "text": "xx:xx xxxx（xxxxxxxxx xxxx xxx xxxxx）：文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:47",
+              "start_ms": 5859000,
+              "end_ms": 5968000,
+              "text": "xx:xx 文文文文文文文文文《文文》（xxxxx xxxxxx）文文文文文文《文文文文文》（xxxxx xxxxxxx）：文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文「文文文文」文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:48",
+              "start_ms": 5968000,
+              "end_ms": 6171000,
+              "text": "xx:xx 《文文文文文：文文文文文文文文文文文》：文文文文文，文文文文文文文文文文文，文文文文文文文文，文文文文文文\n文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文文，文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:49",
+              "start_ms": 6171000,
+              "end_ms": 6227000,
+              "text": "xxx:xx 文文文文文文文文文，文文文文文文文文文文：\n文文文文文文： “文文（x xx）” 文文文。文文文文文文文，文文文文文文文文文，文文文文。\n文文文文文文： “文文（xx xx）” 文文文。文文文文文文文，文文文文文文、文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:50",
+              "start_ms": 6227000,
+              "end_ms": 6324000,
+              "text": "xxx:xx 文文文文文文文文文：xxxxx xx xxx xxx xxxx (xxxxx://xxxxx.xxx/xxxx/xxxx.xxxxxxx)"
+            },
+            {
+              "context_ref": "shownotes:51",
+              "start_ms": 6324000,
+              "end_ms": 6450000,
+              "text": "xxx:xx 《文文文文文》（xxx xxxxxxx xxxxxxxxx）：文文文文文·文文（xxxxxxx xxxxx）。文文文文文文文文文文文文文文文，文文文「文文文文、文文文文」——文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文，文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:52",
+              "start_ms": 6450000,
+              "end_ms": 6530000,
+              "text": "xxx:xx xxxxxxxx：文文文文文文文文，文文文文「文文文文」文文文文文文文文文文，文文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:53",
+              "start_ms": 6530000,
+              "end_ms": 6683000,
+              "text": "xxx:xx 文文文文文（xxxxxx xxxxxxxxxxxx）：xx 文文文文文，文文「文文文文」文文，文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:54",
+              "start_ms": 6683000,
+              "end_ms": 6984000,
+              "text": "xxx:xx 文文文 xx 文文文 xx 文文文，文文：xx文文文文 (xxxxx://xx.xxxxxx.xx.xxx/x/xxxxxxxxxxxxxxxxxxxxxx)"
+            },
+            {
+              "context_ref": "shownotes:55",
+              "start_ms": 6984000,
+              "end_ms": 7669000,
+              "text": "xxx:xx 文文文文文文文「文文文文」文文文文《文文文文》：文文文文文文文，文文文文文文文文文文文文文 xxxxx 文文文、文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:56",
+              "start_ms": 7669000,
+              "end_ms": 7686000,
+              "text": "xxx:xx xxxxx：文文文文文文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:57",
+              "start_ms": 7686000,
+              "end_ms": 8404000,
+              "text": "xxx:xx 文文文：文文《文文文文》文文，文文文文文、文文文文文文文文。"
+            },
+            {
+              "context_ref": "shownotes:58",
+              "start_ms": 8404000,
+              "end_ms": 8586000,
+              "text": "xxx:xx xxx xxxxx 文文文文文：文文 xxxx 文 x 文文文文文 xxxx xxx xxx 文文\n文文文《xxx xx xxxxxxxxxx: xxx xxxx xx xxxxxxxxxxxxxxxxx（xx文文：文文文文文文文文） (xxxxx://xxxxxxxxxx.xxx/xxxx/xx/xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxx-x.xxxx)》\n文文文《xxx xx xxxxxxxxxx: xxx xxxxxxxxxxx xx xxxxxxxxxx（xx文文：文文文文文文文文） (xxxxx://xxxxxxxxxx.xxx/xxxx/xx/xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxx-x.xxxx)》x"
+            },
+            {
+              "context_ref": "shownotes:59",
+              "start_ms": 8586000,
+              "end_ms": 8634000,
+              "text": "xxx:xx 文文文文文文「文文文文」文文文文《文文文文》 (xxxxx://x.xxxxxx.xxx/xxxx/xxxxxxx/xxxxxxxx/)。"
+            },
+            {
+              "context_ref": "shownotes:60",
+              "start_ms": 8634000,
+              "end_ms": null,
+              "text": "xxx:xx 《文文文文文文文文文文》：文文文文 xxxx 文文文文文文文文文文。\n\n......\n\n🗺️ 文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文文文文文 (xxxxx://xxxxxxxxxxxxx.xx/x/xxxxxxxxx/xxxx)\n\n🎵\n\nxxxxxx - xxxxxxxx xxxxx\n\nxxx - xxxx xx xxxxxxxxx xxxxxx\n\nxxxxxxxx - xxxxxxxxx xxxxxxxxxxx xxxxxxxxx xxxxxxx\n\n🫳 文文文文\n\n文文 文文文\n\n文文 文文 @文文文文\n\n文文 文文 @文文文文\n\n文文 文文文文\n \n文文文文文文\n\n文文文文文文文文文文文文文文文。文文文文文文文文文文（文文文）文文文。文文文文文文、文文文文、文文文文，文文文文文文文文文，文文文文。\n\n文文文文文文文文文文文文文文文文文文文文文文文文「文文文文」，文文文文文文文文。\n \n文文文文文文\n\n文文文文文文文 xxxx 文，文文文文文文文文文文文文文文文文文文，文文文文。文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文文文文文文文，文文文文。\n\n文文文文文文文文文文文「文文文文」文文文文文 xxx (xxxxx://xxxxxxxxxxxxx.xx/x/xxxxxxxx)\n \n文文文文\n\n文文文文、文文文、文文文文、文文、文文文文、文文文文、xx文文、文文文文文、文文xx、文文文文、文文文文、xxxxxxx、xxxxxx xxxxx，文文 xxxxxxxx、xxxxxx xxxxx、xxxxxx 文文文文文文文文文。\n\n文文文文文文文文文文文文文文文文文文文文，文文文文，文文文文文文文文文、文文，文文文、文文文文。文文文文文，文文文文文。文文文文文文文文文文文文文文文文文、文文文、文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文。\n\n文文文文文文文文文文文文文文。文文文文文文文文文文文文文文，文文文文文。文文文文文文文文文文文文文文文文。"
+            }
+          ]
+        },
+        "comments": [
+          {
+            "id": "69a8a7be109afd706b408c5d",
+            "text": "x:xx:xx 文文文文，文文文文文文文文文文文文文文文！文文文文文文文文文文文文文文，文文文文文文。文文、文文文文文文，文文文、文文、文文文，文文文文文文文，文文文文文文文文、文文文。文文文文文文文文文，文文文文文文文文文文。文文文文文文文文，文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文文文",
+            "author": "舒艺_svif",
+            "like_count": 459,
+            "created_at": "2026-03-04T21:44:30.511Z",
+            "pinned": false,
+            "reply_count": 3,
+            "ip_location": "北京",
+            "context_ref": "comment:69a8a7be109afd706b408c5d",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 1
+          },
+          {
+            "id": "69a6cedad6f5836c2d4f8a7b",
+            "text": "xx文文文文文文文文：x.文文文文。xx文文文文文文文文、文文文文文文文文，文文文文文文，文文文文xx文文文文文文，文文文文文；x.文文文文。文文文文文文文文文文文文文、文文文文文文文文文，文文xx文文文文。文文文文文文，文文文文文文文文文文文文，文文文文文🥹",
+            "author": "Chuck傅强",
+            "like_count": 315,
+            "created_at": "2026-03-03T12:06:50.120Z",
+            "pinned": false,
+            "reply_count": 36,
+            "ip_location": "海南",
+            "context_ref": "comment:69a6cedad6f5836c2d4f8a7b",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 2
+          },
+          {
+            "id": "69a846a6333a3e1a76bc67d6",
+            "text": "x:xx:xx\n\"文文文文文文x文文 文文文文文——文文文文文文文文文文\"\n\n文文文文文xxxx🤣",
+            "author": "许许许诺",
+            "like_count": 268,
+            "created_at": "2026-03-04T14:50:14.223Z",
+            "pinned": false,
+            "reply_count": 12,
+            "ip_location": "上海",
+            "context_ref": "comment:69a846a6333a3e1a76bc67d6",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 3
+          },
+          {
+            "id": "69a7d46b042bd24566d8fd77",
+            "text": "文文文文文文文文文文文，文文文文文文文文文",
+            "author": "甜瓜_Q6As",
+            "like_count": 242,
+            "created_at": "2026-03-04T06:42:51.566Z",
+            "pinned": false,
+            "reply_count": 30,
+            "ip_location": "浙江",
+            "context_ref": "comment:69a7d46b042bd24566d8fd77",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 4
+          },
+          {
+            "id": "69a904b0efa309d1098a8ce0",
+            "text": "文文文文文文文文文文……文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文“文文文”文文文。\n文文文文文文文，文文文文文文文文文文文文文文文文。文文文文文文文文，文文文文文文文，文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文。\n文文文文文文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文“文文”。文文文文文文文文，文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文，文文文文文文文文。",
+            "author": "金大智",
+            "like_count": 167,
+            "created_at": "2026-03-05T04:21:04.480Z",
+            "pinned": false,
+            "reply_count": 6,
+            "ip_location": "中国香港",
+            "context_ref": "comment:69a904b0efa309d1098a8ce0",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 5
+          },
+          {
+            "id": "69a6e7c78a315c931e15941f",
+            "text": "文文文文，文文文文文文文文文文文文文文文文文文文？文文文文文？\n文文，文文文文文文文文文文文文文“文文文文文”文文文文文文文？\n文文文文",
+            "author": "米糕_",
+            "like_count": 155,
+            "created_at": "2026-03-03T13:53:11.301Z",
+            "pinned": false,
+            "reply_count": 36,
+            "ip_location": "上海",
+            "context_ref": "comment:69a6e7c78a315c931e15941f",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 6
+          },
+          {
+            "id": "69a916499301859b5bfae35e",
+            "text": "xx:xx  xxxxx://xxxx.xxxxxx.xxx/xxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n文文文文文文文文文，文文文文文文文文。\n═══════════════════════════════════════════════════════════════\n  文文文文 xx · 文文文文\n  文文: 文文文   文文: xxxx-xx-xx\n═══════════════════════════════════════════════════════════════\n\n▌文文文文\n\n文文文\"文文\"文文文文 xx 文文文文文文。\n\n文文文文 → 文文文文文文 x~x 文文文文文文文文文文/文文文文\n→ 文文文文文文文 → 文文文文文文文文文\n\n文文文文文，文文文文：\n  · 文文文文文文文\n  · 文文 xxxxx 文文文文文文文\n  · 文文文文文文文文文文文\n\n\n▌xx 文文：文文文文文文文\n\n【文文】文文文文文文文文文文文，文文文文文\"文文文文\"\n\n【文文】文文文文文文文文文，文文文文：\n\n  [x] 文文文文  →  \"文文文文\"、\"文文文文\"、\"文文文文\"\n  [x] 文文文文  →  \"文文文文文\"、\"文文文文\"、\"文文文文\"\n  [x] 文文文文  →  文文文文文文文文文文文文\n\n【文文】\n  · 文文文：文文文文文文文文文文文，文文文文文文\n  · 文文文：文文文文文文文文文文文文文文文文\n    - 文文·文文 → 文文文文文文\n    - 文文 → 文文文文文文文文文\n    - 文文 → 文文文文文文文\n    - 文文文 → 文文文文文文文\n  · 文文文文：文文文文文文文文文文\n\n\n▌文文文文\n\n  文          文文文文文文文\n  文          文文文文，文文文文文文\n  文文文文    文文文文文文文文文文\n  文文文文文  文文文文文文文\n  文文        文文文 xxxxxxxx 文文\n\n\n▌文文文文文文文\n\n【xxxxxx xxxx】(文文)\n  文 xxxxxx.xx 文文文文文文文 → 文文文文 → 文文文文\n\n【xxxxxx.xx xxxxxxxx】\n  文文 xxxxxxx → 文文文 \"xxxxxxx xxxxxxxxxxxx\" → 文文文文\n\n【xxxxxxx / x文文】\n  文文 xxx/xxxxxxxxx → 文文文 xxxxxx xxxxxx → 文文文文\n\n【文文】(文文)\n  文文文文文 → 文文文\"文文文文文\" → 文文文文文\n\n【文文】(文文)\n  文文文文文文 → 文文文文文文文文 → 文文文文文\n\n【xxxx】(文文文文)\n  文文文文文文文文文 + \"文文文文文文文文文文\" → 文文文文\n\n【文文文文】\n  文文文文 xxxxxx xxxxxx 文文文 → 文文 xxxxxx.xx → 文文文文\n\n【文文】\n  · 文文文文（xxxxxx xxxx/xxxxxx、xxx-xx、xx），文文文文\n  · 文文文文文文文文文文文文文文\n  · 文文文文文文\"文文\"文文，文文文文\n\n\n▌文文文文\n\n  · 文文文文文文文文文文文文文文？\n  · 文文文文文文文文文文文？\n  · 文文文文文文文文文文？\n  · 文文文文文文文文文文文文文文文？\n  · 文文文文文文文文，文文文文文文文？\n  · 文文文文文文文文文文文文文文文文文？",
+            "author": "家住在局部地区",
+            "like_count": 126,
+            "created_at": "2026-03-05T05:36:09.169Z",
+            "pinned": false,
+            "reply_count": 5,
+            "ip_location": "四川",
+            "context_ref": "comment:69a916499301859b5bfae35e",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 7
+          },
+          {
+            "id": "69a6ddc1f39f3de0803851a5",
+            "text": "xx:xx 文文文文文文文文文文文文xxxxxx？文文",
+            "author": "黄舒",
+            "like_count": 118,
+            "created_at": "2026-03-03T13:10:25.273Z",
+            "pinned": false,
+            "reply_count": 25,
+            "ip_location": "北京",
+            "context_ref": "comment:69a6ddc1f39f3de0803851a5",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 8
+          },
+          {
+            "id": "69a6e494d6f5836c2d601b07",
+            "text": "文文文文文文、文文、xxxxx 文文文文 xxxxxx、xxxxx、xxxxx文文文文文文文文文文文文🙏🏻",
+            "author": "星星废话多",
+            "like_count": 88,
+            "created_at": "2026-03-03T13:39:32.449Z",
+            "pinned": false,
+            "reply_count": 2,
+            "ip_location": "北京",
+            "context_ref": "comment:69a6e494d6f5836c2d601b07",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 9
+          },
+          {
+            "id": "69a6d41ccba0a2dcab8e4ede",
+            "text": "文文xx文文文文文文文，文文文文文文文文，文文文文文文文文文文文文，文文文文文文文，文文文文文文文文文文文文文文文文，“文文，文文文文文文文文”，文文文文文文文文文文文文文“文文文文文文文文文”，文！！！！",
+            "author": "尘埃有岸",
+            "like_count": 88,
+            "created_at": "2026-03-03T12:29:16.499Z",
+            "pinned": false,
+            "reply_count": 4,
+            "ip_location": "河北",
+            "context_ref": "comment:69a6d41ccba0a2dcab8e4ede",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 10
+          },
+          {
+            "id": "69a79f423ca385ca15a04933",
+            "text": "x:xx:xx 文文文文文，文文文文文文文文文文xx文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文？ 文文文文文文文文文文文文，文文文文xx文文文文文文文，文文文文文文文文文文文（文文文，文文文文文文文，文文文文）文文文，文文文文文文文文文文文文文，文xx文文文文文文文文文文。",
+            "author": "朱迪1214",
+            "like_count": 85,
+            "created_at": "2026-03-04T02:56:02.414Z",
+            "pinned": false,
+            "reply_count": 14,
+            "ip_location": "上海",
+            "context_ref": "comment:69a79f423ca385ca15a04933",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 11
+          },
+          {
+            "id": "69a6f02f8a315c931e1bf498",
+            "text": "xx:xx 文文文文文文文文文文文文文文文文文，文文文文文文文文“文”文文文文文文文文文。文文文xx文文文文文文文文文文：文文文文文“文文文文文文文”文文文文文文文。xxx文文文文文文，文文文文文文文文。文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文。xx文文文文文文文文文文文文，文文文文文文，文文文文文文文，文文文文文文文文文、文文文文。",
+            "author": "球姐Camellia",
+            "like_count": 79,
+            "created_at": "2026-03-03T14:29:03.728Z",
+            "pinned": false,
+            "reply_count": 0,
+            "ip_location": "葡萄牙",
+            "context_ref": "comment:69a6f02f8a315c931e1bf498",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 12
+          },
+          {
+            "id": "69a8613451740e8f0ee8e87d",
+            "text": "xx:xx 文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文（文文文文文文文文文文文）文文文。文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文，文文文文，文文文文文，文文文文文，文文文xx文文文文文文文文文文文文文（文文文文文文文文文文文文文文文文文文文文文文文文文文文文），文文文文文文文文文文。文文文文文文文文文文文，文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文文……",
+            "author": "pumpkinsoup",
+            "like_count": 77,
+            "created_at": "2026-03-04T16:43:32.469Z",
+            "pinned": false,
+            "reply_count": 10,
+            "ip_location": "重庆",
+            "context_ref": "comment:69a8613451740e8f0ee8e87d",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 13
+          },
+          {
+            "id": "69a8d4f33e85257cbef2353c",
+            "text": "x:xx:xx 文文文文，文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文",
+            "author": "体验派小河",
+            "like_count": 68,
+            "created_at": "2026-03-05T00:57:23.580Z",
+            "pinned": false,
+            "reply_count": 1,
+            "ip_location": "加拿大",
+            "context_ref": "comment:69a8d4f33e85257cbef2353c",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 14
+          },
+          {
+            "id": "69a7f86acf13123afea0f659",
+            "text": "xx:xx 文文，文文，文文文xx文文文文文文文文，文文文文，文文文文文文文文文文文文文文文文文文文文文文。",
+            "author": "思如耶",
+            "like_count": 65,
+            "created_at": "2026-03-04T09:16:26.746Z",
+            "pinned": false,
+            "reply_count": 8,
+            "ip_location": "四川",
+            "context_ref": "comment:69a7f86acf13123afea0f659",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 15
+          },
+          {
+            "id": "69a79ce0694c3f0a4eb08403",
+            "text": "xx:xx 文文文文文文文文文文文，文文文文文文文文文文文。文文，文文文文文文文文文文文文文，文文文文文文文文文文文文文。\r文文，文文文。👍🏻",
+            "author": "熙_RKFD",
+            "like_count": 55,
+            "created_at": "2026-03-04T02:45:52.568Z",
+            "pinned": false,
+            "reply_count": 0,
+            "ip_location": "河北",
+            "context_ref": "comment:69a79ce0694c3f0a4eb08403",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 16
+          },
+          {
+            "id": "69ace3c0b09368e1f55fb728",
+            "text": "x:xx:xx \n文文：文文文文文文？(文文)\n文文：文文文。\n文文：xx。(文文)",
+            "author": "流浪的褪色者",
+            "like_count": 53,
+            "created_at": "2026-03-08T02:49:36.269Z",
+            "pinned": false,
+            "reply_count": 2,
+            "ip_location": "安徽",
+            "context_ref": "comment:69ace3c0b09368e1f55fb728",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 17
+          },
+          {
+            "id": "69aa247edd8a836e48b823ea",
+            "text": "x:xx:xx 文文文，文文文文文文文文文文文文，文文文文文文文文文文文文😏",
+            "author": "不二家的小姐姐",
+            "like_count": 48,
+            "created_at": "2026-03-06T00:49:02.927Z",
+            "pinned": false,
+            "reply_count": 1,
+            "ip_location": "安徽",
+            "context_ref": "comment:69aa247edd8a836e48b823ea",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 18
+          },
+          {
+            "id": "69a77d2a6c5fb9ac62f98fe1",
+            "text": "xx:xx x.文文文文：文文文文文；\nx.文文文文：文文文文文。\nxx文，文文文文文，文文文文。\n文文文文文，文文文文文文文文。\nx.xx：文文x文，文文文文，文文文文文（文文、文文、文文文文文文）。",
+            "author": "JIAJIAJIANG",
+            "like_count": 47,
+            "created_at": "2026-03-04T00:30:34.477Z",
+            "pinned": false,
+            "reply_count": 1,
+            "ip_location": "北京",
+            "context_ref": "comment:69a77d2a6c5fb9ac62f98fe1",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 19
+          },
+          {
+            "id": "69aac2033ca7f4073f2fa421",
+            "text": "x:xx:xx 文文文文文文文文文文文文文文文文文文文，文文文文文文文，文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文文文文文文文，文文文文xx文文文文文文文文文文文。 文文文文xx文文文文文文，文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文，文文xxxxxx文文文文xx文文文文文文文文文文文文文文文文文。",
+            "author": "EvaWang",
+            "like_count": 43,
+            "created_at": "2026-03-06T12:01:07.688Z",
+            "pinned": false,
+            "reply_count": 2,
+            "ip_location": "四川",
+            "context_ref": "comment:69aac2033ca7f4073f2fa421",
+            "evidence_eligible": false,
+            "context_only": true,
+            "rank": 20
+          }
+        ],
+        "context_policy": {
+          "comments_are_evidence": false,
+          "shownotes_require_timestamp_for_partial": true,
+          "reference_format": "shownotes:<index> / comment:<id-or-rank>"
+        },
+        "comment_selection": {
+          "requested": 20,
+          "returned": 20,
+          "order": "likeCount descending",
+          "scope": "top-level comments; reply counts retained"
+        },
+        "paths": {
+          "raw_html": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/source.raw.html",
+          "shownotes": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/source.shownotes.md",
+          "comments": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/source.comments.top20.json",
+          "context": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/source.context.json"
+        }
+      },
+      "output_dir": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处",
+      "excerpt": "本文转录由 GitHub 项目：NextEcho 提供支持，作者 @金哲Next（小红书、公众号同名）\n\n文文文\n文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文xx文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文",
+      "error": "",
+      "source_type": "page",
+      "platform": "xiaoyuzhou",
+      "input": "https://www.xiaoyuzhoufm.com/episode/69a64629de29766da93331ec",
+      "canonical_url": "https://www.xiaoyuzhoufm.com/episode/69a64629de29766da93331ec",
+      "resolved_media_url": "https://media.xyzcdn.net/611719d3cb0b82e1df0ad29e/lvA2mFXeSE7V0sFV3mFpfFHBDAsk.m4a",
+      "title": "E45 孟岩对话李继刚：人何以自处",
+      "author": "无人知晓",
+      "duration_seconds": 12420,
+      "published_at": "2026-03-03T12:00:00.000Z",
+      "resolver": "xiaoyuzhou_page",
+      "requires_auth": false,
+      "show_website": "",
+      "rss_candidates": [],
+      "resolution_notes": [],
+      "schema_version": 3,
+      "diarization": {
+        "status": "not_started",
+        "backend": "",
+        "model": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": [],
+        "coverage": {}
+      },
+      "speaker_identity": {
+        "schema_version": 3,
+        "status": "not_started",
+        "speakers": []
+      },
+      "postprocess": {
+        "enabled": true,
+        "schema_version": 1,
+        "fingerprint": "73c701f69af4afc6da61523b0f5b134d3ca3742a5504b6352aeb6af5af0d19c8",
+        "prompt_version": "nextecho-postprocess-v4-evidence-coverage-speaker-chunks",
+        "profile": "fast",
+        "model_selection": {
+          "provider": "selection",
+          "profile": "fast",
+          "preferred_id": "gemma-e4b-iq4xs",
+          "preferred_candidates": [
+            "gemma-e4b-iq4xs"
+          ],
+          "fallback_model": "qwen3:4b",
+          "selected_4b": "qwen3:4b",
+          "quality_model": "qwen3.5:9b-q4_K_M",
+          "polish_models": [
+            "qwen3:4b"
+          ],
+          "summary_models": [
+            "qwen3:4b"
+          ],
+          "available_models": [
+            "bge-m3:latest",
+            "qwen3-embedding:4b-qwen-ms",
+            "qwen3.5:9b-q4_K_M",
+            "qwen3:4b"
+          ],
+          "model_metadata": {
+            "qwen3.5:9b-q4_K_M": {
+              "name": "qwen3.5:9b-q4_K_M",
+              "model": "qwen3.5:9b-q4_K_M",
+              "digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+              "modified_at": "2026-09-07T00:48:54.147602399+08:00",
+              "size": 6594474711,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "qwen35",
+                "families": [
+                  "qwen35"
+                ],
+                "parameter_size": "9.7B",
+                "quantization_level": "Q4_K_M",
+                "context_length": 262144,
+                "embedding_length": 4096
+              }
+            },
+            "qwen3:4b": {
+              "name": "qwen3:4b",
+              "model": "qwen3:4b",
+              "digest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+              "modified_at": "2026-09-02T00:35:02.998344966+08:00",
+              "size": 2497293931,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "qwen3",
+                "families": [
+                  "qwen3"
+                ],
+                "parameter_size": "4.0B",
+                "quantization_level": "Q4_K_M",
+                "context_length": 262144,
+                "embedding_length": 2560
+              }
+            },
+            "qwen3-embedding:4b-qwen-ms": {
+              "name": "qwen3-embedding:4b-qwen-ms",
+              "model": "qwen3-embedding:4b-qwen-ms",
+              "digest": "c4877adaef42dc4e55484d574975d79132d2b7b5126b572cf661ae21258e927c",
+              "modified_at": "2026-07-14T23:47:02.975123716+08:00",
+              "size": 2496704041,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "qwen3",
+                "families": [
+                  "qwen3"
+                ],
+                "parameter_size": "4.0B",
+                "quantization_level": "Q4_K_M",
+                "context_length": 40960,
+                "embedding_length": 2560
+              }
+            },
+            "bge-m3:latest": {
+              "name": "bge-m3:latest",
+              "model": "bge-m3:latest",
+              "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+              "modified_at": "2026-07-14T08:53:41.695410512+08:00",
+              "size": 1157672605,
+              "details": {
+                "parent_model": "",
+                "format": "gguf",
+                "family": "bert",
+                "families": [
+                  "bert"
+                ],
+                "parameter_size": "566.70M",
+                "quantization_level": "F16",
+                "context_length": 8192,
+                "embedding_length": 1024
+              }
+            }
+          },
+          "config_source": "repo-default:/example/user/Documents/jerry_projects/local-transcription-workbench/config/nextecho.toml+user-override:/example/user/Library/Application Support/NextEcho/config.toml"
+        },
+        "ollama": {
+          "ready": true,
+          "tags_digest": "d25449f52254dce6b9d006df75c058f1aac3df5ae47b04b490f7dffd7f5c54a0",
+          "models": [
+            "qwen3.5:9b-q4_K_M",
+            "qwen3:4b",
+            "qwen3-embedding:4b-qwen-ms",
+            "bge-m3:latest"
+          ]
+        },
+        "status": "ready",
+        "polish": {
+          "status": "ready",
+          "actual_models": [
+            "qwen3:4b",
+            "qwen3:4b",
+            "qwen3:4b"
+          ],
+          "fallbacks": [],
+          "chunks": 3,
+          "chunk_target_chars": 1800,
+          "chunk_min_chars": 1200,
+          "chunk_max_chars": 4000,
+          "oversized_segments": [],
+          "rules_applied": []
+        },
+        "summary": {
+          "status": "ready",
+          "actual_models": [
+            "qwen3:4b",
+            "qwen3:4b"
+          ],
+          "fallbacks": [],
+          "chunks": 1,
+          "coverage": {
+            "start_ms": 10640,
+            "end_ms": 299850,
+            "limit_end_ms": 300000,
+            "effective_end_ms": 300000,
+            "max_seconds": 300,
+            "episode_duration_seconds": 12398,
+            "covered_seconds": 289.36,
+            "partial": true,
+            "status": "partial",
+            "source": "run_config.json"
+          },
+          "context_refs": [
+            "comment:69a6cedad6f5836c2d4f8a7b",
+            "comment:69a6d41ccba0a2dcab8e4ede",
+            "comment:69a6ddc1f39f3de0803851a5",
+            "comment:69a6e494d6f5836c2d601b07",
+            "comment:69a6e7c78a315c931e15941f",
+            "comment:69a6f02f8a315c931e1bf498",
+            "comment:69a77d2a6c5fb9ac62f98fe1",
+            "comment:69a79ce0694c3f0a4eb08403",
+            "comment:69a79f423ca385ca15a04933",
+            "comment:69a7d46b042bd24566d8fd77",
+            "comment:69a7f86acf13123afea0f659",
+            "comment:69a846a6333a3e1a76bc67d6",
+            "comment:69a8613451740e8f0ee8e87d",
+            "comment:69a8a7be109afd706b408c5d",
+            "comment:69a8d4f33e85257cbef2353c",
+            "comment:69a904b0efa309d1098a8ce0",
+            "comment:69a916499301859b5bfae35e",
+            "comment:69aa247edd8a836e48b823ea",
+            "comment:69aac2033ca7f4073f2fa421",
+            "comment:69ace3c0b09368e1f55fb728",
+            "shownotes:0",
+            "shownotes:20"
+          ]
+        },
+        "coverage": {
+          "start_ms": 10640,
+          "end_ms": 299850,
+          "limit_end_ms": 300000,
+          "effective_end_ms": 300000,
+          "max_seconds": 300,
+          "episode_duration_seconds": 12398,
+          "covered_seconds": 289.36,
+          "partial": true,
+          "status": "partial",
+          "source": "run_config.json"
+        },
+        "evidence_policy": {
+          "transcript_segment_ids": "verbatim evidence from timestamped transcript segments only",
+          "context_refs": "shownotes/comments are external context references, never segment evidence",
+          "comments_are_evidence": false,
+          "partial_transcript": true,
+          "unlocatable_context_is_excluded": true,
+          "mixed_claims_require_inferred": true
+        },
+        "context": {
+          "shownotes_chars": 86,
+          "shownotes_total_chars": 5723,
+          "comments_available": 20,
+          "comments_are_evidence": false,
+          "tfidf_keywords": [
+            "ai",
+            "嘉宾",
+            "孟岩",
+            "提示词",
+            "粘贴至",
+            "李继刚",
+            "prompt",
+            "claude",
+            "过去",
+            "模型",
+            "新建",
+            "保存",
+            "主持人",
+            "v2",
+            "system",
+            "project",
+            "claude.md",
+            "面对面",
+            "霍金",
+            "问题",
+            "重构",
+            "道也好",
+            "越强",
+            "费米",
+            "豆包",
+            "表达",
+            "萨根",
+            "节目",
+            "腾讯",
+            "继刚",
+            "结构",
+            "系统",
+            "系列",
+            "粘贴",
+            "生成",
+            "生命",
+            "理性",
+            "特点",
+            "注意",
+            "求真"
+          ],
+          "highlight_chars": 3000
+        },
+        "actual_models": [
+          "qwen3:4b"
+        ],
+        "generated_at": "2026-09-09T22:22:34Z",
+        "timings": {
+          "polish_seconds": 78.54,
+          "summary_seconds": 157.699,
+          "total_seconds": 236.276
+        },
+        "paths": {
+          "enhanced_text_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.txt",
+          "enhanced_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.json",
+          "enhanced_srt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.srt",
+          "enhanced_vtt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.vtt",
+          "summary_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.summary.json",
+          "knowledge_markdown_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.knowledge.md"
+        },
+        "enhanced_text_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.txt",
+        "enhanced_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.json",
+        "enhanced_srt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.srt",
+        "enhanced_vtt_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.enhanced.vtt",
+        "summary_json_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.summary.json",
+        "knowledge_markdown_path": "outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.knowledge.md"
+      },
+      "fallbacks": [],
+      "timings": {},
+      "artifact_paths": {
+        "text_path": "<RUN_DIR>/outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.txt",
+        "json_path": "<RUN_DIR>/outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.json",
+        "srt_path": "<RUN_DIR>/outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.srt",
+        "vtt_path": "<RUN_DIR>/outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/transcript.vtt",
+        "media_path": "<RUN_DIR>/outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/source.media",
+        "audio_path": "<RUN_DIR>/outputs/transcriptions/final_xiaoyuzhou_5m_20260910/items/001_E45-孟岩对话李继刚-人何以自处/转录音频.wav"
+      },
+      "resource_metrics": {
+        "available": true,
+        "platform": "darwin",
+        "memory_pressure": "unknown",
+        "available_memory_bytes": null,
+        "swap_delta_bytes": null,
+        "stages": {}
+      }
+    }
+  ],
+  "error_count": 0,
+  "partial_count": 0,
+  "diarization": {
+    "status": "not_started",
+    "backend": "",
+    "model": "",
+    "model_revision": "",
+    "model_digest": "",
+    "fallbacks": [],
+    "coverage": {}
+  },
+  "speaker_identity": {
+    "schema_version": 3,
+    "status": "not_started",
+    "speakers": [],
+    "mapping_path": "<RUN_DIR>/speaker.identity-map.json"
+  },
+  "resource_metrics": {
+    "available": true,
+    "platform": "darwin",
+    "memory_pressure": "unknown",
+    "available_memory_bytes": null,
+    "swap_delta_bytes": null,
+    "stages": {}
+  },
+  "status": "ready"
+}

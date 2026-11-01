@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 APP_URL="http://127.0.0.1:8765"
+HEALTH_URL="$APP_URL/api/health"
+LOG_DIR="$ROOT_DIR/logs"
+LOG_FILE="$LOG_DIR/server.log"
 
 show_alert() {
   local message="$1"
@@ -13,7 +16,7 @@ show_alert() {
 }
 
 if ! command -v python3 >/dev/null 2>&1; then
-  show_alert "未检测到 Python 3。请先安装 Python 3.10 或更高版本，再重新双击安装器。"
+  show_alert "未检测到 Python 3。请先安装 Python 3.11 或更高版本，再重新双击安装器。"
   exit 1
 fi
 
@@ -24,6 +27,10 @@ fi
 . .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+python -m pip install -U "yt-dlp[default]"
+if [ "$(uname -m)" = "arm64" ]; then
+  python -m pip install -r requirements-apple-silicon.txt
+fi
 
 missing=()
 for bin in ffmpeg whisper-cli; do
@@ -41,19 +48,14 @@ if [ "${#missing[@]}" -gt 0 ]; then
   fi
 fi
 
-if ! command -v yt-dlp >/dev/null 2>&1; then
-  if command -v brew >/dev/null 2>&1; then
-    brew install yt-dlp || true
-  fi
-fi
-
 mkdir -p models/whisper.cpp outputs/transcriptions
+mkdir -p "$LOG_DIR"
 python -m workbench.cli doctor || true
 .venv/bin/python -m workbench.cli download-model base || true
 
-if command -v curl >/dev/null 2>&1 && ! curl -sSf "$APP_URL" >/dev/null 2>&1; then
-  nohup "$ROOT_DIR/.venv/bin/python" app.py >/tmp/nextecho-install.log 2>&1 &
-  sleep 3
+if command -v curl >/dev/null 2>&1 && ! curl -sSf "$HEALTH_URL" >/dev/null 2>&1; then
+  bash "$ROOT_DIR/scripts/mac_service.sh" start >/dev/null 2>&1 || true
+  sleep 1
 fi
 
 open "$APP_URL"

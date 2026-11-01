@@ -4,13 +4,13 @@ This document turns the repository's open source compliance review into concrete
 
 ## Current Compliance Status
 
-Status: `Yellow`
+Status: `Yellow — release audit incomplete`
 
 Reason:
 
-- The codebase is structurally suitable for commercial and closed-source distribution.
+- NextEcho is declared `AGPL-3.0-only` in `pyproject.toml`. Commercial activity does not remove its source and notice obligations; this project does not provide blanket permission for closed-source distribution of covered NextEcho code.
 - The repository now documents third-party licenses and release risks.
-- The repository now has a top-level `AGPL-3.0` license.
+- The top-level `LICENSE` remains the GNU AGPL version 3 text. This audit does not relicense the project.
 - FFmpeg and platform-download workflows require explicit release policy to avoid preventable GPL and platform-terms issues.
 
 ## Scope of This Project
@@ -20,7 +20,7 @@ The project is a local-first transcription workbench that:
 - runs transcription locally with `whisper-cli`
 - uses `ffmpeg` for media normalization and extraction
 - optionally uses `yt-dlp` for page resolution and media download
-- optionally uses `pyannote.audio` or a local clustering fallback for speaker attribution
+- optionally uses `pyannote.audio`, sherpa-onnx, Resemblyzer, or a local clustering fallback for speaker attribution
 
 The current macOS app wrapper does not bundle a full standalone runtime. It launches the existing local project environment and system tools.
 
@@ -34,7 +34,7 @@ The repository now uses:
 
 - `AGPL-3.0`
 
-This is a strong copyleft license and is intentionally suitable for maintainers who want public source distribution while requiring source availability for modified network-deployed versions.
+For covered distributions, follow the applicable source and notice requirements, including sections 4–6. Section 13 additionally addresses offering corresponding source to remote users of a modified version that supports network interaction. Review the [license text](LICENSE) and [GNU's official AGPL text](https://www.gnu.org/licenses/agpl-3.0.html); a permissive dependency license does not replace NextEcho's own license.
 
 ### 2. Third-Party Notice Files
 
@@ -60,9 +60,9 @@ High-risk case:
 
 - FFmpeg builds with `--enable-gpl` or GPL codec/tooling can impose GPL redistribution obligations.
 
-Safer case:
+If considering a bundled build:
 
-- Prefer an `LGPL-only` FFmpeg build if you need to redistribute FFmpeg with a commercial or closed-source product.
+- Record the exact binary hash, version, configure flags, linked libraries, notices and matching source. An LGPL-only build still has obligations and does not change NextEcho's AGPL terms. Follow [FFmpeg's official licensing guidance](https://www.ffmpeg.org/legal.html); do not describe an uninspected build as redistributable.
 
 ### 4. Download and Platform Terms Policy
 
@@ -82,7 +82,8 @@ Whisper code and whisper.cpp are MIT-friendly, but model artifacts still need at
 Project policy:
 
 - If model files are redistributed inside a release package, document their origin and applicable license in `THIRD_PARTY_LICENSES.md`.
-- If pyannote community models are used or bundled, preserve the model card attribution requirements.
+- Audit code, original weights, conversions and access conditions separately; retain each exact artifact's provenance and applicable notices. A runtime's license or a gated model-card declaration does not establish the terms of an unrelated ONNX conversion.
+- Do not bundle the sherpa/Pyannote segmentation or 3D-Speaker ONNX weights until the exact model-card and redistribution terms have been recorded. Local user downloads and release redistribution are separate decisions.
 
 ### 6. Data and Regional Compliance Policy
 
@@ -101,10 +102,10 @@ See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the maintained invent
 
 Important conclusions:
 
-- Commercial sale: generally allowed
-- Closed-source distribution: generally allowed
-- License notice inclusion: required
-- GPL contamination risk: conditional, mainly around bundled FFmpeg builds
+- Commercial use or sale: assess under the applicable project and component licenses; it does not waive source obligations
+- Covered NextEcho distribution: AGPL source and notice requirements apply; no blanket closed-source permission
+- License notice inclusion: required as specified by the applicable licenses
+- Copyleft obligations: already present in NextEcho's own AGPL license; bundled FFmpeg and other components require separate inspection
 - Patent risk: codec-related, especially if shipping media stacks
 - Platform terms risk: meaningful for YouTube/Bilibili and similar sources
 - China compliance risk: moderate if the product expands beyond local offline usage
@@ -124,4 +125,6 @@ Use this checklist before tagging a public release:
 
 ## Current Repository Decision
 
-Based on the current implementation, the repository now has a defined project license. Remaining release work is mainly about packaging discipline, third-party notices, and platform-risk communication.
+The project license is defined. The v0.2.12 preview is scoped to NextEcho application source, its wheel and the Agent Skill; corresponding source, LICENSE and notices accompany the release. Its content audit excludes model weights, native inference runtimes, FFmpeg/other external executables, media, credentials and personal bindings. Python dependencies are installed separately from their distributions. See [the release scope](docs/release-v0.2.12.md).
+
+The broader model/code/conversion ledger and model quality review remain incomplete. This application-only preview does not authorize redistribution of unverified models, certify their licensing or promote candidate profiles to production-ready. Future packages that bundle additional components require their own audit.

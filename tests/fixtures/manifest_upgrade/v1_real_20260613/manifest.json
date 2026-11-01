@@ -1,0 +1,76 @@
+{
+  "started_at": "2026-06-13T14:14:52Z",
+  "completed_at": "2026-06-13T14:23:07Z",
+  "elapsed_seconds": 495,
+  "generated_at": "2026-06-13T14:14:52Z",
+  "model_name": "large-v3-turbo-q5_0",
+  "model_path": "/example/user/Documents/jerry_projects/AI-hot-topic/models/whisper.cpp/ggml-large-v3-turbo-q5_0.bin",
+  "language": "auto",
+  "max_seconds": 0,
+  "output_formats": [
+    "txt",
+    "json",
+    "srt",
+    "vtt"
+  ],
+  "enhancement": {
+    "enabled": true,
+    "ai_polish": false,
+    "ai_style": "",
+    "user_glossary_supplied": false
+  },
+  "run_config_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/run_config.json",
+  "items_dir": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items",
+  "results": [
+    {
+      "source": "https://www.xiaoyuzhoufm.com/episode/6a2bae5f4233e62bc5489e39",
+      "source_label": "001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了",
+      "status": "ready",
+      "created_at": "2026-06-13T14:23:07Z",
+      "updated_at": "2026-06-13T14:23:07Z",
+      "char_count": 21137,
+      "text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.txt",
+      "json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.json",
+      "srt_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.srt",
+      "vtt_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.vtt",
+      "media_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/source.m4a",
+      "audio_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/audio.wav",
+      "enhanced_text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.txt",
+      "enhanced_json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.json",
+      "enhancement": {
+        "enabled": true,
+        "enhanced_text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.txt",
+        "enhanced_json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.json",
+        "rules_applied": [
+          {
+            "from": "波客",
+            "to": "播客"
+          }
+        ],
+        "ai": {
+          "requested": false,
+          "applied": false,
+          "reason": ""
+        }
+      },
+      "output_dir": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了",
+      "excerpt": "本文转录由 GitHub 项目：NextEcho 提供支持，作者 @金哲Next（小红书、公众号同名）\n\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文xx文文文文文xx文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文",
+      "error": "",
+      "source_type": "page",
+      "platform": "xiaoyuzhou",
+      "input": "https://www.xiaoyuzhoufm.com/episode/6a2bae5f4233e62bc5489e39",
+      "canonical_url": "https://www.xiaoyuzhoufm.com/episode/6a2bae5f4233e62bc5489e39",
+      "resolved_media_url": "https://media.xyzcdn.net/6013f9f58e2f7ee375cf4216/lm3YECIH5BaU_mps0A9wB1h2xcta.m4a",
+      "title": "E239 对话沈帅波：打工人的尽头还是做自媒体？大人，时代变了",
+      "author": "知行小酒馆",
+      "duration_seconds": 4920,
+      "published_at": "2026-06-12T12:00:00.000Z",
+      "resolver": "xiaoyuzhou_page",
+      "requires_auth": false,
+      "show_website": "",
+      "rss_candidates": [],
+      "resolution_notes": []
+    }
+  ],
+  "error_count": 0
+}

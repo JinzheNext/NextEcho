@@ -1,0 +1,193 @@
+{
+  "started_at": "2026-06-13T14:14:52Z",
+  "completed_at": "2026-06-13T14:23:07Z",
+  "elapsed_seconds": 495,
+  "generated_at": "2026-06-13T14:14:52Z",
+  "model_name": "large-v3-turbo-q5_0",
+  "model_path": "/example/user/Documents/jerry_projects/AI-hot-topic/models/whisper.cpp/ggml-large-v3-turbo-q5_0.bin",
+  "language": "auto",
+  "max_seconds": 0,
+  "output_formats": [
+    "txt",
+    "json",
+    "srt",
+    "vtt"
+  ],
+  "enhancement": {
+    "enabled": true,
+    "ai_polish": false,
+    "ai_style": "",
+    "user_glossary_supplied": false
+  },
+  "run_config_path": "<RUN_DIR>/run_config.json",
+  "items_dir": "<RUN_DIR>/items",
+  "results": [
+    {
+      "source": "https://www.xiaoyuzhoufm.com/episode/6a2bae5f4233e62bc5489e39",
+      "source_label": "001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了",
+      "status": "ready",
+      "created_at": "2026-06-13T14:23:07Z",
+      "updated_at": "2026-06-13T14:23:07Z",
+      "char_count": 21137,
+      "text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.txt",
+      "json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.json",
+      "srt_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.srt",
+      "vtt_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.vtt",
+      "media_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/source.m4a",
+      "audio_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/audio.wav",
+      "enhanced_text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.txt",
+      "enhanced_json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.json",
+      "enhancement": {
+        "enabled": true,
+        "enhanced_text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.txt",
+        "enhanced_json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.json",
+        "rules_applied": [
+          {
+            "from": "波客",
+            "to": "播客"
+          }
+        ],
+        "ai": {
+          "requested": false,
+          "applied": false,
+          "reason": ""
+        }
+      },
+      "output_dir": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了",
+      "excerpt": "本文转录由 GitHub 项目：NextEcho 提供支持，作者 @金哲Next（小红书、公众号同名）\n\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文\n文文文文文文文文文文文文文文文文文xx文文文文文xx文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文文",
+      "error": "",
+      "source_type": "page",
+      "platform": "xiaoyuzhou",
+      "input": "https://www.xiaoyuzhoufm.com/episode/6a2bae5f4233e62bc5489e39",
+      "canonical_url": "https://www.xiaoyuzhoufm.com/episode/6a2bae5f4233e62bc5489e39",
+      "resolved_media_url": "https://media.xyzcdn.net/6013f9f58e2f7ee375cf4216/lm3YECIH5BaU_mps0A9wB1h2xcta.m4a",
+      "title": "E239 对话沈帅波：打工人的尽头还是做自媒体？大人，时代变了",
+      "author": "知行小酒馆",
+      "duration_seconds": 4920,
+      "published_at": "2026-06-12T12:00:00.000Z",
+      "resolver": "xiaoyuzhou_page",
+      "requires_auth": false,
+      "show_website": "",
+      "rss_candidates": [],
+      "resolution_notes": [],
+      "schema_version": 3,
+      "asr": {
+        "requested_engine": "",
+        "requested_model": "",
+        "actual_engine": "",
+        "actual_model": "large-v3-turbo-q5_0",
+        "revision": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": []
+      },
+      "diarization": {
+        "status": "not_started",
+        "backend": "",
+        "model": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": [],
+        "coverage": {}
+      },
+      "speaker_identity": {
+        "schema_version": 3,
+        "status": "not_started",
+        "speakers": []
+      },
+      "postprocess": {
+        "enabled": true,
+        "enhanced_text_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.txt",
+        "enhanced_json_path": "/example/user/Documents/jerry_projects/local-transcription-workbench/outputs/transcriptions/run_20260613_141452_0d89dd83/items/001_E239-对话沈帅波-打工人的尽头还是做自媒体-大人-时代变了/transcript.enhanced.json",
+        "rules_applied": [
+          {
+            "from": "波客",
+            "to": "播客"
+          }
+        ],
+        "ai": {
+          "requested": false,
+          "applied": false,
+          "reason": ""
+        }
+      },
+      "fallbacks": [],
+      "timings": {},
+      "artifact_paths": {
+        "text_path": "<RUN_DIR>/items/001_E239----/transcript.txt",
+        "json_path": "<RUN_DIR>/items/001_E239----/transcript.json",
+        "srt_path": "<RUN_DIR>/items/001_E239----/transcript.srt",
+        "vtt_path": "<RUN_DIR>/items/001_E239----/transcript.vtt",
+        "media_path": "<RUN_DIR>/items/001_E239----/source.media",
+        "audio_path": "<RUN_DIR>/items/001_E239----/转录音频.wav"
+      },
+      "resource_metrics": {
+        "available": true,
+        "platform": "darwin",
+        "memory_pressure": "unknown",
+        "available_memory_bytes": null,
+        "swap_delta_bytes": null,
+        "stages": {}
+      }
+    }
+  ],
+  "error_count": 0,
+  "schema_version": 3,
+  "asr": {
+    "requested_engine": "",
+    "requested_model": "",
+    "actual_engine": "",
+    "actual_model": "large-v3-turbo-q5_0",
+    "revision": "",
+    "model_revision": "",
+    "model_digest": "",
+    "fallbacks": []
+  },
+  "diarization": {
+    "status": "not_started",
+    "backend": "",
+    "model": "",
+    "model_revision": "",
+    "model_digest": "",
+    "fallbacks": [],
+    "coverage": {}
+  },
+  "speaker_identity": {
+    "schema_version": 3,
+    "status": "not_started",
+    "speakers": [],
+    "mapping_path": "<RUN_DIR>/speaker.identity-map.json"
+  },
+  "postprocess": {
+    "profile": "off",
+    "enabled": false,
+    "actual_models": [],
+    "fallbacks": []
+  },
+  "fallbacks": [],
+  "timings": {
+    "total_elapsed_seconds": 495,
+    "stages": {},
+    "asr_seconds": 0.0,
+    "diarization_seconds": 0.0,
+    "postprocess_seconds": 0.0
+  },
+  "artifact_paths": {
+    "items_dir": "<RUN_DIR>/items",
+    "manifest": "<RUN_DIR>/manifest.json",
+    "run_config": "<RUN_DIR>/run_config.json",
+    "errors": "<RUN_DIR>/errors.json",
+    "speaker_json": "<RUN_DIR>/transcript.speakers.json",
+    "speaker_txt": "<RUN_DIR>/transcript.speakers.txt",
+    "speaker_md": "<RUN_DIR>/transcript.speakers.md"
+  },
+  "resource_metrics": {
+    "available": true,
+    "platform": "darwin",
+    "memory_pressure": "unknown",
+    "available_memory_bytes": null,
+    "swap_delta_bytes": null,
+    "stages": {}
+  },
+  "status": "ready"
+}

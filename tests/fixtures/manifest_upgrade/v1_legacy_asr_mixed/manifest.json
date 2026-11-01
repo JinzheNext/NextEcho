@@ -1,0 +1,36 @@
+{
+  "started_at": "2026-06-01T10:00:00Z",
+  "completed_at": "2026-06-01T10:02:30Z",
+  "elapsed_seconds": 150,
+  "generated_at": "2026-06-01T10:00:00Z",
+  "model_name": "ggml-base.bin",
+  "language": "zh",
+  "results": [
+    {
+      "source_label": "a_qwen",
+      "status": "ready",
+      "title": "Item A",
+      "asr": {
+        "selected_engine": "qwen3-asr",
+        "requested_model": "Qwen/Qwen3-ASR-0.6B"
+      },
+      "output_dir": "<RUN_DIR>/items/a_qwen"
+    },
+    {
+      "source_label": "b_whisper",
+      "status": "ready",
+      "title": "Item B",
+      "asr": {
+        "selected_engine": "whisper-cpp",
+        "fallbacks": [
+          {
+            "engine": "whisper-cpp",
+            "reason": "demo"
+          }
+        ]
+      },
+      "output_dir": "<RUN_DIR>/items/b_whisper"
+    }
+  ],
+  "error_count": 0
+}

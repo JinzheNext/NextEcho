@@ -4,12 +4,28 @@
 
 [中文 README](README.md) | [Open Source Compliance](OPEN_SOURCE_COMPLIANCE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md)
 
-NextEcho is a local-first audio and video transcription workbench. You can upload local files or paste YouTube, Bilibili, Xiaoyuzhou, and podcast RSS links, then turn them into reusable text assets with a structured artifact bundle on disk.
+NextEcho is a local-first audio and video transcription workbench. You can upload local files or paste Bilibili, Xiaoyuzhou, Apple Podcasts, and podcast RSS links, then turn them into reusable text assets with a structured artifact bundle on disk.
 
 It is designed for two kinds of users:
 
 - Human users: work directly in the web UI
 - Agents: integrate through the CLI or by launching the local web workflow
+
+## Download the Agent Skill bundle
+
+[Download v0.2.12 preview](https://github.com/JinzheNext/NextEcho/releases/tag/v0.2.12): [complete Agent bundle](https://github.com/JinzheNext/NextEcho/releases/download/v0.2.12/NextEcho-0.2.12-agent-bundle.zip), [Skill only](https://github.com/JinzheNext/NextEcho/releases/download/v0.2.12/nextecho-0.2.12-skill.zip), and [SHA-256 checksums](https://github.com/JinzheNext/NextEcho/releases/download/v0.2.12/SHA256SUMS.txt).
+
+Extract the complete bundle and give its INSTALL.md to your agent. With Python 3.11+ on macOS/Linux, run `python3.11 install.py --check`, then `python3.11 install.py`. Existing installations require `--replace`; backups live outside the skills directory. Runtime dependencies require network access on first install. Model weights, FFmpeg, credentials, media and Python itself are not bundled.
+
+After preparing model workers, save an explicitly approved local trial pair in the user configuration. This allows URL-only calls without promoting candidate models to production-ready. Optional missing speaker assets yield a partial text result; corrupt assets and required-speaker failures still block. See the [headless guide](docs/headless-usage.md).
+
+## Headless agent workflow (candidate)
+
+The Python ≥3.11 package adds `nextecho run` and a [NextEcho Skill](skills/nextecho/SKILL.md). Models run locally; the default output is an absolute `show_episode_transcription-date.md` path, with a `result.md` compatibility copy. Detached jobs support status, bounded waits, cancellation and resume. See the [headless guide](docs/headless-usage.md) for installation and commands.
+
+Chinese interviews can opt into a separate Simplified Chinese layer, official terminology hints and bounded show-note/comment retrieval. Raw ASR stays intact; comments never become purported speech. See the Chinese context section in the headless guide.
+
+New candidate profiles cover SenseVoice int8, Fun-ASR-Nano CPU and local 2B/4B/9B/27B polishing. Explicit selection is required until resource and quality gates pass. The Skill attempts acoustic diarization with native CTC anchors by default; unknown names remain anonymous and uncertain attribution is explicit. This remains a human-review candidate, separate from precise subtitle alignment. The existing web workflow remains available.
 
 ## What It Is
 
@@ -31,7 +47,7 @@ Core characteristics:
 ## Supported Inputs
 
 - Local files: `mp3`, `mp4`, `m4a`, `wav`, `flac`, `aac`, `mov`, `webm`
-- Platform pages: YouTube, Bilibili, Xiaoyuzhou
+- Platform pages: Bilibili, Xiaoyuzhou, Apple Podcasts
 - Direct media URLs: audio or video file links
 - RSS and podcast feeds
 
@@ -106,7 +122,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
 
 For a manual setup, make sure that:
 
-- Python 3.10+ is installed
+- Python 3.11+ is installed
 - `ffmpeg` is on `PATH`
 - `whisper-cli` is on `PATH`
 - `yt-dlp` is installed if you want platform-page resolution
@@ -242,8 +258,9 @@ python -m workbench.cli transcribe "https://example.com/video.mp4" --quality fas
 #### 3. Resolve a source before deciding whether to transcribe it
 
 ```bash
-python -m workbench.cli resolve-sources "https://www.youtube.com/watch?v=96jN2OCOfLs" --json
+python -m workbench.cli resolve-sources "https://www.bilibili.com/video/BV1g6okBLEtL/" --json
 python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --json
+python -m workbench.cli resolve-sources "https://podcasts.apple.com/us/podcast/the-daily/id1200361736" --json
 ```
 
 #### 4. Transcribe a platform page directly
@@ -317,7 +334,7 @@ python -m workbench.cli resolve-sources "https://www.xiaoyuzhoufm.com/episode/61
 #### 4. Transcribe a platform page directly
 
 ```bash
-python -m workbench.cli transcribe-page "https://www.youtube.com/watch?v=96jN2OCOfLs" --quality accurate --json
+python -m workbench.cli transcribe-page "https://www.bilibili.com/video/BV1g6okBLEtL/" --quality fast --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --quality accurate --json
 python -m workbench.cli transcribe-page "https://www.xiaoyuzhoufm.com/episode/61ee26c84675a08411f51570" --model small --json
 ```
@@ -461,6 +478,13 @@ The program checks, in order:
 - the local project model directory
 
 If none are available, it will download the required model on first run.
+
+## Troubleshooting
+
+- If a platform page fails to resolve, first confirm that `yt-dlp` is available. Some sites require browser cookies or trigger anti-bot checks.
+- If Bilibili returns `HTTP Error 412 / Precondition Failed`, open the same video in your browser first and confirm it plays normally, then retry in NextEcho. If needed, update `yt-dlp` and launch NextEcho with `TRANSCRIBE_YTDLP_BROWSER=chrome`; `firefox`, `edge`, and `brave` are also supported.
+- If an Apple Podcasts link is recognized but no direct audio is found, switch to the show RSS feed, the publisher’s episode page, or a direct audio URL. Apple Podcasts is best treated as a show entry point rather than the final audio source.
+- If the first run is slow, it is usually downloading or loading a model for the first time. Run `python -m workbench.cli doctor` and inspect the recommended model and model paths.
 
 ## Token and Cost Notes
 

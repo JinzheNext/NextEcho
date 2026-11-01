@@ -1,0 +1,23 @@
+{
+  "started_at": "2026-06-13T14:14:52Z",
+  "completed_at": "2026-06-13T14:23:07Z",
+  "elapsed_seconds": 495,
+  "generated_at": "2026-06-13T14:14:52Z",
+  "model_name": "large-v3-turbo-q5_0",
+  "model_path": "/example/user/Documents/jerry_projects/AI-hot-topic/models/whisper.cpp/ggml-large-v3-turbo-q5_0.bin",
+  "language": "auto",
+  "max_seconds": 0,
+  "output_formats": [
+    "txt",
+    "json",
+    "srt",
+    "vtt"
+  ],
+  "enhancement": {
+    "enabled": true,
+    "ai_polish": false,
+    "ai_style": "",
+    "user_glossary_supplied": false
+  },
+  "source_count": 1
+}

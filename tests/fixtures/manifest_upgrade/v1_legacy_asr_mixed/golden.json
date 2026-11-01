@@ -1,0 +1,175 @@
+{
+  "started_at": "2026-06-01T10:00:00Z",
+  "completed_at": "2026-06-01T10:02:30Z",
+  "elapsed_seconds": 150,
+  "generated_at": "2026-06-01T10:00:00Z",
+  "model_name": "ggml-base.bin",
+  "language": "zh",
+  "results": [
+    {
+      "source_label": "a_qwen",
+      "status": "ready",
+      "title": "Item A",
+      "asr": {
+        "selected_engine": "qwen3-asr",
+        "requested_model": "Qwen/Qwen3-ASR-0.6B",
+        "requested_engine": "auto",
+        "actual_engine": "qwen3-asr",
+        "actual_model": "Qwen/Qwen3-ASR-0.6B",
+        "revision": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": []
+      },
+      "output_dir": "<RUN_DIR>/items/a_qwen",
+      "schema_version": 3,
+      "diarization": {
+        "status": "not_started",
+        "backend": "",
+        "model": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": [],
+        "coverage": {}
+      },
+      "speaker_identity": {
+        "schema_version": 3,
+        "status": "not_started",
+        "speakers": []
+      },
+      "postprocess": {},
+      "fallbacks": [],
+      "timings": {},
+      "artifact_paths": {},
+      "resource_metrics": {
+        "available": true,
+        "platform": "darwin",
+        "memory_pressure": "unknown",
+        "available_memory_bytes": null,
+        "swap_delta_bytes": null,
+        "stages": {}
+      }
+    },
+    {
+      "source_label": "b_whisper",
+      "status": "ready",
+      "title": "Item B",
+      "asr": {
+        "selected_engine": "whisper-cpp",
+        "fallbacks": [
+          {
+            "engine": "whisper-cpp",
+            "reason": "demo"
+          }
+        ],
+        "requested_engine": "auto",
+        "requested_model": "",
+        "actual_engine": "whisper-cpp",
+        "actual_model": "ggml-base.bin",
+        "revision": "",
+        "model_revision": "",
+        "model_digest": ""
+      },
+      "output_dir": "<RUN_DIR>/items/b_whisper",
+      "schema_version": 3,
+      "diarization": {
+        "status": "not_started",
+        "backend": "",
+        "model": "",
+        "model_revision": "",
+        "model_digest": "",
+        "fallbacks": [],
+        "coverage": {}
+      },
+      "speaker_identity": {
+        "schema_version": 3,
+        "status": "not_started",
+        "speakers": []
+      },
+      "postprocess": {},
+      "fallbacks": [
+        {
+          "engine": "whisper-cpp",
+          "reason": "demo"
+        }
+      ],
+      "timings": {},
+      "artifact_paths": {},
+      "resource_metrics": {
+        "available": true,
+        "platform": "darwin",
+        "memory_pressure": "unknown",
+        "available_memory_bytes": null,
+        "swap_delta_bytes": null,
+        "stages": {}
+      }
+    }
+  ],
+  "error_count": 0,
+  "schema_version": 3,
+  "asr": {
+    "requested_engine": "auto",
+    "requested_model": "",
+    "actual_engine": "mixed",
+    "actual_model": "ggml-base.bin",
+    "revision": "",
+    "model_revision": "",
+    "model_digest": "",
+    "fallbacks": []
+  },
+  "diarization": {
+    "status": "not_started",
+    "backend": "",
+    "model": "",
+    "model_revision": "",
+    "model_digest": "",
+    "fallbacks": [],
+    "coverage": {}
+  },
+  "speaker_identity": {
+    "schema_version": 3,
+    "status": "not_started",
+    "speakers": [],
+    "mapping_path": "<RUN_DIR>/speaker.identity-map.json"
+  },
+  "postprocess": {
+    "profile": "balanced",
+    "enabled": true,
+    "actual_models": [],
+    "fallbacks": []
+  },
+  "fallbacks": [
+    {
+      "source_label": "b_whisper",
+      "engine": "whisper-cpp",
+      "reason": "demo"
+    }
+  ],
+  "timings": {
+    "total_elapsed_seconds": 150,
+    "stages": {},
+    "asr_seconds": 0.0,
+    "diarization_seconds": 0.0,
+    "postprocess_seconds": 0.0
+  },
+  "artifact_paths": {
+    "items_dir": "<RUN_DIR>/items",
+    "manifest": "<RUN_DIR>/manifest.json",
+    "run_config": "<RUN_DIR>/run_config.json",
+    "errors": "<RUN_DIR>/errors.json",
+    "speaker_json": "<RUN_DIR>/transcript.speakers.json",
+    "speaker_txt": "<RUN_DIR>/transcript.speakers.txt",
+    "speaker_md": "<RUN_DIR>/transcript.speakers.md"
+  },
+  "resource_metrics": {
+    "available": true,
+    "platform": "darwin",
+    "memory_pressure": "unknown",
+    "available_memory_bytes": null,
+    "swap_delta_bytes": null,
+    "stages": {}
+  },
+  "run_config_path": "<RUN_DIR>/run_config.json",
+  "items_dir": "<RUN_DIR>/items",
+  "status": "ready"
+}
